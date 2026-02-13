@@ -9,9 +9,11 @@
     
    setting              :done
 
-   serial tools      -automatic capture err  :working 
+   serial tools -automatic capture err  :working 
 
    packet list 
+
+   mulit language support
 
 -  `bugfix`
   
