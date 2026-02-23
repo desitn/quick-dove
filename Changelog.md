@@ -1,7 +1,7 @@
 ## 0.2.5 / 2026-02-12
-  * `Quick Serial` webview tool support (remove QCOM link).
+  * `Quick Serial` webview tool support.
   * git bash build fix for (🧩`ASR` 1903S).
-  * others some changes and bug fix.
+  * other changes and bug fix.
   
 ## 0.2.4 / 2025-12-31
   * views containers support.

@@ -7,16 +7,16 @@
 
 -  `feature` 
     
-   setting 
+   setting              :done
+
+   serial tools      -automatic capture err  :working 
 
    packet list 
-
-   serial tools         :working
 
 -  `bugfix`
   
 - 🧩`ASR`     
-    1903S ：bash build  :pending
+    1903S ：bash build  :done
 
 - 🧩`UNISOC`  
 
