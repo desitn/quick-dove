@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="author" content="Destin.zhang@quectel.com">
+    <meta name="author" content="destin.zhang@quectel.com">
     <title>[Quick Serial]</title>
     <link rel="stylesheet" href="./serial.css">
     <link rel="stylesheet" href="./assets/fontawesome/all.min.css">
@@ -35,30 +35,14 @@
             
             <div class="settings-controls">
                 <button id="panelModeToggleBtn" class="btn-small panel-mode-toggle-btn" title="切换面板模式">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="panel-mode-icon">
-                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                        <line x1="15" y1="3" x2="15" y2="21"></line>
-                    </svg>
+                    <i class="fa-regular fa-eye"></i>
                 </button>
                 <button id="automationModeToggleBtn" class="btn-small automation-mode-toggle" title="自动化模式">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="automation-mode-icon">
-                        <circle cx="12" cy="12" r="10"></circle>
-                        <polyline points="12 6 12 12 16 14"></polyline>
-                    </svg>
+                    <i class="fa-regular fa-clock"></i>
                 </button>
                 <button id="themeToggleBtn" class="btn-small theme-toggle-btn" title="切换主题">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="theme-icon">
-                        <path class="moon-icon" d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-                        <circle class="sun-icon" cx="12" cy="12" r="5"></circle>
-                        <line class="sun-icon" x1="12" y1="1" x2="12" y2="3"></line>
-                        <line class="sun-icon" x1="12" y1="21" x2="12" y2="23"></line>
-                        <line class="sun-icon" x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-                        <line class="sun-icon" x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-                        <line class="sun-icon" x1="1" y1="12" x2="3" y2="12"></line>
-                        <line class="sun-icon" x1="21" y1="12" x2="23" y2="12"></line>
-                        <line class="sun-icon" x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-                        <line class="sun-icon" x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-                    </svg>
+                    <i class="fa-solid fa-lightbulb"></i>
+                    <i class="fa-regular fa-lightbulb"></i>
                 </button>
             </div>
         </div>
@@ -83,10 +67,10 @@
                 
                 <!-- 操作按钮区域 -->
                 <div class="log-actions" style="margin-top: 10px;">
-                    <button id="clearLogBtn" class="btn-icon" title="清空日志">
+                    <button id="clearLogBtn" class="btn-icon" title="清空">
                         <i class="fa-regular fa-trash-can"></i>
                     </button>
-                    <button id="saveLogBtn" class="btn-icon" title="保存日志">
+                    <button id="saveLogBtn" class="btn-icon" title="保存">
                         <i class="fa-regular fa-file-lines"></i>
                     </button>
 
@@ -122,37 +106,30 @@
                     <div class="title-and-button-container">
                         <h3>自动化</h3>
                         <div class="automation-buttons">
-                            <button id="importCommandsBtn" class="btn-at-header" title="导入全部">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                    <polyline points="7 10 12 15 17 10"></polyline>
-                                    <line x1="12" y1="15" x2="12" y2="3"></line>
-                                </svg>
+                            <button id="captureAutomationBtn" class="btn-at-header" title="展开">
+                                <i class="fa-solid fa-bars"></i>
                             </button>
-                            <button id="clearAutomationBtn" class="btn-at-header" title="清空序列">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <polyline points="3 6 5 6 21 6"></polyline>
-                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                                    <line x1="10" y1="11" x2="10" y2="17"></line>
-                                    <line x1="14" y1="11" x2="14" y2="17"></line>
-                                </svg>
+                            <button id="importCommandsBtn" class="btn-at-header" title="导入">
+                                <i class="fa-solid fa-arrows-down-to-line"></i>
+                            </button>
+                            <button id="clearAutomationBtn" class="btn-at-header" title="清空">
+                                <i class="fa-regular fa-trash-can"></i>
                             </button>
                         </div>
                     </div>
                 </div>
+
                 <!-- 自动化命令序列轨道 -->
                 <div id="automationTrack" class="automation-track">
                     <div class="track-placeholder">命令自动化序列</div>
                 </div>
-
-                 <!-- 执行状态显示 -->
+                <!-- 执行状态显示 -->
                 <div id="automationStatus" class="automation-status" style="display:none;">
                     <div class="status-info">
                         <span class="progress-text">总进度：0%</span>
                         <span class="elapsed-time">总耗时: 0s</span>
                     </div>
                 </div>
-
                 <!-- 执行控制区域 -->
                 <div class="automation-controls">
                     <div class="settings-control-row">
@@ -168,27 +145,16 @@
                         </div>
                         <div class="control-row">
                             <button id="toggleAutomationBtn" class="btn-icon btn-start-auto" title="开始/停止">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-play">
-                                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                                </svg>
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-stop" style="display: none;">
-                                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                                </svg>
+                                <i class="fa-solid fa-play"></i>
+                                <i class="fa-solid fa-stop" style="display: none;"></i>
                             </button>
                             <button id="pauseResumeBtn" class="btn-icon btn-pause-auto" title="暂停/继续">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-pause">
-                                    <rect x="6" y="4" width="4" height="16"></rect>
-                                    <rect x="14" y="4" width="4" height="16"></rect>
-                                </svg>
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-resume" style="display: none;">
-                                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                                </svg>
+                                <i class="fa-solid fa-pause"></i>
+                                <i class="fa-solid fa-play resume" style="display: none;"></i>
                             </button>
                         </div>
                     </div>
                 </div>
-                
- 
 
             </div>
 
@@ -199,10 +165,7 @@
                         <div class="title-and-button-container">
                             <h3>命令集</h3>
                             <button id="addAtCommandTab" class="btn-at-header" title="添加命令集">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <line x1="12" y1="5" x2="12" y2="19"></line>
-                                    <line x1="5" y1="12" x2="19" y2="12"></line>
-                                </svg>
+                                <i class="fa-regular fa-square-plus"></i>
                             </button>
                         </div>
                         <div id="atConfigTabs" class="at-config-tabs">

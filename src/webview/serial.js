@@ -21,7 +21,8 @@ const SerialDebug = {
         loopCount: 0,
         totalLoops: 1,
         startTime: null,
-        timer: null
+        timer: null,
+        shouldShow:false,
     },
     
     // 初始化串口调试界面
@@ -50,6 +51,7 @@ const SerialDebug = {
         document.getElementById('themeToggleBtn').addEventListener('click', () => this.toggleTheme());
         document.getElementById('panelModeToggleBtn').addEventListener('click', () => this.togglePanelMode());
         document.getElementById('automationModeToggleBtn').addEventListener('click', () => this.toggleAutomationMode());
+        document.getElementById('captureAutomationBtn').addEventListener('click', () => this.toggleAllCommandConfigs());
         document.getElementById('dtrCheckbox').addEventListener('change', (e) => {
             if (this.isOpen && vscode) {
                 vscode.postMessage({
@@ -171,7 +173,7 @@ const SerialDebug = {
             option.textContent = '无可用串口';
             portSelector.appendChild(option);
         } else {
-            ports.forEach((port, index) => {
+            ports.forEach((port) => {
                 const option = document.createElement('option');
                 option.value = port.path;  // 使用实际路径作为值
                 option.textContent = `${port.path}`;
@@ -567,11 +569,10 @@ const SerialDebug = {
         document.body.classList.toggle('light-theme');
         const themeButton = document.getElementById('themeToggleBtn');
         const isLightTheme = document.body.classList.contains('light-theme');
-        
         if (isLightTheme) {
-            themeButton.title = '切换到暗色主题';
+            themeButton.title = '暗色主题';
         } else {
-            themeButton.title = '切换到亮色主题';
+            themeButton.title = '亮色主题';
         }
     },
     
@@ -608,11 +609,39 @@ const SerialDebug = {
         }
 
     },
+    
+    // 切换显示/隐藏所有自动化命令的特殊配置
+    toggleAllCommandConfigs: function() {
+        const allSpecialConfigs = document.querySelectorAll('.command-special-config');
+        this.automation.shouldShow = false;
+        // 检查是否所有配置都是隐藏的
+        for (const config of allSpecialConfigs) {
+            if (config.style.display === 'none' || config.style.display === '') {
+                this.automation.shouldShow = true;
+                break;
+            }
+        }
+        // 切换所有配置的显示状态
+        for (const config of allSpecialConfigs) {
+            if (this.automation.shouldShow) {
+                config.style.display = 'flex';
+            } else {
+                config.style.display = 'none';
+            }
+        }
+        
+        // 更新按钮图标和标题
+        const captureBtn = document.getElementById('captureAutomationBtn');
+        if (this.automation.shouldShow) {
+            captureBtn.title = '收起';
+        } else {
+            captureBtn.title = '展开';
+        }
+    },
 
     // 切换面板模式
     togglePanelMode: function() {
         const mainContent = document.querySelector('.main-content');
-        const panelButton = document.getElementById('panelModeToggleBtn');
         const isMonitorMode = mainContent.classList.contains('monitor-mode');
         
         if (isMonitorMode) {
@@ -691,10 +720,12 @@ const SerialDebug = {
         });
 
         document.getElementById('pauseResumeBtn').addEventListener('click', () => {
-            if (this.automation.isPaused) {
-                this.resumeAutomation();
-            } else { 
-                this.pauseAutomation();
+            if (this.automation.isRunning) {
+                if (this.automation.isPaused) {
+                    this.resumeAutomation();
+                } else { 
+                    this.pauseAutomation();
+                }
             }
         });
 
@@ -715,7 +746,12 @@ const SerialDebug = {
                 selectedCommands.push({
                     id: 'cmd_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
                     command: commandText,
-                    delay: 1000
+                    delay: 1000,
+                    isHex: false,
+                    isCRLF: true,
+                    isOK: false,
+                    timeout: 3000,
+                    expectRsp: "OK\r\n"
                 });
             }
         });
@@ -772,28 +808,44 @@ const SerialDebug = {
         element.draggable = true;
         element.dataset.commandId = command.id;
         element.dataset.index = index;
-
         element.innerHTML = `
-            <div class="command-drag-handle" title="拖拽排序">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="9" cy="5" r="1"></circle>
-                    <circle cx="9" cy="12" r="1"></circle>
-                    <circle cx="9" cy="19" r="1"></circle>
-                    <circle cx="15" cy="5" r="1"></circle>
-                    <circle cx="15" cy="12" r="1"></circle>
-                    <circle cx="15" cy="19" r="1"></circle>
-                </svg>
+            <div class="automation-command-item-main">
+                <div class="command-drag-handle" title="拖拽排序">
+                    <button class="automation-item-icon setting-command-btn" title="配置">
+                        <i class="fa-solid fa-ellipsis-vertical"></i>
+                    </button>
+                </div>
+                <div class="command-content">${this.escapeHtml(command.command)}</div>
+                <div class="command-settings">
+                    <label>
+                        <i class="fa-solid fa-clock-rotate-left"></i>
+                        <input type="number" class="delay-input" value="${command.delay}" min="0" max="60000" data-field="delay" step="10">
+                        ms
+                    </label>
+                    <button class="automation-item-icon remove-command-btn" title="移除">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
             </div>
-            <div class="command-content">${this.escapeHtml(command.command)}</div>
-            <div class="command-settings">
+            <div class="command-special-config" style="${this.automation.shouldShow ? 'display: flex;' : 'display: none;'}">
                 <label>
-                    S:
-                    <input type="number" class="setting-input delay-input" value="${command.delay}" min="0" max="60000" step="10" data-field="delay">
+                    <input type="checkbox" class="hex-config-checkbox" ${command.isHex ? 'checked' : ''}>
+                    HEX
+                </label>
+                <label>
+                    <input type="checkbox" class="crlf-config-checkbox" ${command.isCRLF ? 'checked' : ''}>
+                    CRLF
+                </label>
+                <label>
+                    <i class="fa-regular fa-bell" title="响应期望"></i>
+                    <input type="text" class="exp-input" value="${command.expectRsp}">
+                    <i class="fa-regular fa-hourglass" title="响应超时"></i>
+                    <input type="number" class="timeout-input" value="${command.timeout}" min="0" max="300000" data-field="timeout" step="10">
                     ms
                 </label>
-                <button class="remove-command-btn" title="移除命令">
-                    <i class="fa-solid fa-x"></i>
-                </button>
+                <label>
+                    <input type="checkbox" class="ok-config-checkbox" ${command.isOK ? 'checked' : ''}>
+                </label>
             </div>
         `;
 
@@ -807,19 +859,62 @@ const SerialDebug = {
      * 为命令元素添加事件监听器
      */
     attachCommandElementEvents: function(element, command) {
-        // 设置输入框事件
         const delayInput = element.querySelector('.delay-input');
-        
         delayInput.addEventListener('change', (e) => {
             command.delay = parseInt(e.target.value) || 1000;
             this.saveAutomationSequence();
         });
-
-        // 移除按钮事件
         const removeBtn = element.querySelector('.remove-command-btn');
         removeBtn.addEventListener('click', () => {
             this.removeAutomationCommand(command.id);
         });
+        const timeoutInput = element.querySelector('.timeout-input');
+        timeoutInput.addEventListener('change', (e) => {
+            command.timeout = parseInt(e.target.value) || 3000;
+            this.saveAutomationSequence();
+        });
+        const expInput = element.querySelector('.exp-input');
+        expInput.addEventListener('change', (e) => {
+            command.expectRsp = e.target.value;
+            this.saveAutomationSequence();
+        });
+        // 添加配置按钮事件监听器
+        const settingBtn = element.querySelector('.setting-command-btn');
+        const specialConfig = element.querySelector('.command-special-config');
+        settingBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (specialConfig.style.display === 'none' || specialConfig.style.display === '') {
+                specialConfig.style.display = 'flex';
+                settingBtn.title = '隐藏配置';
+            } else {
+                specialConfig.style.display = 'none';
+                settingBtn.title = '更多配置';
+            }
+        });
+        
+        // 添加特殊配置复选框的事件监听器
+        const hexCheckbox = element.querySelector('.hex-config-checkbox');
+        const crlfCheckbox = element.querySelector('.crlf-config-checkbox');
+        const okCheckbox = element.querySelector('.ok-config-checkbox');
+        if (hexCheckbox) {
+            hexCheckbox.addEventListener('change', (e) => {
+                command.isHex = e.target.checked;
+                this.saveAutomationSequence();
+            });
+        }
+        
+        if (crlfCheckbox) {
+            crlfCheckbox.addEventListener('change', (e) => {
+                command.isCRLF = e.target.checked;
+                this.saveAutomationSequence();
+            });
+        }
+        if (okCheckbox) {
+            okCheckbox.addEventListener('change', (e) => {
+                command.isOK = e.target.checked;
+                this.saveAutomationSequence();
+            });
+        }
     },
 
     /**
@@ -866,7 +961,6 @@ const SerialDebug = {
             track.classList.add('drag-over');
             
             // 查找最近的命令项
-            const closestElement = e.target.closest('.automation-command-item');
             const commandItems = Array.from(track.querySelectorAll('.automation-command-item'));
             
             // 移除所有现有的放置指示器
@@ -880,7 +974,6 @@ const SerialDebug = {
             });
             
             // 计算鼠标在容器中的相对位置
-            const rect = track.getBoundingClientRect();
             const mouseY = e.clientY;
             
             // 为每个命令项添加放置指示器
@@ -1050,7 +1143,6 @@ const SerialDebug = {
 
         // 获取设置参数
         const loopCount = parseInt(document.getElementById('loopCountInput').value) || 1;
-        const interval = parseInt(document.getElementById('commandIntervalInput').value) || 1000;
 
         // 初始化执行状态
         this.automation.isRunning = true;
@@ -1127,7 +1219,6 @@ const SerialDebug = {
             if (this.automation.totalLoops !== -1) {
                 this.addLog(`第${this.automation.loopCount}次循环完成`, 'info');
             }
-            
             // 如果还有循环次数，继续执行
             if (this.automation.totalLoops === -1 || this.automation.loopCount < this.automation.totalLoops) {
                 const interval = parseInt(document.getElementById('commandIntervalInput').value) || 1000;
@@ -1152,8 +1243,9 @@ const SerialDebug = {
                 vscode.postMessage({
                     command: 'sendData',
                     data: command.command,
-                    isHex: false,
-                    isCFLF: command.isCFLF
+                    isHex: command.isHex || false,
+                    isCRLF: command.isCRLF,
+                    isOK: command.isOK || false
                 });
                 this.addSentData(`${command.command}`);
             } else {
@@ -1177,13 +1269,29 @@ const SerialDebug = {
                 }
             }
         }
-        // 延迟执行下一个命令
-        this.automation.timer = setTimeout(() => {
-            if (!this.automation.isPaused && this.automation.isRunning) {
-                this.automation.currentStep++;
-                this.executeNextCommand();
+        // 需要等待AT执行OK响应
+        if (command.isOK) {
+            if (this.automation.timer) {
+                clearTimeout(this.automation.timer);
+                this.automation.timer = null;
             }
-        }, command.delay);
+            // 捕获模式：定时超时后停止自动流程
+            this.automation.timer = setTimeout(() => {
+                if (!this.automation.isPaused 
+                && this.automation.isRunning) {
+                    this.addLog(`自动化捕获到异常`, 'error');
+                    this.stopAutomation();
+                }
+            }, command.timeout);
+        } else {
+            // 延迟执行下一个命令
+            this.automation.timer = setTimeout(() => {
+                if (!this.automation.isPaused && this.automation.isRunning) {
+                    this.automation.currentStep++;
+                    this.executeNextCommand();
+                }
+            }, command.delay);
+        }
     },
 
     /**
@@ -1232,24 +1340,21 @@ const SerialDebug = {
         const autoStatus = document.getElementById('automationStatus');
 
         // 隐藏所有图标
-        const togglePlayIcon = toggleBtn.querySelector('.icon-play');
-        const toggleStopIcon = toggleBtn.querySelector('.icon-stop');
-        const pausePauseIcon = pauseBtn.querySelector('.icon-pause');
-        const pauseResumeIcon = pauseBtn.querySelector('.icon-resume');
+        const togglePlayIcon = toggleBtn.querySelector('.fa-solid.fa-play');
+        const toggleStopIcon = toggleBtn.querySelector('.fa-solid.fa-stop');
+        const pausePauseIcon = pauseBtn.querySelector('.fa-solid.fa-pause');
+        const pauseResumeIcon = pauseBtn.querySelector('.fa-solid.fa-play.resume');
 
         if (state === 'running') {
             // 切换按钮显示停止图标
             togglePlayIcon.style.display = 'none';
             toggleStopIcon.style.display = 'block';
             toggleBtn.title = '停止';
-            
             // 暂停按钮显示暂停图标
             pausePauseIcon.style.display = 'block';
             pauseResumeIcon.style.display = 'none';
             pauseBtn.title = '暂停';
-            
             pauseBtn.disabled = false;
-            
             autoStatus.style.display = 'flex';
 
         } else if (state === 'paused') {
@@ -1257,25 +1362,21 @@ const SerialDebug = {
             togglePlayIcon.style.display = 'none';
             toggleStopIcon.style.display = 'block';
             toggleBtn.title = '停止';
-            
             // 暂停按钮显示继续图标
             pausePauseIcon.style.display = 'none';
             pauseResumeIcon.style.display = 'block';
             pauseBtn.title = '继续';
-            
             autoStatus.style.display = 'flex';
         } else { // stopped
             // 切换按钮显示播放图标
             togglePlayIcon.style.display = 'block';
             toggleStopIcon.style.display = 'none';
             toggleBtn.title = '开始';
-            
             // 暂停按钮显示暂停图标（但禁用）
             pausePauseIcon.style.display = 'block';
             pauseResumeIcon.style.display = 'none';
             pauseBtn.title = '暂停';
             pauseBtn.disabled = true;
-            
             autoStatus.style.display = 'none';
         }
     },
@@ -1283,13 +1384,17 @@ const SerialDebug = {
     /**
      * 将AT命令添加到自动化轨道
      */
-    addCommandToAutomationTrack: function(commandText , isCFLF= true) {
+    addCommandToAutomationTrack: function(commandText , isCRLF = true, isHex = false) {
         // 创建命令对象
         const commandObj = {
             id: 'cmd_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
             command: commandText,
             delay: 1000,
-            isCFLF: isCFLF
+            isCRLF: isCRLF,
+            isHex: isHex,
+            isOK: false,
+            timeout: 3000,
+            expectRsp: 'OK\r\n',
         };
         // 添加到自动化序列
         this.automation.commands.push(commandObj);

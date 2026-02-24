@@ -383,26 +383,23 @@ body {
 
 /* 添加AT命令标签页按钮 */
 .btn-at-header {
+    width: 20px;
+    height: 20px;
+    border: none;
     display: flex;
     align-items: center;
     justify-content: center;
-    border: none;
     cursor: pointer;
     color: var(--text-color);
     border-radius: 4px;
     margin-right: 10px;
     background: transparent;
-    transition: background-color 0.3s;
+    font-size: 13px;
+    font-weight: 200;
 }
 
 .btn-at-header:hover {
     background-color: var(--border-color);
-}
-
-.btn-at-header svg {
-    width: 16px;
-    height: 16px;
-    pointer-events: none;
 }
 
 /* AT配置标签式导航样式 */
@@ -803,13 +800,13 @@ body {
 }
 
 .btn-small {
-    padding: 5px 10px;
+    padding: 6px 10px;
     background-color: var(--btn-small-bg);
     color: var(--btn-small-text);
     border: none;
     border-radius: 3px;
     cursor: pointer;
-    font-size: 12px;
+    font-size: 14px;
 }
 
 .btn-small:hover {
@@ -970,25 +967,20 @@ body {
     background-color: var(--border-color);
 }
 
-.theme-icon {
-    width: 16px;
-    height: 16px;
-}
-
-.moon-icon {
+.fa-solid.fa-lightbulb {
     display: block;
 }
 
-.sun-icon {
+.fa-regular.fa-lightbulb {
     display: none;
 }
 
 /* 亮色主题时显示太阳图标，隐藏月亮图标 */
-.light-theme .moon-icon {
+.light-theme .fa-solid.fa-lightbulb {
     display: none;
 }
 
-.light-theme .sun-icon {
+.light-theme .fa-regular.fa-lightbulb {
     display: block;
 }
 
@@ -1013,11 +1005,6 @@ body {
     background-color: var(--border-color);
 }
 
-.panel-mode-icon {
-    width: 16px;
-    height: 16px;
-}
-
 /* 自动化模式切换按钮 */
 .automation-mode-toggle {
     display: flex;
@@ -1038,11 +1025,6 @@ body {
 
 .automation-mode-toggle:hover {
     background-color: var(--border-color);
-}
-
-.automation-mode-icon {
-    width: 16px;
-    height: 16px;
 }
 
 /* 修改自动化面板样式 */
@@ -1146,8 +1128,8 @@ body {
 /* 自动化命令项样式 */
 .automation-command-item {
     display: flex;
-    align-items: center;
-    padding: 8px 10px;
+    flex-direction: column;
+    padding: 4px 5px;
     margin-bottom: 5px;
     background-color: var(--select-bg);
     border-radius: 4px;
@@ -1155,6 +1137,12 @@ body {
     cursor: move;
     transition: all 0.2s;
     position: relative;
+}
+
+.automation-command-item-main {
+    display: flex;
+    align-items: center;
+    width: 100%;
 }
 
 .automation-command-item:hover {
@@ -1165,6 +1153,35 @@ body {
 .automation-command-item.dragging {
     opacity: 0.7;
     /* 移除了transform: rotate(5deg); 旋转效果 */
+}
+
+/* 自动化命令特殊配置面板样式 */
+.command-special-config {
+    display: none;
+    align-items: center;
+    margin-top: 5px;
+    gap: 10px;
+    padding: 4px 8px;
+    background-color: var(--panel-background);
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    width: 100%;
+}
+
+.command-special-config label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--text-color);
+    cursor: pointer;
+}
+
+.command-special-config input[type="checkbox"] {
+    margin: 0;
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
 }
 
 .command-drag-handle {
@@ -1185,39 +1202,59 @@ body {
 .command-settings {
     display: flex;
     align-items: center;
-    gap: 10px;
     margin-left: 10px;
     flex-shrink: 0;
     font-family: 'monospace', Monaco, Consolas;
     font-size: 12px;
 }
 
-.setting-input {
-    width: 60px;
+/* 隐藏所有数字输入框的上下步进按钮 */
+input[type="number"] {
+    -moz-appearance: textfield;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.delay-input,
+.timeout-input,
+.exp-input {
+    width: 40px;
     padding: 2px 4px;
     border: 1px solid var(--border-color);
     border-radius: 3px;
     background-color: var(--panel-background);
     color: var(--text-color);
     font-size: 12px;
+    text-align: center;
+    justify-content: center;
+    align-items: center;
+}
+.exp-input {
+    width: 60px;
 }
 
-.remove-command-btn {
+.automation-item-icon {
     background: transparent;
-    border: none;
-    color: var(--danger-color);
+    color: var(--text-color);
     cursor: pointer;
-    padding: 2px;
+    padding: 2px 0px;
+    border: none;
     border-radius: 4px;
-    transition: background-color 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
+    text-align: center;
+    margin-left: 2px;
 }
 
-.remove-command-btn:hover {
-    background-color: var(--danger-color);
-    color: white;
+.automation-item-icon:hover {
+    background-color: var(--btn-small-hover);
 }
 
 /* 修改自动化控制区域样式，使用flexbox确保状态总是在底部 */
@@ -1295,11 +1332,6 @@ body {
     padding: 0;
 }
 
-.btn-icon svg {
-    width: 20px;
-    height: 20px;
-}
-
 .btn-start-auto {
     background-color: var(--success-color);
     color: white;
@@ -1339,3 +1371,4 @@ body {
         justify-content: space-between;
     }
 }
+
