@@ -2,8 +2,8 @@
   "name": "quick-firmware-plus",
   "displayName": "Quick Firmware +",
   "description": "协助编译生成和固件下载",
-  "version": "0.2.5",
-  "publisher": "destin.zhang",
+  "version": "0.2.6",
+  "publisher": "destin-zhang",
   "icon": "images/icon.png",
   "galleryBanner": {
     "color": "#ffffff",
@@ -22,8 +22,7 @@
   "dependencies": {
     "adm-zip": "^0.5.16",
     "iconv-lite": "^0.6.3",
-    "ini": "^6.0.0",
-    "serialport": "^13.0.0"
+    "ini": "^6.0.0"
   },
   "activationEvents": [
     "onStartupFinished"
@@ -86,11 +85,6 @@
         "command": "firmwareDownloader.devices_refresh",
         "title": "设备刷新",
         "icon": "$(refresh)"
-      },
-      {
-        "command": "firmwareDownloader.serial",
-        "title": "串口调试工具",
-        "icon": "$(plug)"
       }
     ],
     "menus": {
@@ -112,11 +106,6 @@
         },
         {
           "command": "firmwareDownloader.devices_refresh",
-          "when": "view == firmware-devices",
-          "group": "navigation"
-        },
-        {
-          "command": "firmwareDownloader.serial",
           "when": "view == firmware-devices",
           "group": "navigation"
         }
@@ -145,15 +134,6 @@
           "type": "string",
           "default": "",
           "description": "Git bash 执行程序路径和文件 例如: \"C:\\Program Files\\Git\\bin\\bash.exe\"(windows)"
-        },
-        "quickFirmwarePlus.atCommandPaths": {
-          "type": "array",
-          "default": [],
-          "description": "加载AT命令配置文件路径列表",
-          "items": {
-            "type": "string"
-          },
-          "maxItems": 20
         }
       }
     }

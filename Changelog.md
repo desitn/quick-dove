@@ -1,3 +1,9 @@
+## 0.2.6 / 2026-02-26
+  * 移除串口调试相关功能，精简为核心固件编译下载功能
+  * 串口调试功能已独立为单独插件(Quick Serial)
+  * 清理相关WebView文件和配置项
+  * 更新文档说明
+  
 ## 0.2.5 / 2026-02-12
   * `Quick Serial` webview tool support.
   * git bash build fix for (🧩`ASR` 1903S).
