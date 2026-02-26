@@ -69,6 +69,23 @@ const SerialDebug = {
             }
         });
         
+        // 添加日志搜索功能
+        document.getElementById('logSearchBtn').addEventListener('click', () => this.performLogSearch());
+        document.getElementById('logSearchInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                this.performLogSearch();
+            }
+        });
+        document.getElementById('logClearSearchBtn').addEventListener('click', () => {
+            document.getElementById('logSearchInput').value = '';
+            this.performLogSearch();
+        });
+        
+        // 添加正则模式复选框的事件监听
+        document.getElementById('regexModeCheckbox').addEventListener('change', () => {
+            this.performLogSearch();
+        });
+        
         // 添加鼠标滚轮事件监听器到标签容器
         const tabsContainer = document.getElementById('atConfigTabs');
         tabsContainer.addEventListener('wheel', (e) => {
@@ -125,6 +142,81 @@ const SerialDebug = {
         
         // 添加自动化相关的事件监听
         this.setupAutomationEventListeners();
+    },
+
+    /**
+     * 执行日志搜索和过滤
+     */
+    performLogSearch: function() {
+        const searchTerm = document.getElementById('logSearchInput').value;
+        const useRegex = document.getElementById('regexModeCheckbox') ? document.getElementById('regexModeCheckbox').checked : false;
+        const logEntries = document.querySelectorAll('#serialLog .log-entry');
+        let visibleCount = 0;
+        
+        logEntries.forEach(entry => {
+            // 只对"接收"类型的日志进行过滤
+            if (entry.classList.contains('received')) {
+                const entryText = entry.textContent;
+                
+                let isMatch = false;
+                if (useRegex && searchTerm) {
+                    try {
+                        const regex = new RegExp(searchTerm, 'i'); // i 表示忽略大小写
+                        isMatch = regex.test(entryText);
+                    } catch (e) {
+                        // 如果正则表达式有误，显示错误信息并不进行过滤
+                        console.error("Invalid regex: ", e.message);
+                        this.showMessage('正则表达式格式错误', 'error');
+                        return; // 退出当前迭代，保持原有显示状态
+                    }
+                } else {
+                    // 原来的文本包含匹配
+                    isMatch = searchTerm ? entryText.toLowerCase().includes(searchTerm.toLowerCase()) : true;
+                }
+                
+                if (isMatch) {
+                    entry.classList.remove('filtered-out');
+                    visibleCount++;
+                } else {
+                    entry.classList.add('filtered-out');
+                }
+            } else {
+                entry.classList.remove('filtered-out');
+                visibleCount++;
+            }
+        });
+    },
+
+    /**
+     * 显示消息通知
+     */
+    showMessage: function(message, type) {
+        // 创建临时消息元素
+        let messageEl = document.querySelector('.search-message');
+        if (!messageEl) {
+            messageEl = document.createElement('div');
+            messageEl.className = 'search-message';
+            messageEl.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 10px 15px;
+                border-radius: 4px;
+                color: white;
+                background-color: #f44336;
+                z-index: 9999;
+                font-size: 14px;
+            `;
+            document.body.appendChild(messageEl);
+        }
+        
+        messageEl.textContent = message;
+        messageEl.style.backgroundColor = type === 'error' ? '#f44336' : '#4CAF50';
+        
+        // 设置定时器移除消息
+        setTimeout(() => {
+            messageEl.style.display = 'none';
+        }, 3000);
     },
 
     /**
@@ -317,7 +409,9 @@ const SerialDebug = {
         }
     },
     
-    // 添加发送的数据到日志
+    /**
+     * 添加发送的数据到日志
+     */
     addSentData: function(data) {
         const timestamp = new Date().toLocaleString();
         const logEntry = document.createElement('div');
@@ -328,14 +422,36 @@ const SerialDebug = {
         // 自动滚动到底部
         const logContainer = document.getElementById('serialLog');
         logContainer.scrollTop = logContainer.scrollHeight;
+        
     },
-    
-    // 添加接收的数据到日志
+
+    /**
+     * 添加接收的数据到日志
+     */
     addReceivedData: function(data) {
+        // 自动化模式
+        if (this.automation.isRunning) {
+            const command = this.automation.commands[this.automation.currentStep];
+            if (command && command.isOK) {
+                if (data.includes(command.expectRsp)) {
+                    this.addLog(`含预期数据: ${this.escapeHtml(data)}`, 'info');
+                    if (this.automation.timer) {
+                        clearTimeout(this.automation.timer);
+                        this.automation.timer = null;
+                    }
+                    this.automation.timer = setTimeout(() => {
+                        this.automation.currentStep++;
+                        this.executeNextCommand();
+                    }, command.delay);
+                } else {
+                    this.addLog(`非预期数据: ${this.escapeHtml(data)} 期望：${command.expectRsp}`, 'error'); 
+                }
+            }
+        }
         const timestamp = new Date().toLocaleString();
         const logEntry = document.createElement('div');
         logEntry.className = 'log-entry received';
-        // 检查是否处于监控模式
+        // 监控模式
         const isMonitorMode = document.querySelector('.main-content').classList.contains('monitor-mode');
         if (isMonitorMode) {
             logEntry.innerHTML = `<span class="timestamp">[${timestamp}]</span> <span class="data">${this.escapeHtml(data)}</span>`;
@@ -346,9 +462,16 @@ const SerialDebug = {
         // 自动滚动到底部
         const logContainer = document.getElementById('serialLog');
         logContainer.scrollTop = logContainer.scrollHeight;
+        
+        // 如果在监控模式下，检查是否需要过滤这个条目
+        if (isMonitorMode) {
+            this.performLogSearch();
+        }
     },
-    
-    // 添加日志信息
+
+    /**
+     * 添加日志信息
+     */
     addLog: function(message, level = 'info') {
         const timestamp = new Date().toLocaleString();
         const logEntry = document.createElement('div');
@@ -665,6 +788,13 @@ const SerialDebug = {
             // 添加回车键处理事件
             logContainer.addEventListener('keydown', this.handleMonitorInput.bind(this));
         }
+        // 显示或隐藏搜索过滤容器
+        const searchFilterContainer = document.getElementById('searchFilterContainer');
+        if (mainContent.classList.contains('monitor-mode')) {
+            searchFilterContainer.style.display = 'flex';
+        } else {
+            searchFilterContainer.style.display = 'none';
+        }
     },
     
     // 处理监控模式下的输入
@@ -751,7 +881,7 @@ const SerialDebug = {
                     isCRLF: true,
                     isOK: false,
                     timeout: 3000,
-                    expectRsp: "OK\r\n"
+                    expectRsp: "OK"
                 });
             }
         });
@@ -1394,7 +1524,7 @@ const SerialDebug = {
             isHex: isHex,
             isOK: false,
             timeout: 3000,
-            expectRsp: 'OK\r\n',
+            expectRsp: 'OK',
         };
         // 添加到自动化序列
         this.automation.commands.push(commandObj);

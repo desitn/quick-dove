@@ -633,6 +633,53 @@ body {
     background-color: var(--background-color);
 }
 
+/* 搜索过滤容器样式 */
+.search-filter-container {
+    padding: 10px;
+    background-color: var(--panel-background);
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.search-input-group {
+    display: flex;
+    gap: 5px;
+}
+
+#logSearchInput {
+    flex: 1;
+    padding: 6px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 13px;
+    background-color: var(--select-bg);
+    color: var(--text-color);
+}
+
+#logSearchBtn, #logClearSearchBtn {
+    padding: 6px 12px;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+#logClearSearchBtn {
+    background-color: var(--info-color);
+}
+
+.main-content.monitor-mode .search-filter-container {
+    display: flex;
+}
+
+.log-entry.filtered-out {
+    display: none;
+}
+
 .log-entry {
     margin-bottom: 2px;
     padding: 3px 5px;
@@ -891,8 +938,8 @@ body {
     gap: 15px;
     align-items: center;
 }
-
-.main-content.automation-mode .actions-checkbox-controls {
+.main-content.automation-mode .actions-checkbox-controls,
+.main-content.monitor-mode .actions-checkbox-controls {
     display: none;
 }
 
@@ -935,6 +982,13 @@ body {
     border: solid #000; /* 改为黑色边框，提高对比度 */
     border-width: 0 2px 2px 0;
     transform: rotate(45deg);
+}
+
+.search-options {
+    display: none;
+}
+.main-content.monitor-mode .search-options {
+    display: flex;
 }
 
 .serial-log-container,

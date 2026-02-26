@@ -63,6 +63,18 @@
                             <span class="log-level info">串口调试工具已就绪</span>
                         </div>
                     </div>
+                    <!-- 监控模式下的搜索区域 -->
+                    <div id="searchFilterContainer" class="search-filter-container" style="display: none;">
+                        <div class="search-input-group">
+                            <input type="text" id="logSearchInput" placeholder="输入关键词过滤接收到的数据..." />
+                            <button id="logSearchBtn" class="btn-small" title="搜索">
+                                <i class="fa-solid fa-magnifying-glass"></i>
+                            </button>
+                            <button id="logClearSearchBtn" class="btn-small" title="清除">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                    </div>
                 </div>
                 
                 <!-- 操作按钮区域 -->
@@ -86,6 +98,12 @@
                         </label>
                         <label for="crlfModeCheckbox">
                             <input type="checkbox" id="crlfModeCheckbox" checked> CRLF
+                        </label>
+                    </div>
+
+                    <div class="actions-checkbox-controls search-options">
+                        <label for="regexModeCheckbox">
+                            <input type="checkbox" id="regexModeCheckbox">RE
                         </label>
                     </div>
 
