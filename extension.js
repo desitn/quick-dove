@@ -1,6 +1,6 @@
 /**
-* @description:Quick Firmware + 
-    a tool build&sync firmware friendly.
+* @description: Quick Firmware + 
+*               A tool for building and syncing firmware in a developer-friendly way.
 * @author: destin.zhang@quectel.com
 */
 
@@ -12,7 +12,7 @@ const iconv = require('iconv-lite');
 const { spawn } = require('child_process');
 const ini = require('ini');
 
-/** @note all download tool path used by this extension directly */
+/** @note All download tool paths used directly by this extension */
 const tool_set = {
     'ddl':'detect_dl.exe',
     'ad' :'adownload.exe',
@@ -40,9 +40,8 @@ function not_support_disp() {
     vscode.window.showErrorMessage(`${alert}`);
 } 
 
-// 添加设备实例
 
-// 侧边栏树视图提供者
+
 class FirmwareTreeDataProvider {
     constructor() {
         this._onDidChangeTreeData = new vscode.EventEmitter();
@@ -86,7 +85,7 @@ class FirmwareTreeDataProvider {
         const workspace_folders = vscode.workspace.workspaceFolders;
         if (workspace_folders && workspace_folders.length > 0) {
             for (const folder of workspace_folders) {
-                // 如果没有配置固件路径，检查workspace的quectel_build/release目录
+                // If firmware path is not configured, check quectel_build/release directory in workspace
                 const release_path = path.join(folder.uri.fsPath, 'quectel_build', 'release');
                 if (fs.existsSync(release_path)) {
                     const release_dirs = fs.readdirSync(release_path);
@@ -176,7 +175,6 @@ class InfoItem extends vscode.TreeItem {
     }
 }
 
-// 设备列表树视图提供者
 class DeviceTreeDataProvider {
     constructor() {
         this._onDidChangeTreeData = new vscode.EventEmitter();
@@ -184,17 +182,16 @@ class DeviceTreeDataProvider {
         this.devices = [];
         this.refresh();
         this.filter_filled = false;
-        // 添加定时刷新相关属性
         this.isAutoRefreshEnabled = false;
         this.autoRefreshIntervalId = null;
-        this.refreshIntervalMs = 20000; // 20秒刷新一次
+        this.refreshIntervalMs = 20000; // 20 seconds refresh interval
     }
 
     refresh() {
         this._onDidChangeTreeData.fire();
     }
 
-    // 开始自动刷新
+    // Start auto-refresh
     startAutoRefresh() {
         if (this.autoRefreshIntervalId) {
             clearInterval(this.autoRefreshIntervalId);
@@ -205,7 +202,7 @@ class DeviceTreeDataProvider {
         }, this.refreshIntervalMs);
     }
 
-    // 停止自动刷新
+    // Stop auto-refresh
     stopAutoRefresh() {
         if (this.autoRefreshIntervalId) {
             clearInterval(this.autoRefreshIntervalId);
@@ -231,30 +228,30 @@ class DeviceTreeDataProvider {
             const items = [];
             
             if (is_windows()) {
-                //Windows环境下使用wmic命令获取USB设备
+                // Use wmic command to get USB devices on Windows
                 const command_dflt     = 'wmic path Win32_PnPEntity where "Name like \'%USB%\' OR Name like \'%Quectel%\'" get Name';
                 let command = command_dflt;
                 const { spawn } = require('child_process');
                 return new Promise((resolve) => {
-                    // 使用wmic获取USB设备信息
+                    // Use wmic to get USB device information
                     const wmic = spawn('cmd', ['/c', command], { shell: true });
                     let output = '';
                     wmic.stdout.on('data', (data) => {
-                        output += iconv.decode(data, 'cp936'); // 使用CP936(中文Windows默认编码)解码
+                        output += iconv.decode(data, 'cp936'); // Decode using CP936 (default encoding for Chinese Windows)
                     });
                     wmic.stderr.on('data', (data) => {
                         console.error(`WMIC error: ${iconv.decode(data, 'cp936')}`);
                     });
                     wmic.on('close', (code) => {
                         if (code === 0) {
-                            // 解析wmic输出
+                            // Parse wmic output
                             const lines = output.split('\n');
                             for (const line of lines) {
                                 const trimmedLine = line.trim();
                                 if (trimmedLine && 
-                                    !trimmedLine.includes('Name') && // 跳过标题行
+                                    !trimmedLine.includes('Name') && // Skip header line
                                     trimmedLine.length > 0) {
-                                    // 过滤掉键盘、鼠标等非设备
+                                    // Filter out non-device entries like keyboard, mouse, etc.
                                     if (!(trimmedLine.includes('Keyboard') || 
                                           trimmedLine.includes('Mouse') || 
                                           trimmedLine.includes('Controller') ||
@@ -278,18 +275,18 @@ class DeviceTreeDataProvider {
                             if (items.length === 0) {
                                 resolve([new InfoItem('未找到设备', '请检查设备连接', vscode.TreeItemCollapsibleState.None)]);
                             } else {
-                                // 对设备列表进行排序
+                                // Sort device list
                                 items.sort((a, b) => a.label.localeCompare(b.label));
                                 resolve(items);
                             }
                         } else {
-                            // 如果wmic失败
+                            // If wmic fails
                             resolve([new InfoItem('未找到设备', '请检查设备连接', vscode.TreeItemCollapsibleState.None)]);
                         }
                     });
                 });
             } else {
-                // 非Windows系统
+                // Non-Windows systems
                 return [new InfoItem('获取设备列表失败', error.message, vscode.TreeItemCollapsibleState.None)];
             }
         } catch (error) {
@@ -309,7 +306,6 @@ class DeviceItem extends vscode.TreeItem {
     }
 }
 
-// 设置视图提供者
 class SettingsTreeDataProvider {
     constructor() {
         this._onDidChangeTreeData = new vscode.EventEmitter();
@@ -331,10 +327,10 @@ class SettingsTreeDataProvider {
         const items = [];
         const config = get_configuration();
         const workspace_folders = vscode.workspace.workspaceFolders;
-        // 优先使用VS Code设置
+        // Use VS Code settings first
         let build_cmd = config.get('buildCommand') || '';
         let frim_path = config.get('firmwarePath') || '';
-        // 设置默认值
+        // Set default values
         if (!build_cmd) {
             build_cmd = 'will try: build*OPTfile.bat';   
         }
@@ -343,12 +339,12 @@ class SettingsTreeDataProvider {
                 const release_path = path.join(workspace_folders[0].uri.fsPath, 'quectel_build', 'release');
                 frim_path = `will try: ${release_path}`;
             } else {
-                frim_path = '未设置';
+                frim_path = 'Not set';
             }
         }
 
-        items.push(new SettingsItem('构建指令', `${build_cmd}`, vscode.TreeItemCollapsibleState.None, 'build-command'));
-        items.push(new SettingsItem('插件设置', '', vscode.TreeItemCollapsibleState.None, 'firmware-settings'));
+        items.push(new SettingsItem('Build Command', `${build_cmd}`, vscode.TreeItemCollapsibleState.None, 'build-command'));
+        items.push(new SettingsItem('Plugin Settings', '', vscode.TreeItemCollapsibleState.None, 'firmware-settings'));
         
         return items;
     }
@@ -361,7 +357,6 @@ class SettingsItem extends vscode.TreeItem {
         this.tooltip     = description;
         this.type        = type;
 
-        // 根据设置类型添加命令
         switch(type) {
             case 'build-command':
                     this.iconPath = new vscode.ThemeIcon('coffee');
@@ -374,9 +369,9 @@ class SettingsItem extends vscode.TreeItem {
             case 'firmware-settings':
                 this.iconPath = new vscode.ThemeIcon('gear');
                 this.command = {
-                    command: 'firmwareDownloader.settings',
-                    title: '插件设置',
-                    arguments: []
+                        command: 'firmwareDownloader.settings',
+                        title: '插件设置',
+                        arguments: []
                 };
                 break;
         }
@@ -470,7 +465,7 @@ function ad_extract_progress(output)
             continue;
         } 
         if (found) {
-            jsonBuffer += line.trim() + '\n'; // 累积行内容
+            jsonBuffer += line.trim() + '\n'; // Accumulate line content
             if (jsonBuffer.trim().startsWith('{')) {
                 try {
                     const logObject = JSON.parse(jsonBuffer);
@@ -509,7 +504,7 @@ function fbf_extract_progress(output)
         const burn_match = line.includes(burn_fiter);
         const ok_match = line.includes(ok_fiter);
         if (download_match) {
-            max_progress = 0xFF; // 使用伪进度
+            max_progress = 0xFF; // Use pseudo progress
         } else if (burn_match) {
             max_progress = 90;
         } else if (ok_match) {
@@ -583,14 +578,12 @@ function extract_progress_from_output(output, tool_type)
     return null;
 }
 
-// 判断zip文件是不是合法的 abootdownload zip固件包
 function zip_is_adownload_file(file_name) 
 {
     if (file_name.match(/.*\.zip$/i)) { 
         try {
             const zip = new admzip(file_name);
             const zip_entries = zip.getEntries();
-            // 检查是否有 download.json 文件
             const has_download_json = zip_entries.some(entry => {
                 return entry.entryName === 'download.json' || 
                     entry.entryName.endsWith('/download.json');
@@ -601,18 +594,12 @@ function zip_is_adownload_file(file_name)
                 return true;
             }
         } catch (error) {
-            vscode.window.showErrorMessage(`ZIP 文件检查失败: ${error.message}`);
+            vscode.window.showErrorMessage(`ZIP file check failed: ${error.message}`);
         }
     }
 
     return false;
 }
-/**
- * 通用进程终止函数，可杀死整个进程树
- * @param {ChildProcess} child_process - 要终止的子进程
- * @param {string} signal - 终止信号 (默认: SIGKILL)
- * @returns {Promise<void>} - 返回 Promise，resolve 表示终止成功，reject 表示失败
- */
 function kill_process_tree(child_process, signal = 'SIGKILL') {
     return new Promise((resolve, reject) => {
         if (!child_process || !child_process.pid) {
@@ -620,7 +607,7 @@ function kill_process_tree(child_process, signal = 'SIGKILL') {
             return;
         }
         if (is_windows()) {
-            // Windows 系统使用 taskkill
+            // Use taskkill on Windows system
             const taskkill = spawn('taskkill', ['/PID', child_process.pid, '/T', '/F'], { shell: true });
             taskkill.on('close', (code) => {
                 if (code === 0 || code === 128) {
@@ -645,7 +632,6 @@ function kill_process_tree(child_process, signal = 'SIGKILL') {
 
 function activate(context) 
 {
-    // 下载信息
     let last_dl_info = {
         dlPromise: null,
         filePath: '',
@@ -656,7 +642,6 @@ function activate(context)
         terminal:null
     };
 
-    // 创建状态栏项
     const status_bar_build   = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
     status_bar_build.text    = "$(coffee) 构建";
     status_bar_build.tooltip = "执行编译任务";
@@ -669,35 +654,26 @@ function activate(context)
     status_bar_dl.command = "firmwareDownloader.download";
     status_bar_dl.show();
 
-    // 不再创建 ini 文件，直接使用 VSCode 配置
     const workspace_folders = vscode.workspace.workspaceFolders;
-
-    // 创建固件管理器侧边栏
     const firmwareTreeDataProvider = new FirmwareTreeDataProvider();
     vscode.window.registerTreeDataProvider('firmware-explorer', firmwareTreeDataProvider);
     
-    // 创建设置视图
     const settingsTreeDataProvider = new SettingsTreeDataProvider();
     vscode.window.registerTreeDataProvider('firmware-settings', settingsTreeDataProvider);
     
-    // 创建设备列表视图
     const deviceTreeDataProvider = new DeviceTreeDataProvider();
     vscode.window.registerTreeDataProvider('firmware-devices', deviceTreeDataProvider);
-    // 启动自动刷新（每20秒刷新一次）
     deviceTreeDataProvider.startAutoRefresh();
 
-    // 注册刷新固件列表命令
     const refreshFirmwareListCommand = vscode.commands.registerCommand('firmwareDownloader.refresh', () => {
         firmwareTreeDataProvider.refresh();
         settingsTreeDataProvider.refresh();
     });
     
-    // 注册刷新设备列表命令
     const refreshDevicesCommand = vscode.commands.registerCommand('firmwareDownloader.devices_refresh', () => {
         deviceTreeDataProvider.refresh();
     });
 
-    // 注册选择固件目录命令
     const selectFirmwareDirCommand = vscode.commands.registerCommand('firmwareDownloader.find', async () => {
         const options = {
             canSelectFiles: false,
@@ -709,22 +685,18 @@ function activate(context)
         const result = await vscode.window.showOpenDialog(options);
         if (result && result.length > 0) {
             const selectedPath = result[0].fsPath;
-            // 更新 VS Code 配置
             const config = get_configuration();
             await config.update('firmwarePath', selectedPath, vscode.ConfigurationTarget.Workspace);
             vscode.commands.executeCommand('firmwareDownloader.refresh');
         }
     });
 
-    // 注册清除选择固件目录命令
     const clearFirmwareDirCommand = vscode.commands.registerCommand('firmwareDownloader.clear', async () => {
-        // 清除 VS Code 配置
         const config = get_configuration();
         await config.update('firmwarePath', '', vscode.ConfigurationTarget.Workspace);
         vscode.commands.executeCommand('firmwareDownloader.refresh');
     });
  
-    // 注册指定构建命令参数命令
     const buildCommandArgsCommand = vscode.commands.registerCommand('firmwareDownloader.buildCommand', async () => {
         const config = get_configuration();
         const current_cmd = config.get('buildCommand') || '';
@@ -734,34 +706,29 @@ function activate(context)
             placeHolder: '例如: build.bat new EC200ACN_DA EC200ACNDAR01A01M16',
             value: current_cmd
         });
-        if (input === undefined) { // 用户取消输入
+        if (input === undefined) {
             return;
         }
-        // 更新 VS Code 配置
         await config.update('buildCommand', input, vscode.ConfigurationTarget.Workspace);
       
         vscode.commands.executeCommand('firmwareDownloader.refresh');
     });
     
-    // 注册复制路径命令
     const copyPathCommand = vscode.commands.registerCommand('firmwareDownloader.copyPath', async (uri) => {
         if (uri && uri.fsPath) {
             try {
                 await vscode.env.clipboard.writeText(uri.fsPath);
-                //vscode.window.showInformationMessage(`路径已复制: ${uri.fsPath}`);
             } catch (error) {
                 vscode.window.showErrorMessage(`复制路径失败: ${error.message}`);
             }
         }
     });
     
-    
-    // 注册设置命令
     const openSettingsCommand = vscode.commands.registerCommand('firmwareDownloader.settings', () => {
         vscode.commands.executeCommand('workbench.action.openSettings', 'quickFirmwarePlus');
     });
 
-    // 注册构建命令
+    // Register build command
     let build_disposable = vscode.commands.registerCommand('firmwareDownloader.build', async function () {
 
         const config = get_configuration();
@@ -769,7 +736,7 @@ function activate(context)
         let is_bash = false;
         let bash_run = config.get('buildGitBashPath') || '';
         
-        // 默认选择bulid OPT.bat
+        // Default to build OPT.bat
         if (!build_args) { 
             if (workspace_folders && workspace_folders.length > 0) { 
                 const re ='build*OPTfile.bat'
@@ -782,7 +749,7 @@ function activate(context)
                     build_args = path.basename(file_path);
                     output_chan.appendLine(`root build file name: ${build_args}`);
                 }
-                // 默认选择 bulid.sh
+                // Default to build.sh
                 if (!build_args) { 
                     file = await vscode.workspace.findFiles(re_sh, null, 1);
                     if (file && file.length > 0) {  
@@ -834,18 +801,18 @@ function activate(context)
                 close: false
             }
         };
-        // 创建任务对象
+        // Create task object
         const execution = new vscode.ShellExecution(task_definition.command, task_definition.args, task_definition.options);
         const task = new vscode.Task(task_definition, vscode.TaskScope.Workspace, task_definition.label, "firmware-tool", execution);
-        // 执行任务
+        // Execute task
         try {
             if (last_dl_info.terminal) {
                 last_dl_info.terminal.dispose();
                 last_dl_info.terminal = null;
             }
-            // 执行构建任务
+            // Execute build task
             const task_execution = await vscode.tasks.executeTask(task);
-            // 监听任务结束事件，确保任务完全执行完毕
+            // Listen for task end event to ensure task completes fully
             await new Promise(resolve => {
                 const disposable = vscode.tasks.onDidEndTask(e => {
                     if (e.execution === task_execution) {
@@ -858,7 +825,7 @@ function activate(context)
                 });
             });
             vscode.window.showInformationMessage(`构建任务结束`);
-            // 刷新固件列表
+            // Refresh firmware list
             firmwareTreeDataProvider.refresh();
         } catch (error) {
             vscode.window.showErrorMessage(`构建任务执行失败: ${error.message}`);
@@ -868,19 +835,19 @@ function activate(context)
 
 
     let download_disposable = vscode.commands.registerCommand('firmwareDownloader.download', async function (uri) {
-        // 防抖处理：如果当前有正在执行的下载任务，则直接返回
+        // Debounce: ignore new requests if a download is already running
         if (last_dl_info.dlPromise) {
             output_chan.appendLine('already downloading task ignore this request!');
             return;
         }
-        // 将下载逻辑包装为一个函数并执行
+        // Wrap download logic in a function and execute
         last_dl_info.dlPromise = (async () => {
             try {
                 let selected_uri = uri;
                 output_chan.appendLine(`selected_uri: ${selected_uri}`);
-                // 从配置文件载入
+                // Load from configuration file
                 if (!selected_uri) {
-                    // 优先从 VS Code 配置读取
+                    // Prioritize reading from VS Code configuration
                     const config = get_configuration();
                     let config_uri = config.get('firmwarePath');
                     output_chan.appendLine(`config uri: ${config_uri}`);
@@ -890,17 +857,17 @@ function activate(context)
                     }
                 }
 
-               // 尝试自动探测固件目录
+               // Try to automatically detect firmware directory
                if (!selected_uri) { 
                     if (workspace_folders && workspace_folders.length > 0) { 
                         const workspace_folder = workspace_folders[0]; 
                         output_chan.appendLine(`current workspace folder: ${workspace_folder.uri}`);
-                        // 检查[.\quectel_build\release]目录
+                        // Check [.\quectel_build\release] directory
                         const release_path = path.join(workspace_folder.uri.fsPath, 'quectel_build', 'release');
                         if (fs.existsSync(release_path)) {
                             const release_files = fs.readdirSync(release_path);
                             if (release_files.length > 0) {
-                                //release目录第一个文件夹作为目标
+                                // Use first folder in release directory as target
                                 const selection = await vscode.window.showInformationMessage(
                                     `固件目录:\n${path.join(release_path, release_files[0])} ?`, 
                                     '是', 
@@ -957,7 +924,7 @@ function activate(context)
 
                 } else {
                     file_name = file_path;
-                    // 验证文件名是否支持
+                    // Verify if filename is supported
                     if (zip_is_adownload_file(file_name)) {         //ASR 160x
                         tool_type = 'ad';
                     }  else if (file_name.match(/.*\_fbf.bin$/i)) { //ASR 1X03
@@ -982,7 +949,7 @@ function activate(context)
                     return;
                 }
                 status_bar_dl.text = "$(sync) 等待下载";
-                // 检查是否有正在进行的下载任务
+                // Check if there is a running download task
                 console.info('last dl state', last_dl_info.dlState, last_dl_info.dlChild)
                 output_chan.appendLine(`last dl state: ${last_dl_info.dlState}`);
                 if(last_dl_info.dlState != 'stop' && last_dl_info.dlChild) {
@@ -1002,7 +969,7 @@ function activate(context)
                 last_dl_info.dlState = 'waiting';
                 last_dl_info.dlChild = null;
 
-                // 发送QDOWNLOAD命->令子进程处理
+                // Send QDOWNLOAD command -> subprocess handling
                 if (process.platform === 'win32') {
                     let ddl_cmd = 'cmd';
                     const ddl_tool = path.join(tools_path, tool_set['ddl']);
@@ -1037,7 +1004,7 @@ function activate(context)
                         } 
                     });
                 }
-                // 构建下载命令->子进程处理
+                // Build download command -> subprocess handling
                 let command;
                 let cmdStr;
                 let args;
@@ -1072,7 +1039,7 @@ function activate(context)
                 tracker.reset();
                 last_dl_info.dlState = 'running';
                 last_dl_info.dlChild = child;
-                // 30秒 监听产生任何标准输出 退出下载
+                // 30-second timeout: kill download process if no output
                 let kill_timeout = setTimeout(() => {
                     //vscode.window.showErrorMessage(`下载等待超时`);
                     output_chan.appendLine('do child download process kill.');
@@ -1085,7 +1052,7 @@ function activate(context)
                     });
                 }, 30000);
 
-                // 监听标准输出
+                // Listen to stdout
                 child.stdout.on('data', (data) => {
                     let output;
                     if (process.platform === 'win32') {
@@ -1112,11 +1079,11 @@ function activate(context)
                     }
                 });
 
-                // 监听标准错误输出
+                // Listen to stderr
                 child.stderr.on('data', (data) => {
                     let errorOutput;
                     if (process.platform === 'win32') {
-                        // Windows中文系统通常使用 GBK 编码
+                        // Windows Chinese system typically uses GBK encoding
                         errorOutput = iconv.decode(data, 'gbk');
                     } else {
                         errorOutput = data.toString('utf8');
@@ -1131,7 +1098,7 @@ function activate(context)
                     }
                 });
             
-                // 监听进程关闭事件
+                // Listen to process close event
                 await new Promise((resolve, reject) => {
                     child.on('close', (code) => {
                         if (code === 0) {
@@ -1141,7 +1108,7 @@ function activate(context)
                             vscode.window.showErrorMessage(`下载失败，退出码: ${code}`);
                             status_bar_dl.text = "$(error) 下载失败";
                         }
-                        // 5秒后恢复原始状态栏文本
+                        // Restore original status bar text after 5 seconds
                         setTimeout(() => {
                             status_bar_dl.text = "$(arrow-circle-down) 下载";
                             vscode.commands.executeCommand('firmwareDownloader.devices_refresh');
@@ -1158,7 +1125,7 @@ function activate(context)
                         resolve();
                     });
                 
-                    // 监听进程错误事件
+                    // Listen to process error event
                     child.on('error', (error) => {
                         vscode.window.showErrorMessage(`启动下载进程失败: ${error.message}`);
                         status_bar_dl.text = "$(error) 启动失败";
@@ -1193,7 +1160,7 @@ function activate(context)
         
     });
  
-    // 设置终端关闭事件监听器
+    // Set terminal close event listener
     function terminal_close_listener(last_dl_info) {
         return vscode.window.onDidCloseTerminal((closed_terminal) => {
             if (last_dl_info.terminal === closed_terminal) {
@@ -1203,7 +1170,7 @@ function activate(context)
         });
     }
 
-    // 添加到订阅以便自动清理
+    // Add to subscriptions for automatic cleanup
     context.subscriptions.push(status_bar_dl);
     context.subscriptions.push(status_bar_build);
     context.subscriptions.push(firmwareTreeDataProvider);
@@ -1221,7 +1188,7 @@ function activate(context)
 function deactivate() {
 }
 
-// 添加模块导出，使 VS Code 能够激活此扩展
+// Add module exports to allow VS Code to activate this extension
 module.exports = {
     activate,
     deactivate
