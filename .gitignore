@@ -3,5 +3,6 @@
 tools/
 firmware+.ini
 *.vsix
+quectel_build/
 
-
+node_modules

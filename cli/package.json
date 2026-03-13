@@ -1,0 +1,36 @@
+{
+  "name": "firmware-cli",
+  "version": "1.0.0",
+  "description": "CLI tool for firmware compilation and flashing, supports AI assistant integration",
+  "main": "index.js",
+  "scripts": {
+    "test": "node index.js help",
+    "build:exe": "pkg . --targets node18-win-x64 --output ../dist/firmware-cli.exe"
+  },
+  "keywords": [
+    "firmware",
+    "cli",
+    "flash",
+    "compile",
+    "quectel",
+    "asr",
+    "unisoc",
+    "eigen"
+  ],
+  "author": "destin.zhang@quectel.com",
+  "license": "MIT",
+  "dependencies": {
+    "adm-zip": "^0.5.10",
+    "iconv-lite": "^0.6.3"
+  },
+  "bin": {
+    "firmware-cli": "./index.js"
+  },
+  "pkg": {
+    "assets": [
+      "node_modules/**/*"
+    ],
+    "outputPath": "../dist"
+  }
+}
+}
