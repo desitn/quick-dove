@@ -393,7 +393,7 @@ async function enterDownloadMode(platform = 'asr160x', force = false, timeout = 
             console.log('❌ 命令执行失败');
             return { success: false, error: 'AT 命令返回 ERROR' };
         } else if (result.timeout) {
-            console.log('⏱️ 等待响应超时（可能是正常的，模块正在重启）');
+            console.log('⏱️ 等待响应超时：可能模块正在重启');
         }
         
         // 6. 检查是否进入下载模式

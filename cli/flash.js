@@ -1,8 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
+const readline = require('readline');
 const { 
-    getToolsPath, 
     getToolPath,
     buildToolArgs,
     getGlobalSettings,
@@ -117,43 +117,91 @@ async function findFirmwarePath() {
 }
 
 /**
- * 格式化下载进度 - 统一不同工具的进度显示
+ * 获取平台类型对应的进度匹配词配置
+ * @param {string} toolType - 工具类型
  */
-function formatDownloadProgress(output, toolType) {
-    // 提取进度百分比
-    const percentMatch = output.match(/(\d+)%/);
-    const percent = percentMatch ? parseInt(percentMatch[1]) : null;
+function getProgressPatterns(toolType) {
+    const config = loadToolsConfig();
+    
+    // 根据工具类型查找对应平台
+    let platformKey = null;
+    for (const [key, platform] of Object.entries(config.platforms || {})) {
+        if (platform.type === toolType) {
+            platformKey = key;
+            break;
+        }
+    }
+    
+    // 获取平台配置
+    const platformConfig = platformKey ? config.platforms[platformKey] : null;
+    
+    // 返回配置或默认配置
+    return platformConfig?.progressPatterns || {
+        started: ['init', 'start', 'begin'],
+        downloading: ['downloading', 'running', 'burning', 'flashing'],
+        completed: ['complete', 'success', ,'finished'],
+        error: ['error', 'fail', 'timeout']
+    };
+}
+
+/**
+ * 格式化下载进度 - 统一不同工具的进度显示
+ * 从配置读取匹配词，只返回状态（无进度条）
+ * 如果"已开始"未命中，则不判断其他状态
+ */
+function formatDownloadProgress(output, toolType, hasStartedRef) {
+    // 获取平台配置的匹配词
+    const patterns = getProgressPatterns(toolType);
     
     // 提取状态信息
     let status = null;
     const lowerOutput = output.toLowerCase();
     
-    // ASR 下载工具特定输出
-    if (lowerOutput.includes('downloading') || lowerOutput.includes('running')) {
-        status = '📥 下载中';
-    } else if (lowerOutput.includes('complete') || lowerOutput.includes('完成') || lowerOutput.includes('success')) {
-        status = '✅ 完成';
-    } else if (lowerOutput.includes('error') || lowerOutput.includes('错误') || lowerOutput.includes('fail')) {
-        status = '❌ 错误';
-    } else if (lowerOutput.includes('connect') || lowerOutput.includes('连接')) {
-        status = '🔗 连接中';
-    } else if (lowerOutput.includes('erase') || lowerOutput.includes('擦除')) {
-        status = '🧹 擦除中';
-    } else if (lowerOutput.includes('write') || lowerOutput.includes('写入')) {
-        status = '✏️  写入中';
-    } else if (lowerOutput.includes('verify') || lowerOutput.includes('校验')) {
-        status = '🔍 校验中';
+    // 1. 检查已开始
+    for (const pattern of patterns.started) {
+        if (lowerOutput.includes(pattern.toLowerCase())) {
+            status = '📥 已开始';
+            hasStartedRef.value = true;  // 标记已进入开始状态
+            break;
+        }
     }
     
-    // 如果有百分比，显示进度条
-    if (percent !== null && percent >= 0 && percent <= 100) {
-        const filled = Math.floor(percent / 5);
-        const empty = 20 - filled;
-        const bar = '█'.repeat(filled) + '░'.repeat(empty);
-        return `\r[${bar}] ${percent.toString().padStart(3)}% ${status || ''}`;
+    // 如果已开始未命中，则不判断其他状态
+    if (!hasStartedRef.value) {
+        return null;
     }
     
-    // 如果没有百分比但有状态，显示状态
+    // 2. 检查下载中
+    if (!status) {
+        for (const pattern of patterns.downloading) {
+            if (lowerOutput.includes(pattern.toLowerCase())) {
+                status = '📥 下载中';
+                break;
+            }
+        }
+    }
+    
+    // 3. 检查完成
+    if (!status) {
+        for (const pattern of patterns.completed) {
+            if (lowerOutput.includes(pattern.toLowerCase())) {
+                status = '✅ 完成';
+                break;
+            }
+        }
+    }
+    
+    // 4. 检查错误
+    if (!status) {
+        for (const pattern of patterns.error) {
+            if (lowerOutput.includes(pattern.toLowerCase())) {
+                status = '❌ 错误';
+                break;
+            }
+        }
+    }
+    
+    // 返回状态（无进度条）
     if (status) {
         return `\n${status}`;
     }
@@ -161,40 +209,6 @@ function formatDownloadProgress(output, toolType) {
     return null;
 }
 
-/**
- * 过滤冗余日志 - 只保留关键信息
- */
-function shouldShowLog(output, toolType) {
-    const lowerOutput = output.toLowerCase();
-    
-    // ASR 下载工具的输出通常不需要显示（进度由 formatDownloadProgress 处理）
-    if (toolType === 'ad') {
-        // 只显示错误和完成信息
-        if (lowerOutput.includes('error') || 
-            lowerOutput.includes('fail') ||
-            lowerOutput.includes('complete') ||
-            lowerOutput.includes('success')) {
-            return true;
-        }
-        return false;
-    }
-    
-    // 过滤掉常见的冗余信息
-    const skipPatterns = [
-        /copyright/i,
-        /version/i,
-        /build date/i,
-        /^\s*$/,
-        /loading/i,
-        /initializing/i,
-    ];
-    
-    for (const pattern of skipPatterns) {
-        if (pattern.test(output)) return false;
-    }
-    
-    return true;
-}
 
 /**
  * 执行烧录命令
@@ -232,7 +246,10 @@ async function executeFlash(toolPath, toolType, firmwareFile) {
         
         console.log(`执行命令: ${command} ${args.join(' ')}`);
         
-        const child = spawn(command, args, { shell: true });
+        const child = spawn(command, args, { 
+            shell: true,
+            stdio: ['ignore', 'pipe', 'pipe']
+        });
         let downloadComplete = false;
         
         // 30秒超时
@@ -243,66 +260,78 @@ async function executeFlash(toolPath, toolType, firmwareFile) {
             }
         }, 30000);
         
-        // 监听stdout
+        // 创建日志文件记录工具原始输出
+        const logFile = path.join(process.cwd(), 'frimware-cli-tool.log');
+        const logStream = fs.createWriteStream(logFile, { flags: 'w' });
+        
+        // 使用 readline 逐行处理 stdout
         let lastProgress = '';
         let lastStatus = '';  // 记录上一个状态，避免重复输出
-        child.stdout.on('data', (data) => {
+        const hasStartedRef = { value: false };  // 引用对象，用于跟踪是否已进入开始状态
+        
+        const stdoutRl = readline.createInterface({
+            input: child.stdout,
+            crlfDelay: Infinity
+        });
+        
+        stdoutRl.on('line', (line) => {
+            // 解码（Windows 下需要 GBK 解码）
             let output;
             if (isWindows()) {
-                output = iconvLite.decode(data, 'gbk');
+                output = iconvLite.decode(Buffer.from(line, 'binary'), 'gbk');
             } else {
-                output = data.toString('utf8');
+                output = line;
             }
             
-            // 调试：显示原始输出（用于分析进度格式）
-            //console.log('[DEBUG] Raw output:', JSON.stringify(output));
+            // 记录工具原本的日志到文件（每行带时间戳）
+            const timestamp = new Date().toISOString();
+            logStream.write(`[${timestamp}] ${output}\n`);
+
+            // 尝试格式化进度显示
+            const progress = formatDownloadProgress(output, toolType, hasStartedRef);
             
-            // 检测到下载开始
-            if (output.includes('Downloading') || 
-                output.includes('Download percentage') ||
-                output.includes('DownLoading')) {
+            // 检测到下载开始（基于格式化后的状态）
+            if (progress && !downloadComplete) {
                 clearTimeout(timeout);
                 downloadComplete = true;
             }
             
-            // 尝试格式化进度显示
-            const progress = formatDownloadProgress(output, toolType);
             if (progress) {
-                // 如果是进度条，在同一行更新
-                if (progress.startsWith('\r')) {
+                // 状态信息：只有状态变化时才输出
+                const currentStatus = progress.trim();
+                if (currentStatus !== lastStatus) {
                     process.stdout.write(progress);
-                    lastProgress = progress;
-                } else {
-                    // 状态信息：只有状态变化时才输出
-                    const currentStatus = progress.trim();
-                    if (currentStatus !== lastStatus) {
-                        if (lastProgress) {
-                            process.stdout.write('\n');
-                            lastProgress = '';
-                        }
-                        process.stdout.write(progress);
-                        lastStatus = currentStatus;
-                    }
+                    lastStatus = currentStatus;
                 }
             }
-            // 其他输出不显示（正向过滤：只显示命中关键词的）
         });
         
-        // 监听stderr
-        child.stderr.on('data', (data) => {
+        // 使用 readline 逐行处理 stderr
+        const stderrRl = readline.createInterface({
+            input: child.stderr,
+            crlfDelay: Infinity
+        });
+        
+        stderrRl.on('line', (line) => {
+            // 解码（Windows 下需要 GBK 解码）
             let errorOutput;
             if (isWindows()) {
-                errorOutput = iconvLite.decode(data, 'gbk');
+                errorOutput = iconvLite.decode(Buffer.from(line, 'binary'), 'gbk');
             } else {
-                errorOutput = data.toString('utf8');
+                errorOutput = line;
             }
-            process.stderr.write(errorOutput);
+            
+            // 记录错误输出到日志（每行带时间戳）
+            const timestamp = new Date().toISOString();
+            logStream.write(`[${timestamp}] [STDERR] ${errorOutput}\n`);
+            process.stderr.write(errorOutput + '\n');
         });
         
         // 监听进程关闭
         child.on('close', (code) => {
             clearTimeout(timeout);
-            
+            // 关闭日志流
+            logStream.end(`\n[进程退出，退出码: ${code}]\n`);
             if (code === 0) {
                 console.log('\n✅ 下载进程成功退出');
                 resolve();

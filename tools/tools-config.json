@@ -2,15 +2,6 @@
   "version": "1.0.0",
   "description": "固件下载工具配置",
   "tools": {
-    "ddl": {
-      "name": "detect_dl",
-      "path": "detect_dl.exe",
-      "description": "设备检测工具",
-      "args": {
-        "list": ["-l"],
-        "default": []
-      }
-    },
     "ad": {
       "name": "adownload",
       "path": "adownload.exe",
@@ -65,6 +56,12 @@
         "downloadPortVidPid": [
           { "vid": "2ECC", "pid": "3004", "desc": "BOOT" }
         ]
+      },
+      "progressPatterns": {
+        "started": ["CONNECTING"],
+        "downloading": ["RUNNING"],
+        "completed": ["SUCCEEDED"],
+        "error": ["error", "timeout"]
       }
     },
     "asr1x03": {
@@ -81,6 +78,12 @@
           { "vid": "2ECC", "pid": "3001", "desc": "BOOT" },
           { "vid": "2ECC", "pid": "3002", "desc": "BOOT" }
         ]
+      },
+      "progressPatterns": {
+        "started": ["init", "initializing"],
+        "downloading": ["download", "burning"],
+        "completed": ["complete", "success"],
+        "error": ["error", "fail", "failed", "timeout"]
       }
     },
     "unisoc": {
@@ -98,6 +101,7 @@
           { "vid": "1782", "pid": "4d00", "desc": "BOOT" }
         ]
       }
+ 
     },
     "eigen": {
       "type": "ecf",
