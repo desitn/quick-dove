@@ -2,21 +2,26 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 const { 
-    tool_set, 
     getToolsPath, 
+    getToolPath,
+    buildToolArgs,
+    getGlobalSettings,
+    loadToolsConfig,
     isWindows, 
     determineFirmwareType,
     killProcessTree,
-    executeCommand,
-    iconv
+    executeCommand
 } = require('./utils');
 const iconvLite = require('iconv-lite');
+const { enterDownloadMode, findDownloadPort } = require('./serial');
 
 /**
  * 烧录固件
  * @param {string} firmwarePath - 固件路径（可选，如果不提供则自动查找）
+ * @param {Object} options - 选项
+ * @param {boolean} options.skipDlMode - 是否跳过自动进入下载模式
  */
-async function flashFirmware(firmwarePath = null) {
+async function flashFirmware(firmwarePath = null, options = {}) {
     try {
         console.log('🔥 固件烧录工具');
         console.log('='.repeat(50));
@@ -43,15 +48,50 @@ async function flashFirmware(firmwarePath = null) {
         const firmwareInfo = determineFirmwareType(filePath);
         console.log(`✅ 固件类型: ${firmwareInfo.type.toUpperCase()}`);
         
+        // 根据工具类型查找平台配置
+        const config = loadToolsConfig();
+        let platformKey = null;
+        let platformConfig = null;
+        
+        for (const [key, platform] of Object.entries(config.platforms || {})) {
+            if (platform.type === firmwareInfo.type) {
+                platformKey = key;
+                platformConfig = platform;
+                break;
+            }
+        }
+        
+        // 自动进入下载模式（如果配置允许且未跳过）
+        if (!options.skipDlMode && platformConfig?.serial?.autoEnterDlMode) {
+            console.log('🔌 检查下载模式...');
+            const dlPort = await findDownloadPort(platformKey);
+            if (!dlPort) {
+                console.log('⚠️ 未检测到下载端口，自动尝试进入下载模式');
+                const result = await enterDownloadMode(platformKey || firmwareInfo.type, false, 2);
+                if (!result.success) {
+                    console.log('⚠️ 自动进入下载模式失败，请手动进入下载模式后重试');
+                    console.log('   继续执行烧录...');
+                }
+                if (result.skipped) {
+                    console.log(`⚠️ ${result.reason}`);
+                }
+            } else {
+                console.log(`✅ 设备已在下载模式: ${dlPort.path}`);
+                if (dlPort.type === 'bus') {
+                    console.log(`   类型: 总线设备 (${dlPort.description})`);
+                } else {
+                    console.log(`   类型: 串口设备`);
+                }
+            }
+        }
+        
         // 检查下载工具
-        const toolsPath = getToolsPath();
-        const toolName = tool_set[firmwareInfo.type];
-        const toolPath = path.join(toolsPath, toolName);
+        const toolPath = getToolPath(firmwareInfo.type);
         
         if (!fs.existsSync(toolPath)) {
             throw new Error(`下载工具不存在: ${toolPath}`);
         }
-        console.log(`🔧 下载工具: ${toolName}`);
+        console.log(`🔧 下载工具: ${firmwareInfo.type}`);
         
         // 执行烧录
         console.log('🚀 开始烧录...');
@@ -77,53 +117,118 @@ async function findFirmwarePath() {
 }
 
 /**
+ * 格式化下载进度 - 统一不同工具的进度显示
+ */
+function formatDownloadProgress(output, toolType) {
+    // 提取进度百分比
+    const percentMatch = output.match(/(\d+)%/);
+    const percent = percentMatch ? parseInt(percentMatch[1]) : null;
+    
+    // 提取状态信息
+    let status = null;
+    const lowerOutput = output.toLowerCase();
+    
+    // ASR 下载工具特定输出
+    if (lowerOutput.includes('downloading') || lowerOutput.includes('running')) {
+        status = '📥 下载中';
+    } else if (lowerOutput.includes('complete') || lowerOutput.includes('完成') || lowerOutput.includes('success')) {
+        status = '✅ 完成';
+    } else if (lowerOutput.includes('error') || lowerOutput.includes('错误') || lowerOutput.includes('fail')) {
+        status = '❌ 错误';
+    } else if (lowerOutput.includes('connect') || lowerOutput.includes('连接')) {
+        status = '🔗 连接中';
+    } else if (lowerOutput.includes('erase') || lowerOutput.includes('擦除')) {
+        status = '🧹 擦除中';
+    } else if (lowerOutput.includes('write') || lowerOutput.includes('写入')) {
+        status = '✏️  写入中';
+    } else if (lowerOutput.includes('verify') || lowerOutput.includes('校验')) {
+        status = '🔍 校验中';
+    }
+    
+    // 如果有百分比，显示进度条
+    if (percent !== null && percent >= 0 && percent <= 100) {
+        const filled = Math.floor(percent / 5);
+        const empty = 20 - filled;
+        const bar = '█'.repeat(filled) + '░'.repeat(empty);
+        return `\r[${bar}] ${percent.toString().padStart(3)}% ${status || ''}`;
+    }
+    
+    // 如果没有百分比但有状态，显示状态
+    if (status) {
+        return `\n${status}`;
+    }
+    
+    return null;
+}
+
+/**
+ * 过滤冗余日志 - 只保留关键信息
+ */
+function shouldShowLog(output, toolType) {
+    const lowerOutput = output.toLowerCase();
+    
+    // ASR 下载工具的输出通常不需要显示（进度由 formatDownloadProgress 处理）
+    if (toolType === 'ad') {
+        // 只显示错误和完成信息
+        if (lowerOutput.includes('error') || 
+            lowerOutput.includes('fail') ||
+            lowerOutput.includes('complete') ||
+            lowerOutput.includes('success')) {
+            return true;
+        }
+        return false;
+    }
+    
+    // 过滤掉常见的冗余信息
+    const skipPatterns = [
+        /copyright/i,
+        /version/i,
+        /build date/i,
+        /^\s*$/,
+        /loading/i,
+        /initializing/i,
+    ];
+    
+    for (const pattern of skipPatterns) {
+        if (pattern.test(output)) return false;
+    }
+    
+    return true;
+}
+
+/**
  * 执行烧录命令
  */
 async function executeFlash(toolPath, toolType, firmwareFile) {
     return new Promise(async (resolve, reject) => {
-        let command, cmdStr, args;
+        let command, args;
+        
+        // 从配置获取全局设置
+        const settings = getGlobalSettings();
+        const port = settings.defaultPort || 'auto';
         
         if (isWindows()) {
             command = 'cmd';
             
-            // 完全按照extension.js的方式：不加引号，不转换路径
-            switch (toolType) {
-                case 'ad':
-                    cmdStr = `${toolPath} -r -q -a -u -s 115200 ${firmwareFile}`;
-                    break;
-                case 'pac':
-                    cmdStr = `${toolPath} -pac ${firmwareFile}`;
-                    break;
-                case 'ecf':
-                    cmdStr = `${toolPath} -f ${firmwareFile} --timeout 60`;
-                    break;
-                case 'fbf':
-                default:
-                    cmdStr = `${toolPath} -b ${firmwareFile}`;
-                    break;
-            }
+            // 使用 buildToolArgs 从 JSON 配置构建参数
+            const toolArgs = buildToolArgs(toolType, 'flash', {
+                firmwarePath: firmwareFile,
+                port: port
+            });
             
+            // Windows 下需要构建命令字符串
+            const cmdStr = `"${toolPath}" ${toolArgs.join(' ')}`;
             args = ['/c', cmdStr];
         } else {
             // Unix-like systems
             command = toolPath;
             
-            switch (toolType) {
-                case 'ad':
-                    args = ['-r', '-q', '-a', '-u', '-s', '115200', firmwareFile];
-                    break;
-                case 'pac':
-                    args = ['-pac', firmwareFile];
-                    break;
-                case 'ecf':
-                    args = ['-f', firmwareFile, '--timeout', '60'];
-                    break;
-                case 'fbf':
-                default:
-                    args = ['-b', firmwareFile];
-                    break;
-            }
-        } 
+            // 使用 buildToolArgs 从 JSON 配置构建参数
+            args = buildToolArgs(toolType, 'flash', {
+                firmwarePath: firmwareFile,
+                port: port
+            });
+        }
         
         console.log(`执行命令: ${command} ${args.join(' ')}`);
         
@@ -139,6 +244,8 @@ async function executeFlash(toolPath, toolType, firmwareFile) {
         }, 30000);
         
         // 监听stdout
+        let lastProgress = '';
+        let lastStatus = '';  // 记录上一个状态，避免重复输出
         child.stdout.on('data', (data) => {
             let output;
             if (isWindows()) {
@@ -146,6 +253,9 @@ async function executeFlash(toolPath, toolType, firmwareFile) {
             } else {
                 output = data.toString('utf8');
             }
+            
+            // 调试：显示原始输出（用于分析进度格式）
+            //console.log('[DEBUG] Raw output:', JSON.stringify(output));
             
             // 检测到下载开始
             if (output.includes('Downloading') || 
@@ -155,7 +265,27 @@ async function executeFlash(toolPath, toolType, firmwareFile) {
                 downloadComplete = true;
             }
             
-            process.stdout.write(output);
+            // 尝试格式化进度显示
+            const progress = formatDownloadProgress(output, toolType);
+            if (progress) {
+                // 如果是进度条，在同一行更新
+                if (progress.startsWith('\r')) {
+                    process.stdout.write(progress);
+                    lastProgress = progress;
+                } else {
+                    // 状态信息：只有状态变化时才输出
+                    const currentStatus = progress.trim();
+                    if (currentStatus !== lastStatus) {
+                        if (lastProgress) {
+                            process.stdout.write('\n');
+                            lastProgress = '';
+                        }
+                        process.stdout.write(progress);
+                        lastStatus = currentStatus;
+                    }
+                }
+            }
+            // 其他输出不显示（正向过滤：只显示命中关键词的）
         });
         
         // 监听stderr
