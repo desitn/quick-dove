@@ -1,6 +1,9 @@
 .venv/
 .vscode/
-tools/
+tools/*.log
+tools/detect_dl/*
+tools/ecflashtool/*
+tools/pacdownload/*
 firmware+.ini
 *.vsix
 quectel_build/

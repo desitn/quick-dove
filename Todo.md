@@ -6,12 +6,8 @@
 (RTOS):
 
 -  `feature` 
-    
-   setting              :done
-
-   serial tools -automatic capture err  :working 
-
-   packet list 
+-  
+   AI skill download    :working
 
    mulit language support
 

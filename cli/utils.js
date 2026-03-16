@@ -27,10 +27,11 @@ function getProjectRoot() {
 function getToolsPath() {
     // 如果是打包的exe文件，使用exe路径计算tools目录
     if (process.execPath && process.execPath.endsWith('.exe')) {
-        // exe在 tools/firmware_cli/firmware-cli.exe
-        // 需要向上两级才能到 tools 目录
-        const exeDir = path.dirname(process.execPath);
-        const toolsDir = path.dirname(exeDir);
+        // exe 现在和 tools 平级
+        // exe: quick-firmware/firmware-cli.exe
+        // tools: quick-firmware/tools/
+        const projectRoot = path.dirname(process.execPath);
+        const toolsDir = path.join(projectRoot, 'tools');
         
         // 验证tools目录是否存在
         if (fs.existsSync(toolsDir)) {

@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "node index.js help",
-    "build:exe": "pkg . --targets node18-win-x64 --output ../dist/firmware-cli.exe"
+    "build:exe": "pkg . --targets node18-win-x64 --output ../firmware-cli.exe"
   },
   "keywords": [
     "firmware",
@@ -27,10 +27,12 @@
     "firmware-cli": "./index.js"
   },
   "pkg": {
-    "assets": [
-      "node_modules/**/*"
+    "scripts": [
+      "*.js"
     ],
-    "outputPath": "../dist"
+    "assets": [
+      "node_modules/adm-zip/**/*",
+      "node_modules/iconv-lite/**/*"
+    ]
   }
-}
 }
