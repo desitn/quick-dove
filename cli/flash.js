@@ -32,7 +32,7 @@ async function flashFirmware(firmwarePath = null, options = {}) {
             console.log('🔍 自动查找固件...');
             filePath = await findFirmwarePath();
             if (!filePath) {
-                throw new Error('未找到固件文件，请指定固件路径或配置.firmware-cli.json文件');
+                throw new Error('未找到固件文件，请指定固件路径或配置firmware-cli.json文件');
             }
         }
         

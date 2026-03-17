@@ -81,13 +81,12 @@ firmware-cli.exe help
 
 ## 配置文件
 
-在项目根目录创建 `.firmware-cli.json` 文件：
-
+在项目根目录创建 `firmware-cli.json` 文件，参数指定空使用工具默认值：
 ```json
 {
-  "firmwarePath": "C:/path/to/firmware",
-  "buildCommand": "build_OPTfile.bat",
-  "buildGitBashPath": "C:/Program Files/Git/bin/bash.exe"
+  "firmwarePath": "",
+  "buildCommand": "",
+  "buildGitBashPath": ""
 }
 ```
 

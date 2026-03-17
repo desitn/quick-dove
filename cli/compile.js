@@ -31,7 +31,7 @@ async function compileFirmware(buildCommand = null) {
             console.log('🔍 自动查找构建命令...');
             command = await findBuildCommand(workspacePath);
             if (!command) {
-                throw new Error('未找到构建命令，请指定或配置.firmware-cli.json文件');
+                throw new Error('未找到构建命令，请指定或配置firmware-cli.json文件');
             }
         }
         
@@ -42,7 +42,11 @@ async function compileFirmware(buildCommand = null) {
         await executeBuild(workspacePath, command);
         
         console.log('='.repeat(50));
-        console.log('✅ 编译完成！');
+        console.log('✅ 编译结束');
+        // tips for agent
+        console.log('> 1.识别最后命令行输出');
+        console.log('> 2.判断编译有无出错');
+        console.log('> 3.判断新固件是否生成');
         
     } catch (error) {
         console.error('❌ 编译失败:', error.message);
@@ -152,7 +156,7 @@ async function setConfig(key, value) {
     }
     
     saveConfig(config);
-    console.log('💡 配置已保存到 .firmware-cli.json');
+    console.log('💡 配置已保存到 firmware-cli.json');
 }
 
 /**
@@ -171,6 +175,8 @@ async function showConfig() {
     console.log('  node cli/index.js config set firmwarePath <路径>');
     console.log('  node cli/index.js config set buildCommand <命令>');
     console.log('  node cli/index.js config set buildGitBashPath <路径>');
+    // tips for agent
+    console.log('> 未配置：表示使用 默认值(工具自行处理)');
 }
 
 module.exports = {

@@ -1,5 +1,6 @@
 {
-  "firmwarePath": "E:/destin_sw10_windows_new_pure/depot3/ASR/1803S/main/R01_GW/quectel_build/release/EC200ACNDAR01A01M16_GW_BETA0205_RI",
+  "firmwarePath": "",
   "buildCommand": "",
-  "buildGitBashPath": ""
+  "buildGitBashPath": "",
+  "defaultComPort": "COM107"
 }

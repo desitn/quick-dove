@@ -416,20 +416,10 @@ function determineFirmwareType(fileOrPath) {
  */
 function loadConfig() {
     // 尝试加载带点的配置文件（优先）
-    const configPathWithDot = path.join(process.cwd(), '.firmware-cli.json');
+    const configPathWithDot = path.join(process.cwd(), 'firmware-cli.json');
     if (fs.existsSync(configPathWithDot)) {
         try {
             return JSON.parse(fs.readFileSync(configPathWithDot, 'utf8'));
-        } catch (error) {
-            console.error('配置文件解析失败:', error.message);
-        }
-    }
-    
-    // 尝试加载不带点的配置文件
-    const configPathWithoutDot = path.join(process.cwd(), 'firmware-cli.json');
-    if (fs.existsSync(configPathWithoutDot)) {
-        try {
-            return JSON.parse(fs.readFileSync(configPathWithoutDot, 'utf8'));
         } catch (error) {
             console.error('配置文件解析失败:', error.message);
         }
@@ -442,7 +432,7 @@ function loadConfig() {
  * 保存配置文件
  */
 function saveConfig(config) {
-    const configPath = path.join(process.cwd(), '.firmware-cli.json');
+    const configPath = path.join(process.cwd(), 'firmware-cli.json');
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
 }
 
@@ -479,6 +469,11 @@ function killProcessTree(childProcess, signal = 'SIGKILL') {
 
 /**
  * 执行命令
+ * @param {string} command - 命令
+ * @param {string[]} args - 参数
+ * @param {Object} options - 选项
+ * @param {boolean} options.silent - 是否静默输出
+ * @param {boolean} options.autoPressKey - 是否自动按键（用于跳过 pause 命令）
  */
 function executeCommand(command, args, options = {}) {
     return new Promise((resolve, reject) => {
@@ -500,6 +495,19 @@ function executeCommand(command, args, options = {}) {
             stdout += output;
             if (!options.silent) {
                 process.stdout.write(output);
+            }
+            
+            // 自动处理 pause 命令：检测到 "请按任意键继续" 或 "Press any key" 时自动发送按键
+            if (options.autoPressKey !== false) {
+                const lowerOutput = output.toLowerCase();
+                if (lowerOutput.includes('请按任意键继续') || 
+                    lowerOutput.includes('press any key') ||
+                    lowerOutput.includes('pause')) {
+                    // 发送回车键来跳过 pause
+                    if (child.stdin && !child.stdin.destroyed) {
+                        child.stdin.write('\n');
+                    }
+                }
             }
         });
         

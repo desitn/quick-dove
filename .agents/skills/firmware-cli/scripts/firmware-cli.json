@@ -1,5 +1,6 @@
 {
   "firmwarePath": "",
   "buildCommand": "",
-  "buildGitBashPath": ""
+  "buildGitBashPath": "",
+  "defaultComPort": "COM107"
 }

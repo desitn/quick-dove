@@ -442,11 +442,274 @@ async function showSerialList() {
     });
 }
 
+/**
+ * 打开串口并监控接收内容
+ * @param {string} portPath - 串口路径（如 COM1）
+ * @param {Object} options - 配置选项
+ * @param {number} options.baudRate - 波特率，默认 115200
+ * @param {number} options.dataBits - 数据位，默认 8
+ * @param {string} options.parity - 校验位，默认 'none'
+ * @param {number} options.stopBits - 停止位，默认 1
+ * @param {number} options.timeout - 监控超时时间（毫秒），默认 0 表示不超时
+ * @param {string} options.output - 输出文件路径
+ * @param {boolean} options.append - 是否追加到文件，默认 false
+ * @param {string} options.include - 包含的关键词（逗号分隔）
+ * @param {string} options.exclude - 排除的关键词（逗号分隔）
+ * @param {string} options.until - 收到此内容后退出
+ * @param {string} options.untilRegex - 正则表达式匹配后退出
+ * @param {number} options.lines - 捕获指定行数后退出
+ * @param {boolean} options.json - 是否以 JSON 格式输出结果
+ * @param {boolean} options.timestamp - 是否为每行添加时间戳
+ * @returns {Promise<Object>} 返回结构化结果
+ */
+async function openAndMonitorPort(portPath, options = {}) {
+    const config = {
+        baudRate: options.baudRate || 115200,
+        dataBits: options.dataBits || 8,
+        parity: options.parity || 'none',
+        stopBits: options.stopBits || 1,
+        timeout: options.timeout || 0,
+        output: options.output || null,
+        append: options.append || false,
+        include: options.include ? options.include.split(',').map(s => s.trim()) : null,
+        exclude: options.exclude ? options.exclude.split(',').map(s => s.trim()) : null,
+        until: options.until || null,
+        untilRegex: options.untilRegex ? new RegExp(options.untilRegex) : null,
+        lines: options.lines || 0,
+        json: options.json || false,
+        timestamp: options.timestamp || false
+    };
+
+    // 准备文件输出
+    let fileStream = null;
+    if (config.output) {
+        const fs = require('fs');
+        const flags = config.append ? 'a' : 'w';
+        fileStream = fs.createWriteStream(config.output, { flags });
+    }
+
+    if (!config.json) {
+        console.log(`🔌 打开串口: ${portPath}`);
+        console.log(`   波特率: ${config.baudRate}`);
+        if (config.output) console.log(`   输出文件: ${config.output}${config.append ? ' (追加)' : ''}`);
+        if (config.include) console.log(`   包含过滤: ${config.include.join(', ')}`);
+        if (config.exclude) console.log(`   排除过滤: ${config.exclude.join(', ')}`);
+        if (config.until) console.log(`   退出条件: "${config.until}"`);
+        if (config.untilRegex) console.log(`   退出正则: ${config.untilRegex}`);
+        if (config.lines > 0) console.log(`   捕获行数: ${config.lines}`);
+        if (config.timeout > 0) console.log(`   超时: ${config.timeout}ms`);
+        console.log('='.repeat(50));
+    }
+
+    return new Promise((resolve, reject) => {
+        const port = new SerialPort({
+            path: portPath,
+            baudRate: config.baudRate,
+            dataBits: config.dataBits,
+            parity: config.parity,
+            stopBits: config.stopBits,
+            autoOpen: false
+        });
+
+        let receivedData = '';
+        let filteredData = '';
+        let lineCount = 0;
+        let byteCount = 0;
+        let startTime = Date.now();
+        let timeoutId = null;
+        let buffer = '';
+
+        // 写入文件辅助函数
+        const writeToFile = (data) => {
+            if (fileStream) {
+                fileStream.write(data);
+            }
+        };
+
+        // 检查过滤条件
+        const shouldInclude = (line) => {
+            if (config.include) {
+                const hasInclude = config.include.some(keyword => line.includes(keyword));
+                if (!hasInclude) return false;
+            }
+            if (config.exclude) {
+                const hasExclude = config.exclude.some(keyword => line.includes(keyword));
+                if (hasExclude) return false;
+            }
+            return true;
+        };
+
+        // 检查退出条件
+        const checkExitCondition = (line) => {
+            if (config.until && line.includes(config.until)) {
+                return true;
+            }
+            if (config.untilRegex && config.untilRegex.test(line)) {
+                return true;
+            }
+            return false;
+        };
+
+        // 打开串口
+        port.open((err) => {
+            if (err) {
+                if (fileStream) fileStream.end();
+                reject(new Error(`无法打开串口 ${portPath}: ${err.message}`));
+                return;
+            }
+
+            if (!config.json) {
+                console.log('✅ 串口已打开，开始接收数据...');
+                if (!config.output) console.log('   按 Ctrl+C 停止监控\n');
+                else console.log('');
+            }
+
+            // 设置超时（如果配置了）
+            if (config.timeout > 0) {
+                timeoutId = setTimeout(() => {
+                    if (!config.json) console.log('\n⏱️ 监控超时，关闭串口');
+                    port.close();
+                }, config.timeout);
+            }
+        });
+
+        // 接收数据
+        port.on('data', (data) => {
+            const chunk = data.toString('utf8');
+            receivedData += chunk;
+            byteCount += chunk.length;
+            buffer += chunk;
+
+            // 处理行数据
+            let lines = buffer.split('\n');
+            buffer = lines.pop(); // 保留未完成的行
+
+            for (let line of lines) {
+                line = line.replace(/\r$/, ''); // 移除末尾的 \r
+                lineCount++;
+
+                // 添加时间戳
+                let outputLine = line;
+                if (config.timestamp) {
+                    const ts = new Date().toISOString();
+                    outputLine = `[${ts}] ${line}`;
+                }
+
+                // 检查过滤
+                const include = shouldInclude(line);
+                if (include) {
+                    filteredData += outputLine + '\n';
+                    writeToFile(outputLine + '\n');
+                    if (!config.output) {
+                        process.stdout.write(outputLine + '\n');
+                    }
+                }
+
+                // 检查退出条件
+                if (checkExitCondition(line)) {
+                    if (!config.json) console.log('\n🎯 匹配退出条件，关闭串口');
+                    port.close();
+                    return;
+                }
+
+                // 检查行数限制
+                if (config.lines > 0 && lineCount >= config.lines) {
+                    if (!config.json) console.log(`\n📊 已达到 ${config.lines} 行，关闭串口`);
+                    port.close();
+                    return;
+                }
+            }
+        });
+
+        // 处理错误
+        port.on('error', (err) => {
+            if (timeoutId) clearTimeout(timeoutId);
+            if (fileStream) fileStream.end();
+            reject(new Error(`串口错误: ${err.message}`));
+        });
+
+        // 处理关闭
+        port.on('close', () => {
+            if (timeoutId) clearTimeout(timeoutId);
+            
+            // 处理缓冲区中剩余的数据
+            if (buffer.length > 0) {
+                const line = buffer.replace(/\r$/, '');
+                lineCount++;
+                let outputLine = line;
+                if (config.timestamp) {
+                    const ts = new Date().toISOString();
+                    outputLine = `[${ts}] ${line}`;
+                }
+                if (shouldInclude(line)) {
+                    filteredData += outputLine + '\n';
+                    writeToFile(outputLine + '\n');
+                }
+            }
+
+            const duration = Date.now() - startTime;
+            
+            if (fileStream) {
+                fileStream.end(() => {
+                    finishMonitor(duration);
+                });
+            } else {
+                finishMonitor(duration);
+            }
+        });
+
+        // 完成监控
+        const finishMonitor = (duration) => {
+            const result = {
+                success: true,
+                port: portPath,
+                baudRate: config.baudRate,
+                duration: duration,
+                stats: {
+                    bytes: byteCount,
+                    lines: lineCount,
+                    filtered: filteredData.split('\n').filter(l => l.length > 0).length
+                },
+                outputFile: config.output,
+                data: receivedData
+            };
+
+            if (config.json) {
+                console.log(JSON.stringify(result, null, 2));
+            } else {
+                console.log('\n🔌 串口已关闭');
+                console.log('='.repeat(50));
+                console.log('📊 监控摘要:');
+                console.log(`   持续时间: ${(duration / 1000).toFixed(2)}s`);
+                console.log(`   总字节数: ${byteCount}`);
+                console.log(`   总行数: ${lineCount}`);
+                if (config.include || config.exclude) {
+                    console.log(`   过滤后行数: ${result.stats.filtered}`);
+                }
+                if (config.output) {
+                    console.log(`   输出文件: ${config.output}`);
+                }
+            }
+
+            resolve(result);
+        };
+
+        // 捕获 Ctrl+C 信号
+        process.on('SIGINT', () => {
+            if (!config.json) console.log('\n\n🛑 收到中断信号，关闭串口...');
+            if (port.isOpen) {
+                port.close();
+            }
+        });
+    });
+}
+
 module.exports = {
     listSerialPorts,
     findDownloadPort,
     findATPort,
     sendATCommand,
     enterDownloadMode,
-    showSerialList
+    showSerialList,
+    openAndMonitorPort
 };

@@ -14,7 +14,7 @@ async function listFirmware() {
     
     if (firmwares.length === 0) {
         console.log('未找到固件文件');
-        console.log('提示: 配置.firmware-cli.json文件或使用flash <路径>命令指定固件');
+        console.log('提示: 配置firmware-cli.json文件或使用flash <路径>命令指定固件');
         return [];
     }
     

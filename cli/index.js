@@ -3,8 +3,8 @@
 const { flashFirmware, listDevices } = require('./flash');
 const { listFirmware } = require('./list');
 const { compileFirmware, setConfig, showConfig } = require('./compile');
-const { loadToolsConfig } = require('./utils');
-const { enterDownloadMode, showSerialList } = require('./serial');
+const { loadToolsConfig, loadConfig } = require('./utils');
+const { showSerialList, openAndMonitorPort } = require('./serial');
 
 /**
  * 生成支持的固件类型列表（从JSON配置读取）
@@ -45,7 +45,19 @@ function showHelp() {
   list                 列出可用固件
   devices              列出USB设备
   serial               列出串口设备
-  enter-dl-mode [类型] [选项]  进入下载模式
+  monitor [选项]        打开串口并监控数据
+    -p, --port <端口>   串口端口（例如: COM107，不指定则使用默认配置）
+    --baud, -b <rate>   设置波特率（默认 115200）
+    --timeout, -t <ms>  设置超时时间（毫秒，默认 0 表示不超时）
+    --output, -o <file> 输出到文件
+    --append, -a        追加到文件（默认覆盖）
+    --include <keywords> 包含关键词（逗号分隔）
+    --exclude <keywords> 排除关键词（逗号分隔）
+    --until <text>      收到此内容后退出
+    --until-regex <pattern> 正则匹配后退出
+    --lines <n>         捕获 n 行后退出
+    --json              以 JSON 格式输出结果
+    --timestamp         为每行添加时间戳
   build [命令]         编译固件
   build-and-flash      编译并烧录最新固件
   config               显示当前配置
@@ -54,17 +66,19 @@ function showHelp() {
 
 示例:
   firmware-cli.exe flash
-  firmware-cli.exe flash "C:/path/firmware.bin"
-  firmware-cli.exe flash --skip-dl-mode
-  firmware-cli.exe list
-  firmware-cli.exe serial
-  firmware-cli.exe enter-dl-mode asr
-  firmware-cli.exe enter-dl-mode unisoc --force
   firmware-cli.exe build
   firmware-cli.exe build-and-flash
+  firmware-cli.exe list
+  firmware-cli.exe serial
+  firmware-cli.exe monitor -p COM9
+  firmware-cli.exe monitor -p COM9 -b 9600 -t 5000
+  firmware-cli.exe monitor -p COM9 --include "ERROR,WARN" -o errors.log
+  firmware-cli.exe monitor -p COM9 --until "Done" -o boot.log
+  firmware-cli.exe monitor -p COM9 --lines 100 -o debug.log
+  firmware-cli.exe monitor -p COM9 --json --timeout 5000
 
 配置文件:
-  .firmware-cli.json (在项目根目录)
+  firmware-cli.json (在项目根目录)
 
 支持的固件类型:
 ${supportedTypes}
@@ -94,12 +108,51 @@ async function main() {
             case 'serial':
                 await showSerialList();
                 break;
-            case 'enter-dl-mode':
-                const platform = args[0] || 'asr';
-                const force = args.includes('--force') || args.includes('-f');
-                const timeoutArg = args.find((arg, index) => (arg === '--timeout' || arg === '-t') && args[index + 1]);
-                const timeout = timeoutArg ? parseInt(args[args.indexOf(timeoutArg) + 1]) : 2;
-                await enterDownloadMode(platform, force, timeout);
+            case 'monitor':
+                // 解析选项
+                const getArgValue = (short, long) => {
+                    const index = args.findIndex(arg => arg === short || arg === long);
+                    return index !== -1 ? args[index + 1] : null;
+                };
+                const hasFlag = (short, long) => args.includes(short) || args.includes(long);
+                
+                // 获取端口：优先使用 -p 选项，否则使用配置默认值
+                let portPath = getArgValue('-p', '--port');
+                let portSource = 'user_input';
+                
+                // 如果没有指定端口，尝试读取配置
+                if (!portPath) {
+                    const config = loadConfig();
+                    if (config.defaultComPort) {
+                        portPath = config.defaultComPort;
+                        portSource = 'config_default';
+                    }
+                }
+                
+                if (!portPath) {
+                    throw new Error('请使用 -p 指定串口（例如: -p COM107），或在 firmware-cli.json 中配置 defaultComPort');
+                }
+                
+                const monitorOptions = {
+                    baudRate: parseInt(getArgValue('-b', '--baud')) || 115200,
+                    timeout: parseInt(getArgValue('-t', '--timeout')) || 0,
+                    output: getArgValue('-o', '--output'),
+                    append: hasFlag('-a', '--append'),
+                    include: getArgValue(null, '--include'),
+                    exclude: getArgValue(null, '--exclude'),
+                    until: getArgValue(null, '--until'),
+                    untilRegex: getArgValue(null, '--until-regex'),
+                    lines: parseInt(getArgValue(null, '--lines')) || 0,
+                    json: hasFlag(null, '--json'),
+                    timestamp: hasFlag(null, '--timestamp')
+                };
+                
+                // 如果使用配置默认值，输出提示（非 JSON 模式）
+                if (portSource === 'config_default' && !monitorOptions.json) {
+                    console.log(`\n📌 使用配置的默认串口: ${portPath}\n`);
+                }
+                
+                await openAndMonitorPort(portPath, monitorOptions);
                 break;
             case 'build':
                 await compileFirmware(args[0] || null);
