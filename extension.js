@@ -28,6 +28,34 @@ function get_configuration() {
     return vscode.workspace.getConfiguration('quickFirmwarePlus');
 }
 
+/**
+ * Write firmware-cli.json configuration file to workspace root
+ * This file is used by the independent firmware-cli tool
+ */
+function writeFirmwareCliConfig(config) {
+    const workspace = vscode.workspace.workspaceFolders;
+    if (!workspace || workspace.length === 0) {
+        return;
+    }
+    
+    const workspacePath = workspace[0].uri.fsPath;
+    const configPath = path.join(workspacePath, 'firmware-cli.json');
+    
+    const configData = {
+        firmwarePath: config.get('firmwarePath') || '',
+        buildCommand: config.get('buildCommand') || '',
+        buildGitBashPath: config.get('buildGitBashPath') || '',
+        defaultComPort: config.get('defaultComPort') || ''
+    };
+    
+    try {
+        fs.writeFileSync(configPath, JSON.stringify(configData, null, 2));
+        output_chan.appendLine(`Configuration written to: ${configPath}`);
+    } catch (error) {
+        output_chan.appendLine(`Failed to write firmware-cli.json: ${error.message}`);
+    }
+}
+
 function is_windows() {
     return process.platform === 'win32';
 }
@@ -687,6 +715,7 @@ function activate(context)
             const selectedPath = result[0].fsPath;
             const config = get_configuration();
             await config.update('firmwarePath', selectedPath, vscode.ConfigurationTarget.Workspace);
+            writeFirmwareCliConfig(config);
             vscode.commands.executeCommand('firmwareDownloader.refresh');
         }
     });
@@ -694,6 +723,7 @@ function activate(context)
     const clearFirmwareDirCommand = vscode.commands.registerCommand('firmwareDownloader.clear', async () => {
         const config = get_configuration();
         await config.update('firmwarePath', '', vscode.ConfigurationTarget.Workspace);
+        writeFirmwareCliConfig(config);
         vscode.commands.executeCommand('firmwareDownloader.refresh');
     });
  

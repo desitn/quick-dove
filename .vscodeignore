@@ -1,4 +1,6 @@
 
 .venv/
+.agents/
+quectel_build/
 *.vsix
 
