@@ -1,7 +1,7 @@
 {
   "name": "quick-firmware-plus",
-  "displayName": "Quick Firmware +",
-  "description": "协助编译生成和固件下载",
+  "displayName": "%extension.displayName%",
+  "description": "%extension.description%",
   "version": "0.2.6",
   "publisher": "destin-zhang",
   "icon": "images/icon.png",
@@ -33,7 +33,7 @@
       "activitybar": [
         {
           "id": "firmware-explorer",
-          "title": "Quick Firmware +",
+          "title": "%extension.displayName%",
           "icon": "images/icon-quick.svg"
         }
       ]
@@ -42,19 +42,19 @@
       "firmware-explorer": [
         {
           "id": "firmware-explorer",
-          "name": "固件列表",
+          "name": "%view.firmwareList%",
           "icon": "$(list-tree)",
           "contextualTitle": "Quick Firmware +"
         },
         {
           "id": "firmware-devices",
-          "name": "设备列表",
+          "name": "%view.deviceList%",
           "icon": "$(list-tree)",
           "contextualTitle": "Quick Firmware +"
         },
         {
           "id": "firmware-settings",
-          "name": "可配置项",
+          "name": "%view.settings%",
           "icon": "$(gear)",
           "contextualTitle": "Quick Firmware +"
         }
@@ -63,28 +63,48 @@
     "commands": [
       {
         "command": "firmwareDownloader.download",
-        "title": "固件下载",
+        "title": "%command.download%",
         "icon": "$(arrow-circle-down)"
       },
       {
+        "command": "firmwareDownloader.build",
+        "title": "%command.build%",
+        "icon": "$(coffee)"
+      },
+      {
         "command": "firmwareDownloader.refresh",
-        "title": "列表刷新",
+        "title": "%command.refresh%",
         "icon": "$(refresh)"
       },
       {
         "command": "firmwareDownloader.find",
-        "title": "外部查找",
+        "title": "%command.find%",
         "icon": "$(search)"
       },
       {
         "command": "firmwareDownloader.clear",
-        "title": "清除查找",
+        "title": "%command.clear%",
         "icon": "$(clear-all)"
       },
       {
         "command": "firmwareDownloader.devices_refresh",
-        "title": "设备刷新",
+        "title": "%command.devicesRefresh%",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "firmwareDownloader.addBuildCommand",
+        "title": "%command.addBuildCommand%",
+        "icon": "$(add)"
+      },
+      {
+        "command": "firmwareDownloader.selectBuildCommand",
+        "title": "%command.selectBuildCommand%",
+        "icon": "$(check)"
+      },
+      {
+        "command": "firmwareDownloader.switchBuildCommand",
+        "title": "%command.switchBuildCommand%",
+        "icon": "$(list-unordered)"
       }
     ],
     "menus": {
@@ -123,17 +143,46 @@
         "quickFirmwarePlus.firmwarePath": {
           "type": "string",
           "default": "",
-          "description": "固件目录路径"
+          "description": "%config.firmwarePath%"
         },
-        "quickFirmwarePlus.buildCommand": {
+        "quickFirmwarePlus.buildCommands": {
+          "type": "array",
+          "default": [],
+          "description": "%config.buildCommands%",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "命令名称"
+              },
+              "command": {
+                "type": "string",
+                "description": "构建命令"
+              }
+            }
+          }
+        },
+        "quickFirmwarePlus.lastBuildCommand": {
           "type": "string",
           "default": "",
-          "description": "构建命令"
+          "description": "%config.lastBuildCommand%"
         },
         "quickFirmwarePlus.buildGitBashPath": {
           "type": "string",
           "default": "",
-          "description": "Git bash 执行程序路径和文件 例如: \"C:\\Program Files\\Git\\bin\\bash.exe\"(windows)"
+          "description": "%config.buildGitBashPath%"
+        },
+        "quickFirmwarePlus.language": {
+          "type": "string",
+          "default": "auto",
+          "enum": ["auto", "en", "zh-cn"],
+          "enumDescriptions": [
+            "%config.language.auto%",
+            "%config.language.en%",
+            "%config.language.zh-cn%"
+          ],
+          "description": "%config.language%"
         }
       }
     }

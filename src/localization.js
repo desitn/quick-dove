@@ -1,0 +1,177 @@
+const vscode = require('vscode');
+
+const messages = {
+  'en': {
+    'noBuildCommand': 'No build command configured.',
+    'addCommand': 'Add Command',
+    'buildComplete': 'Build task completed',
+    'buildFailed': 'Build task failed: {0}',
+    'downloadComplete': 'Download completed',
+    'downloadFailed': 'Download failed, exit code: {0}',
+    'downloadError': 'Download failed: {0}',
+    'downloadTimeout': 'Download timeout',
+    'downloadStartFailed': 'Failed to start download process: {0}',
+    'noFirmware': 'No valid firmware found, please specify file/directory',
+    'firmwareNotFound': 'Firmware not found, please specify firmware path',
+    'copyPathFailed': 'Failed to copy path: {0}',
+    'toolNotFound': 'Download tool not found: {0}!!!',
+    'enterDownloadMode': 'Please enter download mode',
+    'previousProcessTerminated': 'Previous process terminated',
+    'previousProcessTerminateFailed': 'Previous process terminate failed: {0}',
+    'childProcessTerminated': 'Child process terminated',
+    'childProcessTerminateFailed': 'Child process terminate failed: {0}',
+    'selectFirmwareDir': 'Select firmware directory',
+    'confirmFirmwareDir': 'Firmware directory:\\n{0} ?',
+    'yes': 'Yes',
+    'no': 'No',
+    'copyPath': 'Copy Path',
+    'clickToDownload': 'Click to download',
+    'deviceInfo': 'Device Info',
+    'noDeviceFound': 'No device found',
+    'checkDeviceConnection': 'Please check device connection',
+    'current': 'Current: {0}',
+    'clickToSwitch': 'Click to switch build command',
+    'noBuildCommandConfigured': 'No build command configured. Click to add.',
+    'building': 'Building: {0}',
+    'waitingForDownload': 'Waiting for download',
+    'downloadSuccess': 'Download success',
+    'downloadFailed2': 'Download failed',
+    'startFailed': 'Start failed',
+    'downloadException': 'Download exception',
+    'commandNameEmpty': 'Command name cannot be empty',
+    'commandNameExists': 'Command name already exists',
+    'commandEmpty': 'Command cannot be empty',
+    'commandAdded': 'Build command "{0}" added successfully',
+    'selectActiveCommand': 'Selected "{0}" as active build command',
+    'switchedTo': 'Switched to "{0}"',
+    'addNewCommand': 'Add New Build Command',
+    'configureNewCommand': 'Configure a new build command',
+    'selectCommandToSwitch': 'Select build command to switch',
+    'autoDetectedSaved': 'Auto-detected build command saved: {0}',
+    'alreadyDownloading': 'Already downloading task, ignore this request!',
+    'zipCheckFailed': 'ZIP file check failed: {0}',
+    'enterCommandName': 'Enter command name',
+    'enterBuildCommand': 'Enter build command',
+    'enterBuildCommandPlaceholder': 'e.g., build.bat new EC200ACN_DA EC200ACNDAR01A01M16',
+    'configGitBashPath': 'Please configure git bash.exe path',
+    'rootBuildFile': 'Root build file name: {0}',
+    'gitBashPath': 'git bash.exe path: {0}',
+    'currentWorkspace': 'Current workspace folder: {0}',
+    'configUri': 'Config uri: {0}',
+    'selectedUri': 'Selected uri: {0}',
+    'lastDlState': 'Last dl state: {0}',
+    'doLastDlProcessKill': 'Do last dl process kill',
+    'previousProcessTerminateSuccess': 'Previous process terminate success',
+    'doChildDownloadProcessKill': 'Do child download process kill.',
+    'childProcessTerminateSuccess': 'Child process terminated.',
+    'adProgress': 'ad progress:{0}',
+    'parsingJsonError': 'Error parsing JSON: {0}',
+    'configurationWritten': 'Configuration written to: {0}',
+    'failedToWriteConfig': 'Failed to write firmware-cli.json: {0}',
+    'command.build': 'Build Firmware',
+    'command.download': 'Download Firmware',
+    'view.pluginSettings': 'Plugin Settings',
+    'confirmBuildCommand': 'Current build command:\n{0}\n\nExecute build?',
+    'executeBuild': 'Yes',
+    'switchCommand': 'Switch'
+  },
+  'zh-cn': {
+    'noBuildCommand': '没有配置构建命令。',
+    'addCommand': '添加命令',
+    'buildComplete': '构建任务完成',
+    'buildFailed': '构建任务失败: {0}',
+    'downloadComplete': '下载完成',
+    'downloadFailed': '下载失败，退出码: {0}',
+    'downloadError': '下载失败: {0}',
+    'downloadTimeout': '下载等待超时',
+    'downloadStartFailed': '启动下载进程失败: {0}',
+    'noFirmware': '无法识别到有效下载固件，请指定文件/目录',
+    'firmwareNotFound': '未找到固件，请指定固件路径',
+    'copyPathFailed': '复制路径失败: {0}',
+    'toolNotFound': '未找到下载工具: {0}!!!',
+    'enterDownloadMode': '请进入下载模式',
+    'previousProcessTerminated': '前一个进程已终止',
+    'previousProcessTerminateFailed': '前一个进程终止失败: {0}',
+    'childProcessTerminated': '子进程已终止',
+    'childProcessTerminateFailed': '子进程终止失败: {0}',
+    'selectFirmwareDir': '选择固件目录',
+    'confirmFirmwareDir': '固件目录:\\n{0} ?',
+    'yes': '是',
+    'no': '否',
+    'copyPath': '复制路径',
+    'clickToDownload': '点击下载',
+    'deviceInfo': '设备信息',
+    'noDeviceFound': '未找到设备',
+    'checkDeviceConnection': '请检查设备连接',
+    'current': '当前: {0}',
+    'clickToSwitch': '点击切换构建命令',
+    'noBuildCommandConfigured': '没有配置构建命令。点击添加。',
+    'building': '正在构建: {0}',
+    'waitingForDownload': '等待下载',
+    'downloadSuccess': '下载成功',
+    'downloadFailed2': '下载失败',
+    'startFailed': '启动失败',
+    'downloadException': '下载异常',
+    'commandNameEmpty': '命令名称不能为空',
+    'commandNameExists': '命令名称已存在',
+    'commandEmpty': '命令不能为空',
+    'commandAdded': '构建命令 "{0}" 添加成功',
+    'selectActiveCommand': '已选择 "{0}" 作为活动构建命令',
+    'switchedTo': '已切换到 "{0}"',
+    'addNewCommand': '添加新构建命令',
+    'configureNewCommand': '配置新构建命令',
+    'selectCommandToSwitch': '选择要切换的构建命令',
+    'autoDetectedSaved': '自动检测的构建命令已保存: {0}',
+    'alreadyDownloading': '已有下载任务正在进行，忽略此请求!',
+    'zipCheckFailed': 'ZIP文件检查失败: {0}',
+    'enterCommandName': '输入命令名称',
+    'enterBuildCommand': '输入构建命令',
+    'enterBuildCommandPlaceholder': '例如: build.bat new EC200ACN_DA EC200ACNDAR01A01M16',
+    'configGitBashPath': '请配置git bash.exe路径',
+    'rootBuildFile': '根构建文件名: {0}',
+    'gitBashPath': 'git bash.exe 路径: {0}',
+    'currentWorkspace': '当前工作区文件夹: {0}',
+    'configUri': '配置uri: {0}',
+    'selectedUri': '选中uri: {0}',
+    'lastDlState': '上次下载状态: {0}',
+    'doLastDlProcessKill': '执行上次下载进程终止',
+    'previousProcessTerminateSuccess': '前一个进程终止成功',
+    'doChildDownloadProcessKill': '执行子下载进程终止。',
+    'childProcessTerminateSuccess': '子进程已终止。',
+    'adProgress': 'ad 进度:{0}',
+    'parsingJsonError': '解析JSON错误: {0}',
+    'configurationWritten': '配置已写入: {0}',
+    'failedToWriteConfig': '写入 firmware-cli.json 失败: {0}',
+    'command.build': '编译固件',
+    'command.download': '固件下载',
+    'view.pluginSettings': '插件设置',
+    'confirmBuildCommand': '当前构建命令:\n{0}\n\n执行编译?',
+    'executeBuild': '是',
+    'switchCommand': '切换'
+  }
+};
+
+function getLocale() {
+  const config = vscode.workspace.getConfiguration('quickFirmwarePlus');
+  const language = config.get('language', 'auto');
+  
+  if (language === 'auto') {
+    return vscode.env.language.toLowerCase();
+  }
+  return language.toLowerCase();
+}
+
+function localize(key, ...args) {
+  const locale = getLocale();
+  const lang = messages[locale] || messages['en'];
+  let message = lang[key] || messages['en'][key] || key;
+  
+  // Replace placeholders {0}, {1}, etc.
+  args.forEach((arg, index) => {
+    message = message.replace(`{${index}}`, arg);
+  });
+  
+  return message;
+}
+
+module.exports = { localize };

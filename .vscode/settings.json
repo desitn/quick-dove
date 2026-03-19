@@ -9,4 +9,11 @@
     },
     "explorerExclude.backup": {},
     "quickFirmwarePlus.firmwarePath": "",
+    "quickFirmwarePlus.buildCommands": [
+        {
+            "name": "kernel",
+            "command": "build kernel"
+        }
+    ],
+    "quickFirmwarePlus.lastBuildCommand": "kernel",
 }

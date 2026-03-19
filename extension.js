@@ -11,6 +11,7 @@ const admzip = require('adm-zip');
 const iconv = require('iconv-lite');
 const { spawn } = require('child_process');
 const ini = require('ini');
+const { localize } = require('./src/localization');
 
 /** @note All download tool paths used directly by this extension */
 const tool_set = {
@@ -22,7 +23,7 @@ const tool_set = {
 };
 
 const output_chan = vscode.window.createOutputChannel('Quick Firmware +');
-const alert = "无法识别到有效下载固件，请指定文件/目录";
+const alert = localize('noFirmware');
 
 function get_configuration() {
     return vscode.workspace.getConfiguration('quickFirmwarePlus');
@@ -41,18 +42,32 @@ function writeFirmwareCliConfig(config) {
     const workspacePath = workspace[0].uri.fsPath;
     const configPath = path.join(workspacePath, 'firmware-cli.json');
     
+    const buildCommands = config.get('buildCommands') || [];
+    const lastBuildCommand = config.get('lastBuildCommand') || '';
+    // Get the command from last used or first command
+    let buildCommand = '';
+    if (lastBuildCommand && buildCommands.length > 0) {
+        const found = buildCommands.find(cmd => cmd.name === lastBuildCommand);
+        if (found) {
+            buildCommand = found.command;
+        }
+    }
+    if (!buildCommand && buildCommands.length > 0) {
+        buildCommand = buildCommands[0].command;
+    }
+    
     const configData = {
         firmwarePath: config.get('firmwarePath') || '',
-        buildCommand: config.get('buildCommand') || '',
+        buildCommand: buildCommand,
         buildGitBashPath: config.get('buildGitBashPath') || '',
         defaultComPort: config.get('defaultComPort') || ''
     };
     
     try {
         fs.writeFileSync(configPath, JSON.stringify(configData, null, 2));
-        output_chan.appendLine(`Configuration written to: ${configPath}`);
+        output_chan.appendLine(localize('configurationWritten', configPath));
     } catch (error) {
-        output_chan.appendLine(`Failed to write firmware-cli.json: ${error.message}`);
+        output_chan.appendLine(localize('failedToWriteConfig', error.message));
     }
 }
 
@@ -65,7 +80,7 @@ function is_remote_ssh() {
 }
 
 function not_support_disp() {
-    vscode.window.showErrorMessage(`${alert}`);
+    vscode.window.showErrorMessage(alert);
 } 
 
 
@@ -132,7 +147,7 @@ class FirmwareTreeDataProvider {
         }
 
         if (items.length === 0) {
-            items.push(new InfoItem('未找到固件', '请确指定固件路径', vscode.TreeItemCollapsibleState.None));
+            items.push(new InfoItem(localize('firmwareNotFound'), '', vscode.TreeItemCollapsibleState.None));
         }
 
         return items;
@@ -168,11 +183,11 @@ class FirmwareItem extends vscode.TreeItem {
         this.path = path;
         this.description = `${time.toLocaleString()}`;
         this.children = children;
-        this.tooltip = `复制路径`;
+        this.tooltip = localize('copyPath');
         this.contextValue = 'copy-path';
         this.command = {
             command: 'firmwareDownloader.copyPath',
-            title: '复制路径',
+            title: localize('copyPath'),
             arguments: [vscode.Uri.file(path)]
         };
         this.iconPath = new vscode.ThemeIcon('folder');
@@ -184,10 +199,10 @@ class FirmwareFileItem extends vscode.TreeItem {
         super(label, collapsibleState);
         this.path = path;
         
-        this.tooltip = `点击下载`;
+        this.tooltip = localize('clickToDownload');
         this.command = {
             command: 'firmwareDownloader.download',
-            title: '下载固件',
+            title: localize('command.download'),
             arguments: [vscode.Uri.file(path)]
         };
         this.iconPath = new vscode.ThemeIcon('file-binary');
@@ -301,7 +316,7 @@ class DeviceTreeDataProvider {
                             }
                             
                             if (items.length === 0) {
-                                resolve([new InfoItem('未找到设备', '请检查设备连接', vscode.TreeItemCollapsibleState.None)]);
+                                resolve([new InfoItem(localize('noDeviceFound'), localize('checkDeviceConnection'), vscode.TreeItemCollapsibleState.None)]);
                             } else {
                                 // Sort device list
                                 items.sort((a, b) => a.label.localeCompare(b.label));
@@ -309,17 +324,17 @@ class DeviceTreeDataProvider {
                             }
                         } else {
                             // If wmic fails
-                            resolve([new InfoItem('未找到设备', '请检查设备连接', vscode.TreeItemCollapsibleState.None)]);
+                            resolve([new InfoItem(localize('noDeviceFound'), localize('checkDeviceConnection'), vscode.TreeItemCollapsibleState.None)]);
                         }
                     });
                 });
             } else {
                 // Non-Windows systems
-                return [new InfoItem('获取设备列表失败', error.message, vscode.TreeItemCollapsibleState.None)];
+                return [new InfoItem(localize('noDeviceFound'), '', vscode.TreeItemCollapsibleState.None)];
             }
         } catch (error) {
             console.error('Error getting device list:', error);
-            return [new InfoItem('获取设备列表失败', error.message, vscode.TreeItemCollapsibleState.None)];
+            return [new InfoItem(localize('noDeviceFound'), error.message, vscode.TreeItemCollapsibleState.None)];
         }
     }
     
@@ -329,7 +344,7 @@ class DeviceItem extends vscode.TreeItem {
     constructor(label, description, collapsibleState) {
         super(label, collapsibleState);
         this.description = description;
-        this.tooltip = `设备信息`;
+        this.tooltip = localize('deviceInfo');
         this.iconPath = new vscode.ThemeIcon('plug');
     }
 }
@@ -353,52 +368,28 @@ class SettingsTreeDataProvider {
     }
     getSettingsItems() {
         const items = [];
-        const config = get_configuration();
-        const workspace_folders = vscode.workspace.workspaceFolders;
-        // Use VS Code settings first
-        let build_cmd = config.get('buildCommand') || '';
-        let frim_path = config.get('firmwarePath') || '';
-        // Set default values
-        if (!build_cmd) {
-            build_cmd = 'will try: build*OPTfile.bat';   
-        }
-        if (!frim_path) {
-            if (workspace_folders && workspace_folders.length > 0) {
-                const release_path = path.join(workspace_folders[0].uri.fsPath, 'quectel_build', 'release');
-                frim_path = `will try: ${release_path}`;
-            } else {
-                frim_path = 'Not set';
-            }
-        }
-
-        items.push(new SettingsItem('Build Command', `${build_cmd}`, vscode.TreeItemCollapsibleState.None, 'build-command'));
-        items.push(new SettingsItem('Plugin Settings', '', vscode.TreeItemCollapsibleState.None, 'firmware-settings'));
+        
+        // Only keep Plugin Settings entry
+        items.push(new SettingsItem(localize('view.pluginSettings'), '', vscode.TreeItemCollapsibleState.None, 'firmware-settings'));
         
         return items;
     }
 }
 
 class SettingsItem extends vscode.TreeItem {
-    constructor(label, description, collapsibleState, type) {
+    constructor(label, description, collapsibleState, type, data = null) {
         super(label, collapsibleState);
         this.description = description;
         this.tooltip     = description;
         this.type        = type;
+        this.data        = data;
 
         switch(type) {
-            case 'build-command':
-                    this.iconPath = new vscode.ThemeIcon('coffee');
-                    this.command = {
-                        command: 'firmwareDownloader.buildCommand',
-                        title: '指定构建命令',
-                        arguments: []
-                    };
-                    break;
             case 'firmware-settings':
                 this.iconPath = new vscode.ThemeIcon('gear');
                 this.command = {
                         command: 'firmwareDownloader.settings',
-                        title: '插件设置',
+                        title: localize('view.settings'),
                         arguments: []
                 };
                 break;
@@ -498,12 +489,12 @@ function ad_extract_progress(output)
                 try {
                     const logObject = JSON.parse(jsonBuffer);
                     if (logObject.progress !== undefined) {
-                        output_chan.appendLine(`ad progress:${logObject.progress}`);
+                        output_chan.appendLine(localize('adProgress', logObject.progress));
                         return logObject.progress;
                     }
                 } catch (error) {
                     if (line.trim().endsWith('}')) {
-                        output_chan.appendLine('Error parsing JSON:', jsonBuffer, error);
+                        output_chan.appendLine(localize('parsingJsonError', jsonBuffer), error);
                         found = false;
                         jsonBuffer = '';
                     }
@@ -622,7 +613,7 @@ function zip_is_adownload_file(file_name)
                 return true;
             }
         } catch (error) {
-            vscode.window.showErrorMessage(`ZIP file check failed: ${error.message}`);
+            vscode.window.showErrorMessage(localize('zipCheckFailed', error.message));
         }
     }
 
@@ -670,15 +661,15 @@ function activate(context)
         terminal:null
     };
 
-    const status_bar_build   = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-    status_bar_build.text    = "$(coffee) 构建";
-    status_bar_build.tooltip = "执行编译任务";
+    const status_bar_build   = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 99);
+    status_bar_build.text    = "$(coffee)";
+    status_bar_build.tooltip = localize('command.build');
     status_bar_build.command = "firmwareDownloader.build";
     status_bar_build.show();
 
-    const status_bar_dl   = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-    status_bar_dl.text    = "$(arrow-circle-down) 下载";
-    status_bar_dl.tooltip = "执行下载操作";
+    const status_bar_dl   = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 98);
+    status_bar_dl.text    = "$(arrow-circle-down)";
+    status_bar_dl.tooltip = localize('command.download');
     status_bar_dl.command = "firmwareDownloader.download";
     status_bar_dl.show();
 
@@ -707,7 +698,7 @@ function activate(context)
             canSelectFiles: false,
             canSelectFolders: true,
             canSelectMany: false,
-            openLabel: '选择固件目录',
+            openLabel: localize('selectFirmwareDir'),
             defaultUri: workspace_folders ? vscode.Uri.file(workspace_folders[0].uri.fsPath) : undefined
         };
         const result = await vscode.window.showOpenDialog(options);
@@ -727,21 +718,126 @@ function activate(context)
         vscode.commands.executeCommand('firmwareDownloader.refresh');
     });
  
-    const buildCommandArgsCommand = vscode.commands.registerCommand('firmwareDownloader.buildCommand', async () => {
+    // Add build command
+    const addBuildCommand = vscode.commands.registerCommand('firmwareDownloader.addBuildCommand', async () => {
         const config = get_configuration();
-        const current_cmd = config.get('buildCommand') || '';
-
-        const input = await vscode.window.showInputBox({
-            prompt: '请输入构建命令',
-            placeHolder: '例如: build.bat new EC200ACN_DA EC200ACNDAR01A01M16',
-            value: current_cmd
+        
+        // Get command name
+        const name = await vscode.window.showInputBox({
+            prompt: localize('enterCommandName'),
+            placeHolder: 'e.g., Release Build, Debug Build',
+            validateInput: (value) => {
+                if (!value || value.trim().length === 0) {
+                    return localize('commandNameEmpty');
+                }
+                const buildCommands = config.get('buildCommands') || [];
+                if (buildCommands.some(cmd => cmd.name === value.trim())) {
+                    return localize('commandNameExists');
+                }
+                return null;
+            }
         });
-        if (input === undefined) {
+        
+        if (!name) {
             return;
         }
-        await config.update('buildCommand', input, vscode.ConfigurationTarget.Workspace);
-      
+        
+        // Get command
+        const command = await vscode.window.showInputBox({
+            prompt: localize('enterBuildCommand'),
+            placeHolder: localize('enterBuildCommandPlaceholder'),
+            validateInput: (value) => {
+                if (!value || value.trim().length === 0) {
+                    return localize('commandEmpty');
+                }
+                return null;
+            }
+        });
+        
+        if (!command) {
+            return;
+        }
+        
+        // Save to configuration
+        const buildCommands = config.get('buildCommands') || [];
+        buildCommands.push({ name: name.trim(), command: command.trim() });
+        await config.update('buildCommands', buildCommands, vscode.ConfigurationTarget.Workspace);
+        
+        // Set as last used if it's the first command
+        if (buildCommands.length === 1) {
+            await config.update('lastBuildCommand', name.trim(), vscode.ConfigurationTarget.Workspace);
+        }
+        
+        writeFirmwareCliConfig(config);
         vscode.commands.executeCommand('firmwareDownloader.refresh');
+        vscode.window.showInformationMessage(localize('commandAdded', name));
+    });
+    
+    // Select build command (from settings view)
+    const selectBuildCommand = vscode.commands.registerCommand('firmwareDownloader.selectBuildCommand', async (cmdData) => {
+        if (!cmdData) {
+            return;
+        }
+        
+        const config = get_configuration();
+        await config.update('lastBuildCommand', cmdData.name, vscode.ConfigurationTarget.Workspace);
+        writeFirmwareCliConfig(config);
+        vscode.commands.executeCommand('firmwareDownloader.refresh');
+        vscode.window.showInformationMessage(localize('selectActiveCommand', cmdData.name));
+    });
+    
+
+    const switchBuildCommand = vscode.commands.registerCommand('firmwareDownloader.switchBuildCommand', async () => {
+        const config = get_configuration();
+        const buildCommands = config.get('buildCommands') || [];
+        const lastBuildCommand = config.get('lastBuildCommand') || '';
+        
+        if (buildCommands.length === 0) {
+            // No commands configured, prompt to add
+            const choice = await vscode.window.showInformationMessage(
+                localize('noBuildCommand'),
+                localize('addCommand')
+            );
+            if (choice === localize('addCommand')) {
+                vscode.commands.executeCommand('firmwareDownloader.addBuildCommand');
+            }
+            return;
+        }
+        
+        // Show quick pick to select command
+        const quickPickItems = buildCommands.map(cmd => ({
+            label: cmd.name === lastBuildCommand ? `$(check) ${cmd.name}` : cmd.name,
+            description: cmd.command,
+            command: cmd
+        }));
+        
+        // Add "Add New Command" option
+        quickPickItems.push({
+            label: '$(add) ' + localize('addNewCommand'),
+            description: localize('configureNewCommand'),
+            command: null
+        });
+        
+        const selected = await vscode.window.showQuickPick(quickPickItems, {
+            placeHolder: localize('selectCommandToSwitch'),
+            ignoreFocusOut: true
+        });
+        
+        if (!selected) {
+            return;
+        }
+        
+        if (selected.command === null) {
+            // User chose to add new command
+            vscode.commands.executeCommand('firmwareDownloader.addBuildCommand');
+            return;
+        }
+        
+        // Update lastBuildCommand
+        await config.update('lastBuildCommand', selected.command.name, vscode.ConfigurationTarget.Workspace);
+        writeFirmwareCliConfig(config);
+        vscode.commands.executeCommand('firmwareDownloader.refresh');
+        vscode.window.showInformationMessage(localize('switchedTo', selected.command.name));
     });
     
     const copyPathCommand = vscode.commands.registerCommand('firmwareDownloader.copyPath', async (uri) => {
@@ -749,7 +845,7 @@ function activate(context)
             try {
                 await vscode.env.clipboard.writeText(uri.fsPath);
             } catch (error) {
-                vscode.window.showErrorMessage(`复制路径失败: ${error.message}`);
+                vscode.window.showErrorMessage(localize('copyPathFailed', error.message));
             }
         }
     });
@@ -758,26 +854,53 @@ function activate(context)
         vscode.commands.executeCommand('workbench.action.openSettings', 'quickFirmwarePlus');
     });
 
-    // Register build command
+    // Register build command - with confirmation dialog
     let build_disposable = vscode.commands.registerCommand('firmwareDownloader.build', async function () {
 
         const config = get_configuration();
-        let build_args = config.get('buildCommand') || '';
+        const buildCommands = config.get('buildCommands') || [];
+        const lastBuildCommand = config.get('lastBuildCommand') || '';
+        let build_args = '';
         let is_bash = false;
         let bash_run = config.get('buildGitBashPath') || '';
         
-        // Default to build OPT.bat
-        if (!build_args) { 
+        // If there are configured build commands, use the last used one or first one
+        if (buildCommands.length > 0) {
+            let selectedCmd = null;
+            
+            if (lastBuildCommand) {
+                selectedCmd = buildCommands.find(cmd => cmd.name === lastBuildCommand);
+            }
+            
+            if (!selectedCmd) {
+                selectedCmd = buildCommands[0];
+            }
+            
+            build_args = selectedCmd.command;
+            
+            // Update lastBuildCommand if it was not set
+            if (selectedCmd.name !== lastBuildCommand) {
+                await config.update('lastBuildCommand', selectedCmd.name, vscode.ConfigurationTarget.Workspace);
+                writeFirmwareCliConfig(config);
+            }
+        } else {
+            // No configured commands, use auto-detection
+            // Default to build OPT.bat
             if (workspace_folders && workspace_folders.length > 0) { 
                 const re ='build*OPTfile.bat'
                 const re_sh ='build*OPTfile.sh'
                 const ws_folder = workspace_folders[0]; 
-                output_chan.appendLine(`current workspace folder: ${ws_folder.uri}`);
-                file = await vscode.workspace.findFiles(re, null, 1);
+                output_chan.appendLine(localize('currentWorkspace', ws_folder.uri));
+                let file = await vscode.workspace.findFiles(re, null, 1);
+                let detectedCommand = '';
+                let detectedName = '';
+                
                 if (file && file.length > 0) {  
                     const file_path = file[0].fsPath;
                     build_args = path.basename(file_path);
-                    output_chan.appendLine(`root build file name: ${build_args}`);
+                    detectedCommand = build_args;
+                    detectedName = path.basename(file_path, '.bat');
+                    output_chan.appendLine(localize('rootBuildFile', build_args));
                 }
                 // Default to build.sh
                 if (!build_args) { 
@@ -785,25 +908,69 @@ function activate(context)
                     if (file && file.length > 0) {  
                         const file_path = file[0].fsPath;
                         build_args = path.basename(file_path);
-                        output_chan.appendLine(`root build file name: ${build_args} git bash`);
+                        detectedCommand = build_args;
+                        detectedName = path.basename(file_path, '.sh');
+                        output_chan.appendLine(localize('rootBuildFile', build_args) + ' git bash');
                         is_bash = true;
                         if (fs.existsSync(bash_run)) {
-                            output_chan.appendLine(`git bash.exe path: ${bash_run}`);
+                            output_chan.appendLine(localize('gitBashPath', bash_run));
                         } else {
-                            vscode.window.showErrorMessage(`请配置git bash.exe路径`);
+                            vscode.window.showErrorMessage(localize('configGitBashPath'));
                             vscode.commands.executeCommand('firmwareDownloader.settings');
                             return;
                         }
+                    }
+                }
+                
+                // Auto-save detected command as default
+                if (detectedCommand && detectedName) {
+                    const buildCommands = config.get('buildCommands') || [];
+                    // Check if already exists
+                    const exists = buildCommands.some(cmd => cmd.name === detectedName);
+                    if (!exists) {
+                        buildCommands.push({ name: detectedName, command: detectedCommand });
+                        await config.update('buildCommands', buildCommands, vscode.ConfigurationTarget.Workspace);
+                        await config.update('lastBuildCommand', detectedName, vscode.ConfigurationTarget.Workspace);
+                        writeFirmwareCliConfig(config);
+                        vscode.commands.executeCommand('firmwareDownloader.refresh');
+                        output_chan.appendLine(localize('autoDetectedSaved', detectedName));
                     }
                 }
             }
         }
 
         if (!build_args) { 
-            vscode.window.showErrorMessage('无法获取构建指令，请配置构建文件');
+            const choice = await vscode.window.showInformationMessage(
+                localize('noBuildCommand'),
+                localize('addCommand')
+            );
+            if (choice === localize('addCommand')) {
+                vscode.commands.executeCommand('firmwareDownloader.addBuildCommand');
+            }
             return;
-        }   
+        }
 
+        // Show confirmation dialog with current command
+        const confirmMessage = localize('confirmBuildCommand', build_args);
+        const choice = await vscode.window.showInformationMessage(
+            confirmMessage,
+            { modal: false },
+            localize('executeBuild'),
+            localize('switchCommand')
+        );
+
+        if (choice === localize('switchCommand')) {
+            // User chose to switch command
+            vscode.commands.executeCommand('firmwareDownloader.switchBuildCommand');
+            return;
+        }
+
+        if (choice !== localize('executeBuild')) {
+            // User cancelled
+            return;
+        }
+
+        // User confirmed, proceed with build
         let task_cmd = null;
         let args = null;
 
@@ -817,7 +984,7 @@ function activate(context)
 
         task_definition = {
             type: "shell",
-            label: "build firmware",
+            label: localize('command.build'),
             command: task_cmd, 
             args: args, 
             options: {
@@ -854,11 +1021,11 @@ function activate(context)
                     }
                 });
             });
-            vscode.window.showInformationMessage(`构建任务结束`);
+            vscode.window.showInformationMessage(localize('buildComplete'));
             // Refresh firmware list
             firmwareTreeDataProvider.refresh();
         } catch (error) {
-            vscode.window.showErrorMessage(`构建任务执行失败: ${error.message}`);
+            vscode.window.showErrorMessage(localize('buildFailed', error.message));
         } 
 
     });
@@ -867,23 +1034,23 @@ function activate(context)
     let download_disposable = vscode.commands.registerCommand('firmwareDownloader.download', async function (uri) {
         // Debounce: ignore new requests if a download is already running
         if (last_dl_info.dlPromise) {
-            output_chan.appendLine('already downloading task ignore this request!');
+            output_chan.appendLine(localize('alreadyDownloading'));
             return;
         }
         // Wrap download logic in a function and execute
         last_dl_info.dlPromise = (async () => {
             try {
                 let selected_uri = uri;
-                output_chan.appendLine(`selected_uri: ${selected_uri}`);
+                output_chan.appendLine(localize('selectedUri', selected_uri));
                 // Load from configuration file
                 if (!selected_uri) {
                     // Prioritize reading from VS Code configuration
                     const config = get_configuration();
                     let config_uri = config.get('firmwarePath');
-                    output_chan.appendLine(`config uri: ${config_uri}`);
+                    output_chan.appendLine(localize('configUri', config_uri));
                     if (fs.existsSync(config_uri)) {
                         selected_uri = vscode.Uri.file(config_uri);
-                        output_chan.appendLine(`selected_uri: ${selected_uri}`);
+                        output_chan.appendLine(localize('selectedUri', selected_uri));
                     }
                 }
 
@@ -891,7 +1058,7 @@ function activate(context)
                if (!selected_uri) { 
                     if (workspace_folders && workspace_folders.length > 0) { 
                         const workspace_folder = workspace_folders[0]; 
-                        output_chan.appendLine(`current workspace folder: ${workspace_folder.uri}`);
+                        output_chan.appendLine(localize('currentWorkspace', workspace_folder.uri));
                         // Check [.\quectel_build\release] directory
                         const release_path = path.join(workspace_folder.uri.fsPath, 'quectel_build', 'release');
                         if (fs.existsSync(release_path)) {
@@ -899,13 +1066,13 @@ function activate(context)
                             if (release_files.length > 0) {
                                 // Use first folder in release directory as target
                                 const selection = await vscode.window.showInformationMessage(
-                                    `固件目录:\n${path.join(release_path, release_files[0])} ?`, 
-                                    '是', 
-                                    '否'
+                                    localize('confirmFirmwareDir', path.join(release_path, release_files[0])), 
+                                    localize('yes'), 
+                                    localize('no')
                                 );
-                                if (selection === '是') {
+                                if (selection === localize('yes')) {
                                     selected_uri = vscode.Uri.file(path.join(release_path, release_files[0]));
-                                    output_chan.appendLine(`selected_uri: ${selected_uri}`);
+                                    output_chan.appendLine(localize('selectedUri', selected_uri));
                                 } else {
                                     return;
                                 }
@@ -975,21 +1142,21 @@ function activate(context)
                 const tools_path = path.join(extension_path, 'tools');
                 const toolfile   = path.join(tools_path, tool);
                 if (!fs.existsSync(toolfile)) {
-                    vscode.window.showErrorMessage(`未找到下载工具: ${tool}!!!`);
+                    vscode.window.showErrorMessage(localize('toolNotFound', tool));
                     return;
                 }
-                status_bar_dl.text = "$(sync) 等待下载";
+                status_bar_dl.text = "$(sync) " + localize('waitingForDownload');
                 // Check if there is a running download task
                 console.info('last dl state', last_dl_info.dlState, last_dl_info.dlChild)
-                output_chan.appendLine(`last dl state: ${last_dl_info.dlState}`);
+                output_chan.appendLine(localize('lastDlState', last_dl_info.dlState));
                 if(last_dl_info.dlState != 'stop' && last_dl_info.dlChild) {
-                    output_chan.appendLine('do last dl process kill');
+                    output_chan.appendLine(localize('doLastDlProcessKill'));
                     kill_process_tree(last_dl_info.dlChild, 'SIGKILL')
                     .then(() => {
-                        output_chan.appendLine('previous process terminate success');
+                        output_chan.appendLine(localize('previousProcessTerminateSuccess'));
                     })
                     .catch((error) => {
-                        output_chan.appendLine('previous process terminate failed:' + error);
+                        output_chan.appendLine(localize('previousProcessTerminateFailed', error));
                     });
                 }
                 
@@ -1030,7 +1197,7 @@ function activate(context)
                     });
                     ddl_child.on('close', (code) => {
                         if (!(code === 0)) {
-                            vscode.window.showInformationMessage(`请进入下载模式`);
+                            vscode.window.showInformationMessage(localize('enterDownloadMode'));
                         } 
                     });
                 }
@@ -1072,13 +1239,13 @@ function activate(context)
                 // 30-second timeout: kill download process if no output
                 let kill_timeout = setTimeout(() => {
                     //vscode.window.showErrorMessage(`下载等待超时`);
-                    output_chan.appendLine('do child download process kill.');
+                    output_chan.appendLine(localize('doChildDownloadProcessKill'));
                     kill_process_tree(child, 'SIGKILL')
                     .then(() => {
-                        output_chan.appendLine('child process terminated.');
+                        output_chan.appendLine(localize('childProcessTerminateSuccess'));
                     })
                     .catch((error) => {
-                        output_chan.appendLine('child process terminate failed: ' + error);
+                        output_chan.appendLine(localize('childProcessTerminateFailed', error));
                     });
                 }, 30000);
 
@@ -1132,15 +1299,15 @@ function activate(context)
                 await new Promise((resolve, reject) => {
                     child.on('close', (code) => {
                         if (code === 0) {
-                            vscode.window.showInformationMessage('下载完成');
-                            status_bar_dl.text = "$(check) 下载成功";
+                            vscode.window.showInformationMessage(localize('downloadComplete'));
+                            status_bar_dl.text = "$(check) " + localize('downloadSuccess');
                         } else {
-                            vscode.window.showErrorMessage(`下载失败，退出码: ${code}`);
-                            status_bar_dl.text = "$(error) 下载失败";
+                            vscode.window.showErrorMessage(localize('downloadFailed', code));
+                            status_bar_dl.text = "$(error) " + localize('downloadFailed2');
                         }
                         // Restore original status bar text after 5 seconds
                         setTimeout(() => {
-                            status_bar_dl.text = "$(arrow-circle-down) 下载";
+                            status_bar_dl.text = "$(arrow-circle-down) " + localize('command.download');
                             vscode.commands.executeCommand('firmwareDownloader.devices_refresh');
                         }, 5000);
 
@@ -1157,8 +1324,8 @@ function activate(context)
                 
                     // Listen to process error event
                     child.on('error', (error) => {
-                        vscode.window.showErrorMessage(`启动下载进程失败: ${error.message}`);
-                        status_bar_dl.text = "$(error) 启动失败";
+                        vscode.window.showErrorMessage(localize('downloadStartFailed', error.message));
+                        status_bar_dl.text = "$(error) " + localize('startFailed');
                         last_dl_info.dlState = 'stop';
                         last_dl_info.dlChild = null;
                         if (kill_timeout) {
@@ -1172,8 +1339,8 @@ function activate(context)
                 });
 
             } catch (error) {
-                vscode.window.showErrorMessage(`下载失败: ${error.message}`);
-                status_bar_dl.text = "$(error) 下载异常";
+                vscode.window.showErrorMessage(localize('downloadError', error.message));
+                status_bar_dl.text = "$(error) " + localize('downloadException');
                 
                 last_dl_info.dlState = 'stop';
                 last_dl_info.dlChild = null;
@@ -1209,8 +1376,13 @@ function activate(context)
     context.subscriptions.push(selectFirmwareDirCommand);
     context.subscriptions.push(clearFirmwareDirCommand);
     context.subscriptions.push(refreshDevicesCommand);
-    context.subscriptions.push(buildCommandArgsCommand);
+    context.subscriptions.push(addBuildCommand);
+    context.subscriptions.push(selectBuildCommand);
+    context.subscriptions.push(switchBuildCommand);
     context.subscriptions.push(copyPathCommand);
+    context.subscriptions.push(openSettingsCommand);
+    context.subscriptions.push(build_disposable);
+    context.subscriptions.push(download_disposable);
 
 
 }
