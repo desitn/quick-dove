@@ -13,6 +13,8 @@
   "command.addBuildCommand": "Add Build Command",
   "command.selectBuildCommand": "Select Build Command",
   "command.configBuildCommand": "Switch Build Command",
+  "command.showWelcome": "Show Welcome Page",
+  "command.showSetupWizard": "Run Setup Wizard",
   "config.firmwarePath": "Firmware directory path",
   "config.buildCommands": "Build command list",
   "config.lastBuildCommand": "Last used build command name",

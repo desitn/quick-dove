@@ -12,6 +12,7 @@ const iconv = require('iconv-lite');
 const { spawn } = require('child_process');
 const ini = require('ini');
 const { localize } = require('./src/localization');
+const { WelcomeWebviewManager } = require('./src/welcome/welcomeWebview');
 
 /** @note All download tool paths used directly by this extension */
 const tool_set = {
@@ -683,6 +684,36 @@ function activate(context)
     const deviceTreeDataProvider = new DeviceTreeDataProvider();
     vscode.window.registerTreeDataProvider('firmware-devices', deviceTreeDataProvider);
     deviceTreeDataProvider.startAutoRefresh();
+
+    // Initialize welcome webview manager
+    const welcomeManager = new WelcomeWebviewManager(context);
+
+    // Show welcome page on first install
+    if (welcomeManager.shouldShowWelcome()) {
+        welcomeManager.showWelcome();
+    }
+
+    // Show setup wizard for new workspace if needed
+    setTimeout(() => {
+        if (welcomeManager.shouldShowWorkspaceWizard()) {
+            const message = localize('workspaceWizardPrompt');
+            vscode.window.showInformationMessage(message, localize('yes'), localize('no'))
+                .then(selection => {
+                    if (selection === localize('yes')) {
+                        welcomeManager.showSetupWizard();
+                    }
+                });
+        }
+    }, 1000);
+
+    // Register welcome commands
+    const showWelcomeCommand = vscode.commands.registerCommand('firmwareDownloader.showWelcome', () => {
+        welcomeManager.showWelcome();
+    });
+
+    const showSetupWizardCommand = vscode.commands.registerCommand('firmwareDownloader.showSetupWizard', () => {
+        welcomeManager.showSetupWizard();
+    });
 
     const refreshFirmwareListCommand = vscode.commands.registerCommand('firmwareDownloader.refresh', () => {
         firmwareTreeDataProvider.refresh();
@@ -1425,6 +1456,8 @@ function activate(context)
     context.subscriptions.push(openSettingsCommand);
     context.subscriptions.push(build_disposable);
     context.subscriptions.push(download_disposable);
+    context.subscriptions.push(showWelcomeCommand);
+    context.subscriptions.push(showSetupWizardCommand);
 
 
 }

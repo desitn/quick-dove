@@ -105,6 +105,16 @@
         "command": "firmwareDownloader.configBuildCommand",
         "title": "%command.configBuildCommand%",
         "icon": "$(list-unordered)"
+      },
+      {
+        "command": "firmwareDownloader.showWelcome",
+        "title": "%command.showWelcome%",
+        "icon": "$(home)"
+      },
+      {
+        "command": "firmwareDownloader.showSetupWizard",
+        "title": "%command.showSetupWizard%",
+        "icon": "$(wand)"
       }
     ],
     "menus": {

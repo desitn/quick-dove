@@ -13,6 +13,8 @@
   "command.addBuildCommand": "添加编译命令",
   "command.selectBuildCommand": "选择编译命令",
   "command.configBuildCommand": "切换编译命令",
+  "command.showWelcome": "显示欢迎页",
+  "command.showSetupWizard": "运行设置向导",
   "config.firmwarePath": "固件目录路径",
   "config.buildCommands": "构建命令列表",
   "config.lastBuildCommand": "上次使用的构建命令名称",

@@ -8,5 +8,8 @@
         ".venv": true
     },
     "explorerExclude.backup": {},
+    "quickFirmwarePlus.buildCommands": [
+        
+    ],
 
 }
