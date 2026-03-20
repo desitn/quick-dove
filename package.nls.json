@@ -12,7 +12,7 @@
   "command.devicesRefresh": "Refresh Devices",
   "command.addBuildCommand": "Add Build Command",
   "command.selectBuildCommand": "Select Build Command",
-  "command.switchBuildCommand": "Switch Build Command",
+  "command.configBuildCommand": "Switch Build Command",
   "config.firmwarePath": "Firmware directory path",
   "config.buildCommands": "Build command list",
   "config.lastBuildCommand": "Last used build command name",

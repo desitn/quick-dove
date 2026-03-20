@@ -787,35 +787,32 @@ function activate(context)
     });
     
 
-    const switchBuildCommand = vscode.commands.registerCommand('firmwareDownloader.switchBuildCommand', async () => {
+    const configBuildCommand = vscode.commands.registerCommand('firmwareDownloader.configBuildCommand', async () => {
         const config = get_configuration();
         const buildCommands = config.get('buildCommands') || [];
         const lastBuildCommand = config.get('lastBuildCommand') || '';
-        
-        if (buildCommands.length === 0) {
-            // No commands configured, prompt to add
-            const choice = await vscode.window.showInformationMessage(
-                localize('noBuildCommand'),
-                localize('addCommand')
-            );
-            if (choice === localize('addCommand')) {
-                vscode.commands.executeCommand('firmwareDownloader.addBuildCommand');
-            }
-            return;
+        let quickPickItems = [];
+
+        if (buildCommands.length > 0) {
+            // Show quick pick to select command
+            quickPickItems = buildCommands.map(cmd => ({
+                label: cmd.name === lastBuildCommand ? `$(check) ${cmd.name}` : cmd.name,
+                description: cmd.command,
+                command: cmd
+            }));
         }
         
-        // Show quick pick to select command
-        const quickPickItems = buildCommands.map(cmd => ({
-            label: cmd.name === lastBuildCommand ? `$(check) ${cmd.name}` : cmd.name,
-            description: cmd.command,
-            command: cmd
-        }));
-        
+        // Add "Select Script from File" option
+        quickPickItems.push({
+            label: '$(file-code) ' + localize('addScriptFromFile'),
+            description: localize('selectScriptFile'),
+            command: '-selectScript'
+        });
         // Add "Add New Command" option
         quickPickItems.push({
             label: '$(add) ' + localize('addNewCommand'),
             description: localize('configureNewCommand'),
-            command: null
+            command: '-addNewCommand'
         });
         
         const selected = await vscode.window.showQuickPick(quickPickItems, {
@@ -827,9 +824,51 @@ function activate(context)
             return;
         }
         
-        if (selected.command === null) {
-            // User chose to add new command
+        if (selected.command === '-addNewCommand') {
+            // User chose to "Add New Command"
             vscode.commands.executeCommand('firmwareDownloader.addBuildCommand');
+            return;
+        }
+        
+        if (selected.command === '-selectScript') {
+            // User chose to select script from file
+            const options = {
+                canSelectFiles: true,
+                canSelectFolders: false,
+                canSelectMany: false,
+                openLabel: localize('selectScriptFile'),
+                defaultUri: workspace_folders ? vscode.Uri.file(workspace_folders[0].uri.fsPath) : undefined,
+                filters: {
+                    'Scripts': ['bat', 'sh', 'py', 'cmd', 'ps1'],
+                    'All Files': ['*']
+                }
+            };
+            const result = await vscode.window.showOpenDialog(options);
+            if (result && result.length > 0) {
+                const selectedPath = result[0].fsPath;
+                const scriptName = path.basename(selectedPath, path.extname(selectedPath));
+                const scriptCommand = path.basename(selectedPath);
+                
+                // Check if command name already exists
+                const existingCommands = config.get('buildCommands') || [];
+                let finalName = scriptName;
+                let counter = 1;
+                while (existingCommands.some(cmd => cmd.name === finalName)) {
+                    finalName = `${scriptName}_${counter}`;
+                    counter++;
+                }
+                
+                // Add to configuration
+                existingCommands.push({ name: finalName, command: scriptCommand });
+                await config.update('buildCommands', existingCommands, vscode.ConfigurationTarget.Workspace);
+                await config.update('lastBuildCommand', finalName, vscode.ConfigurationTarget.Workspace);
+                writeFirmwareCliConfig(config);
+                vscode.commands.executeCommand('firmwareDownloader.refresh');
+                vscode.window.showInformationMessage(localize('scriptFileAdded', finalName));
+                
+                // Trigger build after adding script
+                vscode.commands.executeCommand('firmwareDownloader.build');
+            }
             return;
         }
         
@@ -837,7 +876,9 @@ function activate(context)
         await config.update('lastBuildCommand', selected.command.name, vscode.ConfigurationTarget.Workspace);
         writeFirmwareCliConfig(config);
         vscode.commands.executeCommand('firmwareDownloader.refresh');
-        vscode.window.showInformationMessage(localize('switchedTo', selected.command.name));
+        //vscode.window.showInformationMessage(localize('switchedTo', selected.command.name));
+        // Trigger build after switching command
+        vscode.commands.executeCommand('firmwareDownloader.build');
     });
     
     const copyPathCommand = vscode.commands.registerCommand('firmwareDownloader.copyPath', async (uri) => {
@@ -945,7 +986,7 @@ function activate(context)
                 localize('addCommand')
             );
             if (choice === localize('addCommand')) {
-                vscode.commands.executeCommand('firmwareDownloader.addBuildCommand');
+                vscode.commands.executeCommand('firmwareDownloader.configBuildCommand');
             }
             return;
         }
@@ -955,18 +996,19 @@ function activate(context)
         const choice = await vscode.window.showInformationMessage(
             confirmMessage,
             { modal: false },
-            localize('executeBuild'),
+            localize('yes'),
+            localize('no'),
             localize('switchCommand')
         );
 
         if (choice === localize('switchCommand')) {
             // User chose to switch command
-            vscode.commands.executeCommand('firmwareDownloader.switchBuildCommand');
+            vscode.commands.executeCommand('firmwareDownloader.configBuildCommand');
             return;
         }
 
-        if (choice !== localize('executeBuild')) {
-            // User cancelled
+        if (choice !== localize('yes')) {
+            // User chose "no" or cancelled
             return;
         }
 
@@ -1307,7 +1349,7 @@ function activate(context)
                         }
                         // Restore original status bar text after 5 seconds
                         setTimeout(() => {
-                            status_bar_dl.text = "$(arrow-circle-down) " + localize('command.download');
+                            status_bar_dl.text = "$(arrow-circle-down)";
                             vscode.commands.executeCommand('firmwareDownloader.devices_refresh');
                         }, 5000);
 
@@ -1378,7 +1420,7 @@ function activate(context)
     context.subscriptions.push(refreshDevicesCommand);
     context.subscriptions.push(addBuildCommand);
     context.subscriptions.push(selectBuildCommand);
-    context.subscriptions.push(switchBuildCommand);
+    context.subscriptions.push(configBuildCommand);
     context.subscriptions.push(copyPathCommand);
     context.subscriptions.push(openSettingsCommand);
     context.subscriptions.push(build_disposable);

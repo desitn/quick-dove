@@ -102,8 +102,8 @@
         "icon": "$(check)"
       },
       {
-        "command": "firmwareDownloader.switchBuildCommand",
-        "title": "%command.switchBuildCommand%",
+        "command": "firmwareDownloader.configBuildCommand",
+        "title": "%command.configBuildCommand%",
         "icon": "$(list-unordered)"
       }
     ],

@@ -12,7 +12,7 @@
   "command.devicesRefresh": "设备刷新",
   "command.addBuildCommand": "添加编译命令",
   "command.selectBuildCommand": "选择编译命令",
-  "command.switchBuildCommand": "切换编译命令",
+  "command.configBuildCommand": "切换编译命令",
   "config.firmwarePath": "固件目录路径",
   "config.buildCommands": "构建命令列表",
   "config.lastBuildCommand": "上次使用的构建命令名称",

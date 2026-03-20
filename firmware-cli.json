@@ -1,6 +1,6 @@
 {
   "firmwarePath": "",
-  "buildCommand": "build kernel",
+  "buildCommand": "",
   "buildGitBashPath": "",
   "defaultComPort": ""
 }

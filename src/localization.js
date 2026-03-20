@@ -73,7 +73,10 @@ const messages = {
     'view.pluginSettings': 'Plugin Settings',
     'confirmBuildCommand': 'Current build command:\n{0}\n\nExecute build?',
     'executeBuild': 'Yes',
-    'switchCommand': 'Switch'
+    'switchCommand': 'Switch',
+    'addScriptFromFile': 'Add Script from File',
+    'selectScriptFile': 'Select Script File',
+    'scriptFileAdded': 'Script command "{0}" added'
   },
   'zh-cn': {
     'noBuildCommand': '没有配置构建命令。',
@@ -147,7 +150,10 @@ const messages = {
     'view.pluginSettings': '插件设置',
     'confirmBuildCommand': '当前构建命令:\n{0}\n\n执行编译?',
     'executeBuild': '是',
-    'switchCommand': '切换'
+    'switchCommand': '切换',
+    'addScriptFromFile': '从选择脚本添加',
+    'selectScriptFile': '选择脚本文件',
+    'scriptFileAdded': '脚本命令 "{0}" 已添加'
   }
 };
 
