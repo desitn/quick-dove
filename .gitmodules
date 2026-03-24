@@ -1,0 +1,3 @@
+[submodule "firmware-cli"]
+	path = firmware-cli
+	url = https://github.com/desitn/firmware-cli.git
