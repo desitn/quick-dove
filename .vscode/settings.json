@@ -11,5 +11,6 @@
     "quickFirmwarePlus.buildCommands": [
         
     ],
+    "quickFirmwarePlus.firmwarePath": "",
 
 }

@@ -10,6 +10,54 @@
 - ⚡ **功能二** - 底部状态栏 `下载`图标点击快速下载 `构建`图标点击快速编译工程；
 - ⚡ **功能三** - 支持容器视图查看当前空间固件列表、设备列表和可配置信息；
 
+## 下载架构
+
+插件采用分层架构设计，下载流程如下：
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    VS Code 扩展 UI                          │
+│              (extension.js - 插件界面层)                     │
+└─────────────────────────┬───────────────────────────────────┘
+                          │ 调用
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    firmware-cli.exe                         │
+│              (CLI工具 - 业务逻辑层)                         │
+│                                                             │
+│  • 固件类型自动识别 (.zip, ._fbf.bin, .pac, .binpkg)      │
+│  • 设备下载模式自动切换                                     │
+│  • 进度追踪与JSON格式输出                                  │
+│  • 串口设备管理                                            │
+└─────────────────────────┬───────────────────────────────────┘
+                          │ 调用
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   平台烧录工具                              │
+│              (底层工具 - 执行层)                            │
+│                                                             │
+│  • adownload.exe    → ASR 160X 平台                       │
+│  • FBFDownloader.exe → ASR 1803/1903/1802 平台           │
+│  • ResearchDownload → UNISOC 平台                          │
+│  • FlashtoolCLI    → EIGEN 平台                           │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**架构说明：**
+
+| 层级 | 组件 | 职责 |
+|------|------|------|
+| UI层 | VS Code Extension | 用户界面交互、状态栏显示、容器视图管理 |
+| 逻辑层 | firmware-cli.exe | 固件识别、设备管理、进度监控、命令调度 |
+| 执行层 | 平台烧录工具 | 实际执行固件烧录操作 |
+
+**核心特性：**
+- ✅ 自动识别固件类型并选择对应烧录工具
+- ✅ 自动检测设备并切换下载模式
+- ✅ 实时进度追踪（支持JSON格式输出）
+- ✅ 统一的CLI接口，可独立使用
+- ✅ 支持多平台（ASR、UNISOC、EIGEN、ESP等）
+
 > 💡 **注意**：串口调试功能已独立为单独的插件，可通过组合包方式使用
 
 
@@ -24,12 +72,14 @@
 
 不同平台镜像文件类型差异见下表：
 
-| 🧩平台     |   🟧芯片型号    |  🟦镜像类型 |  🟩底层工具 | 
+| 🧩平台     |   🟧芯片型号    |  🟦镜像类型 |  🟩烧录工具 | 
 |------------|-----------------|-------------|-------------|
-|  ASR       | 160X            | `*.zip`     | aboot       | 
-|  ASR       | 1803 1903 1802  | `._fbf.bin` | FBF         | 
-| UNISOC     | 8310 8910 8850  | `*.pac`     | Research    | 
-| Eigen      | 618 718         | `*.binpkg`  | FlashtoolCLI| 
+|  ASR       | 160X            | `*.zip`     | adownload.exe | 
+|  ASR       | 1803 1903 1802  | `._fbf.bin` | FBFDownloader.exe | 
+| UNISOC     | 8310 8910 8850  | `*.pac`     | ResearchDownload | 
+| Eigen      | 618 718         | `*.binpkg`  | FlashtoolCLI | 
+
+> 💡 **说明**：所有平台的烧录操作均由 `firmware-cli.exe` 统一调度，自动选择对应烧录工具
 
 （🧩*表示未作充分验证，插件适配OS环境WIN 语言中文 如有需要可以适配更多平台）
 
@@ -89,122 +139,61 @@
 
 2. build*.sh git bash 脚本编译文件需要手动配置bash安装路径，详见配置项：Quick Firmware Plus: Build Git Bash Path；
 
+#### 五、firmware-cli.exe 独立使用
 
-## 🤖 AI工具集成
+`firmware-cli.exe` 也可作为独立命令行工具使用，位于插件安装目录的 `firmware-cli/` 文件夹下。
 
-本插件提供了专门的CLI工具，支持AI助手（如CLINE）直接调用，实现自动化的固件编译和烧录。
-
-### CLI工具功能
-
-- ✅ **自动查找固件** - 智能查找工作空间和配置文件中的固件
-- ✅ **多种烧录方式** - 支持自动查找、手动指定、配置文件
-- ✅ **固件编译** - 自动查找并执行构建脚本
-- ✅ **设备管理** - 列出已连接的USB设备
-- ✅ **AI集成** - CLINE等AI工具可通过自然语言直接调用
-
-### 快速开始
-
-#### 方式1: 使用独立exe文件（推荐）
-
-无需安装Node.js，直接使用 `tools/firmware_cli/firmware-cli.exe`：
+**基本命令：**
 
 ```bash
-# 查看帮助
-tools/firmware_cli/firmware-cli.exe help
+# 烧录固件（自动识别）
+firmware-cli.exe flash
+
+# 指定固件路径烧录
+firmware-cli.exe flash "C:\path\to\firmware.zip"
+
+# 跳过自动进入下载模式
+firmware-cli.exe flash --skip-dl-mode
+
+# 输出JSON格式进度（供程序调用）
+firmware-cli.exe flash "firmware.zip" --progress json
 
 # 列出可用固件
-tools/firmware_cli/firmware-cli.exe list
-
-# 烧录固件（自动查找）
-tools/firmware_cli/firmware-cli.exe flash
-
-# 烧录指定固件
-tools/firmware_cli/firmware-cli.exe flash "C:/path/to/firmware.bin"
-
-# 编译固件
-tools/firmware_cli/firmware-cli.exe build
-
-# 编译并烧录
-tools/firmware_cli/firmware-cli.exe build-and-flash
+firmware-cli.exe list
 
 # 列出USB设备
-tools/firmware_cli/firmware-cli.exe devices
-```
+firmware-cli.exe devices
 
-**提示**: 也可以将 `tools/firmware_cli/` 目录添加到系统PATH中，然后直接使用 `firmware-cli.exe` 命令。
+# 列出串口设备
+firmware-cli.exe serial
 
-#### 方式2: 使用Node.js
+# 监控串口输出
+firmware-cli.exe monitor -p COM9
 
-需要先安装依赖：
-
-```bash
-cd cli
-npm install
-```
-
-然后使用Node.js运行：
-
-```bash
-# 查看帮助
-node cli/index.js help
-
-# 列出可用固件
-node cli/index.js list
-
-# 烧录固件（自动查找）
-node cli/index.js flash
-
-# 烧录指定固件
-node cli/index.js flash "C:/path/to/firmware.bin"
+# 发送AT命令
+firmware-cli.exe at -c "ATI"
 
 # 编译固件
-node cli/index.js build
+firmware-cli.exe build
 
-# 编译并烧录
-node cli/index.js build-and-flash
-
-# 列出USB设备
-node cli/index.js devices
+# 显示帮助
+firmware-cli.exe help
 ```
 
-### CLINE集成示例
+**配置文件：**
 
-CLINE等AI工具可以直接通过自然语言调用此CLI工具：
-
-**示例1：自动烧录**
-```
-用户: 帮我烧录固件
-CLINE: 正在查找固件... [执行list命令] 找到最新固件... 开始烧录... [执行flash命令] 烧录完成！
-```
-
-**示例2：编译+烧录**
-```
-用户: 编译然后烧录固件
-CLINE: 先编译... [执行build命令] 编译结束！再烧录... [执行flash命令] 全部完成！
-```
-
-**示例3：指定固件**
-```
-用户: 烧录这个固件 C:/project/firmware/my_firmware.bin
-CLINE: 好的，开始烧录指定固件... [执行flash命令] 烧录完成！
-```
-
-### 配置文件
-
-在项目根目录创建 `firmware-cli.json` 文件：
+在项目根目录创建 `firmware-cli.json` 配置文件：
 
 ```json
 {
-  "firmwarePath": "C:/project/quectel_build/release/EC200ACN_DA",
-  "buildCommand": "build.bat new EC200ACN_DA EC200ACNDAR01A01M16",
-  "buildGitBashPath": "C:/Program Files/Git/bin/bash.exe"
+  "firmwarePath": "C:\\path\\to\\firmware",
+  "buildCommand": "build_release.bat",
+  "buildGitBashPath": "C:\\Program Files\\Git\\bin\\bash.exe",
+  "defaultComPort": "COM9"
 }
 ```
 
-### 详细文档
 
-- 📖 [CLI工具使用文档](cli/README.md) - 详细的CLI工具使用说明
-- 🤖 [AI工具集成文档](firmware-cli-skill.md) - CLINE等AI助手的完整技能文档
 
 ## 联系方式
 

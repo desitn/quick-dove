@@ -1,27 +1,19 @@
 /**
 * @description: Quick Firmware + 
-*               A tool for building and syncing firmware in a developer-friendly way.
+*  A tool for building and syncing firmware in a developer-friendly way.
 * @author: destin.zhang@quectel.com
 */
 
 const vscode = require('vscode');
 const path = require('path');
 const fs = require('fs');
-const admzip = require('adm-zip');
 const iconv = require('iconv-lite');
-const { spawn } = require('child_process');
-const ini = require('ini');
+const { spawn, spawnSync } = require('child_process');
 const { localize } = require('./src/localization');
 const { WelcomeWebviewManager } = require('./src/welcome/welcomeWebview');
 
-/** @note All download tool paths used directly by this extension */
-const tool_set = {
-    'ddl':'detect_dl.exe',
-    'ad' :'adownload.exe',
-    'fbf':'FBFDownloader.exe',
-    'pac':'pacdownload\\CmdDloader.exe',
-    'ecf':'ecflashtool\\ECFlashTool.exe'
-};
+/** @note firmware-cli executable path */
+const FIRMWARE_CLI = 'firmware-cli.exe';
 
 const output_chan = vscode.window.createOutputChannel('Quick Firmware +');
 const alert = localize('noFirmware');
@@ -82,12 +74,27 @@ function is_remote_ssh() {
 
 function not_support_disp() {
     vscode.window.showErrorMessage(alert);
-} 
+}
 
-
+/**
+ * Get firmware-cli executable path
+ * @param {vscode.ExtensionContext} context - Extension context
+ * @returns {string|null} Path to firmware-cli.exe or null if not found
+ */
+function getFirmwareCliPath(context) {
+    if (!context || !context.extensionPath) {
+        return null;
+    }
+    const firmwareCliPath = path.join(context.extensionPath, 'firmware-cli', 'firmware-cli.exe');
+    if (fs.existsSync(firmwareCliPath)) {
+        return firmwareCliPath;
+    }
+    return null;
+}
 
 class FirmwareTreeDataProvider {
-    constructor() {
+    constructor(context) {
+        this.context = context;
         this._onDidChangeTreeData = new vscode.EventEmitter();
         this.onDidChangeTreeData = this._onDidChangeTreeData.event;
         this.refresh();
@@ -113,6 +120,55 @@ class FirmwareTreeDataProvider {
         const items = [];
         const config = get_configuration();
         const firmwarePath = config.get('firmwarePath');
+        
+        // Try to use firmware-cli to list firmware
+        try {
+            const firmwareCliPath = getFirmwareCliPath(this.context);
+            if (firmwareCliPath) {
+                const result = spawnSync(firmwareCliPath, ['list', '--json'], { 
+                    shell: true,
+                    encoding: 'utf8',
+                    timeout: 5000
+                });
+                
+                if (result.status === 0 && result.stdout) {
+                    try {
+                        output_chan.appendLine(result.stdout);
+                        const data = JSON.parse(result.stdout);
+                        if (data.firmwares && data.firmwares.length > 0) {
+                            // Group by directory
+                            const dirMap = new Map();
+                            for (const fw of data.firmwares) {
+                                const dir = path.dirname(fw.path);
+                                if (!dirMap.has(dir)) {
+                                    dirMap.set(dir, []);
+                                }
+                                dirMap.get(dir).push(fw);
+                            }
+                            
+                            for (const [dirPath, firmwares] of dirMap) {
+                                const dirName = path.basename(dirPath);
+                                const firmwareFiles = firmwares.map(fw => 
+                                    new FirmwareFileItem(fw.name, fw.path, vscode.TreeItemCollapsibleState.None)
+                                );
+                                const time = firmwares[0].time ? new Date(firmwares[0].time) : new Date();
+                                items.push(new FirmwareItem(dirName, dirPath, time, vscode.TreeItemCollapsibleState.Collapsed, firmwareFiles));
+                            }
+                            
+                            if (items.length > 0) {
+                                return items;
+                            }
+                        }
+                    } catch (e) {
+                        console.error('JSON parsing error:', e);
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('firmware-cli list error:', e);
+        }
+        
+        // Fallback to original method
         if (firmwarePath && firmwarePath.length > 0) {
             if (fs.existsSync(firmwarePath)) {
                 const dir_path = firmwarePath;
@@ -220,7 +276,8 @@ class InfoItem extends vscode.TreeItem {
 }
 
 class DeviceTreeDataProvider {
-    constructor() {
+    constructor(context) {
+        this.context = context;
         this._onDidChangeTreeData = new vscode.EventEmitter();
         this.onDidChangeTreeData = this._onDidChangeTreeData.event;
         this.devices = [];
@@ -272,59 +329,52 @@ class DeviceTreeDataProvider {
             const items = [];
             
             if (is_windows()) {
-                // Use wmic command to get USB devices on Windows
-                const command_dflt     = 'wmic path Win32_PnPEntity where "Name like \'%USB%\' OR Name like \'%Quectel%\'" get Name';
-                let command = command_dflt;
-                const { spawn } = require('child_process');
+                // Get firmware-cli path
+                const firmwareCliPath = getFirmwareCliPath(this.context);
+                if (!firmwareCliPath) {
+                    return [new InfoItem(localize('noDeviceFound'), 'firmware-cli not found', vscode.TreeItemCollapsibleState.None)];
+                }
+                
                 return new Promise((resolve) => {
-                    // Use wmic to get USB device information
-                    const wmic = spawn('cmd', ['/c', command], { shell: true });
+                    const child = spawn(firmwareCliPath, ['devices', '--json'], { shell: true });
                     let output = '';
-                    wmic.stdout.on('data', (data) => {
-                        output += iconv.decode(data, 'cp936'); // Decode using CP936 (default encoding for Chinese Windows)
+                    let errorOutput = '';
+                    
+                    child.stdout.on('data', (data) => {
+                        output += iconv.decode(data, 'gbk');
                     });
-                    wmic.stderr.on('data', (data) => {
-                        console.error(`WMIC error: ${iconv.decode(data, 'cp936')}`);
+                    
+                    child.stderr.on('data', (data) => {
+                        errorOutput += iconv.decode(data, 'gbk');
                     });
-                    wmic.on('close', (code) => {
+                    
+                    child.on('close', (code) => {
                         if (code === 0) {
-                            // Parse wmic output
-                            const lines = output.split('\n');
-                            for (const line of lines) {
-                                const trimmedLine = line.trim();
-                                if (trimmedLine && 
-                                    !trimmedLine.includes('Name') && // Skip header line
-                                    trimmedLine.length > 0) {
-                                    // Filter out non-device entries like keyboard, mouse, etc.
-                                    if (!(trimmedLine.includes('Keyboard') || 
-                                          trimmedLine.includes('Mouse') || 
-                                          trimmedLine.includes('Controller') ||
-                                          trimmedLine.includes('Input') ||
-                                          trimmedLine.includes('Hub') ||
-                                          trimmedLine.includes('Oray') ||
-                                          trimmedLine.includes('ECM') ||
-                                          trimmedLine.includes('Composite Device') ||
-                                          trimmedLine.includes('输入设备') ||
-                                          trimmedLine.includes('集线器') ||
-                                          trimmedLine.includes('主机控制器'))) {
+                            try {
+                                 output_chan.appendLine(output);
+                                const result = JSON.parse(output);
+                                if (result.devices && result.devices.length > 0) {
+                                    // Sort and create device items
+                                    result.devices.sort((a, b) => a.localeCompare(b));
+                                    for (const device of result.devices) {
                                         items.push(new DeviceItem(
-                                            trimmedLine,
+                                            device,
                                             '',
                                             vscode.TreeItemCollapsibleState.None
                                         ));
                                     }
+                                    resolve(items);
+                                } else {
+                                    resolve([new InfoItem(localize('noDeviceFound'), localize('checkDeviceConnection'), vscode.TreeItemCollapsibleState.None)]);
                                 }
-                            }
-                            
-                            if (items.length === 0) {
+                            } catch (e) {
+                                // JSON parsing failed
+                                console.error('JSON parsing error:', e);
                                 resolve([new InfoItem(localize('noDeviceFound'), localize('checkDeviceConnection'), vscode.TreeItemCollapsibleState.None)]);
-                            } else {
-                                // Sort device list
-                                items.sort((a, b) => a.label.localeCompare(b.label));
-                                resolve(items);
                             }
                         } else {
-                            // If wmic fails
+                            // If firmware-cli fails
+                            console.error('firmware-cli devices failed:', errorOutput);
                             resolve([new InfoItem(localize('noDeviceFound'), localize('checkDeviceConnection'), vscode.TreeItemCollapsibleState.None)]);
                         }
                     });
@@ -436,190 +486,12 @@ class progress_tracker
         return `${filled}${partial}${empty}`;
     }
     
-    start_pseudo_progress(tool_type, max = 90) {
-        let interval = 2000;
-        if (this.pseudo_interval != null) {
-            return;
-        }
-        if (tool_type == 'fbf') {
-            interval = 1200;
-        }
-        if (tool_type == 'pac') {
-            interval = 300;
-        }
-        if (tool_type == 'ecf') {
-            interval = 500;
-        }
-        console.info(`pseudo progress start`);
-        this.pseudo_interval = setInterval(() => {
-            if (this.current_progress < max) {
-                const increment = Math.max(1, Math.floor((max - this.current_progress) * 0.05));
-                this.update_progress(this.current_progress + increment);
-            }
-        }, interval); 
-    }
-    
-    stop_pseudo_progress() {
-        if (this.pseudo_interval) {
-            clearInterval(this.pseudo_interval);
-            this.pseudo_interval = null;
-        }
-    }
-
     reset() {
         this.current_progress = 0;
-        this.stop_pseudo_progress();
     }
 }
 
-function ad_extract_progress(output) 
-{
-    let found = false;
-    let jsonBuffer = ''; 
-    const lines = output.split('\n');
-    
-    for (const line of lines) {
-        if (line.includes('ABOOT_EVENT_DEVICE_CHANGE')) {
-            found = true;
-            jsonBuffer = ''; 
-            continue;
-        } 
-        if (found) {
-            jsonBuffer += line.trim() + '\n'; // Accumulate line content
-            if (jsonBuffer.trim().startsWith('{')) {
-                try {
-                    const logObject = JSON.parse(jsonBuffer);
-                    if (logObject.progress !== undefined) {
-                        output_chan.appendLine(localize('adProgress', logObject.progress));
-                        return logObject.progress;
-                    }
-                } catch (error) {
-                    if (line.trim().endsWith('}')) {
-                        output_chan.appendLine(localize('parsingJsonError', jsonBuffer), error);
-                        found = false;
-                        jsonBuffer = '';
-                    }
-                }
-            }
-            if (line.trim().endsWith('}')) {
-                found = false;
-                jsonBuffer = '';
-            }
-        }
-    }
-    
-    return null;
-}
 
-function fbf_extract_progress(output) 
-{
-    let max_progress = 0;
-    const download_fiter = "Download percentage";
-    const burn_fiter = "Burning flash percentage";
-    const ok_fiter = "Download Completed successfully";
-    const lines = output.split('\n');
-
-    for (const line of lines) {
-        const download_match = line.includes(download_fiter);
-        const burn_match = line.includes(burn_fiter);
-        const ok_match = line.includes(ok_fiter);
-        if (download_match) {
-            max_progress = 0xFF; // Use pseudo progress
-        } else if (burn_match) {
-            max_progress = 90;
-        } else if (ok_match) {
-            max_progress = 100;
-        }
-    }
-    console.info('fbf max_progress', max_progress)
-
-    return max_progress > 0 ? max_progress : null;
-}
-
-function pac_extract_progress(output) 
-{
-    let max_progress = 0;
-    const download_fiter = "Downloading";
-    const ok_fiter = "DownLoad Passed";
-    const lines = output.split('\n');
-
-    for (const line of lines) {
-        const download_match = line.includes(download_fiter);
-        const ok_match = line.includes(ok_fiter);
-        if (download_match) {
-            max_progress = 0xFF; 
-        } else if (ok_match) {
-            max_progress = 100;
-        }
-    }
-    console.info('pac max_progress', max_progress)
-
-    return max_progress > 0 ? max_progress : null;
-}
-
-
-function ecf_extract_progress(output) 
-{
-    let max_progress = 0;
-    const download_fiter = "DownLoading";
-    const ok_fiter = "DownLoad done";
-    const lines = output.split('\n');
-
-    for (const line of lines) {
-        const download_match = line.includes(download_fiter);
-        const ok_match = line.includes(ok_fiter);
-        if (download_match) {
-            max_progress = 0xFF; 
-        } else if (ok_match) {
-            max_progress = 100;
-        }
-    }
-    console.info('ecf max_progress', max_progress)
-
-    return max_progress > 0 ? max_progress : null;
-}
-
-function extract_progress_from_output(output, tool_type) 
-{
-
-    if (tool_type == 'ad') {
-        return ad_extract_progress(output);
-    }
-    else if (tool_type == 'fbf') {
-        return fbf_extract_progress(output);
-    } 
-    else if (tool_type == 'pac') {
-        return pac_extract_progress(output);
-    } 
-    else if (tool_type == 'ecf') {
-        return ecf_extract_progress(output);
-    }
-
-    return null;
-}
-
-function zip_is_adownload_file(file_name) 
-{
-    if (file_name.match(/.*\.zip$/i)) { 
-        try {
-            const zip = new admzip(file_name);
-            const zip_entries = zip.getEntries();
-            const has_download_json = zip_entries.some(entry => {
-                return entry.entryName === 'download.json' || 
-                    entry.entryName.endsWith('/download.json');
-            });
-            if (!has_download_json) {
-                return false;
-            } else {
-                return true;
-            }
-        } catch (error) {
-            vscode.window.showErrorMessage(localize('zipCheckFailed', error.message));
-        }
-    }
-
-    return false;
-}
 function kill_process_tree(child_process, signal = 'SIGKILL') {
     return new Promise((resolve, reject) => {
         if (!child_process || !child_process.pid) {
@@ -675,13 +547,13 @@ function activate(context)
     status_bar_dl.show();
 
     const workspace_folders = vscode.workspace.workspaceFolders;
-    const firmwareTreeDataProvider = new FirmwareTreeDataProvider();
+    const firmwareTreeDataProvider = new FirmwareTreeDataProvider(context);
     vscode.window.registerTreeDataProvider('firmware-explorer', firmwareTreeDataProvider);
     
     const settingsTreeDataProvider = new SettingsTreeDataProvider();
     vscode.window.registerTreeDataProvider('firmware-settings', settingsTreeDataProvider);
     
-    const deviceTreeDataProvider = new DeviceTreeDataProvider();
+    const deviceTreeDataProvider = new DeviceTreeDataProvider(context);
     vscode.window.registerTreeDataProvider('firmware-devices', deviceTreeDataProvider);
     deviceTreeDataProvider.startAutoRefresh();
 
@@ -1159,65 +1031,17 @@ function activate(context)
                     return;
                 }
 
-                let file_name;
-                let tool;
-                let tool_type;
-                let bin_file;
                 const file_path = selected_uri.fsPath;
-                const stats = fs.statSync(file_path);
-                if (stats.isDirectory()) {
-                    const files = fs.readdirSync(file_path);
-                    if (bin_file = files.find(file => file.toLowerCase().endsWith('_fbf.bin'))) {//ASR 1X03
-                        tool_type = 'fbf';
-                        file_name = path.join(file_path, bin_file);
-                    }
-                    else if(bin_file = files.find(file => file.toLowerCase().endsWith('.pac'))) {//UNISOC 8310 8910
-                        tool_type = 'pac';
-                        file_name = path.join(file_path, bin_file);
-                    }
-                    else if(bin_file = files.find(file => file.toLowerCase().endsWith('.zip'))) {
-                        tool_type = 'ad';
-                        file_name = path.join(file_path, bin_file);
-                        if (!zip_is_adownload_file(file_name)) {
-                            not_support_disp();
-                            return;
-                        }
-                    }
-                    else if(bin_file = files.find(file => file.toLowerCase().endsWith('download_usb.ini'))) {
-                        tool_type = 'ecf';
-                        file_name = path.join(file_path, bin_file);
-                    }
-                    else {
-                        not_support_disp();
-                        return;
-                    }
-
-                } else {
-                    file_name = file_path;
-                    // Verify if filename is supported
-                    if (zip_is_adownload_file(file_name)) {         //ASR 160x
-                        tool_type = 'ad';
-                    }  else if (file_name.match(/.*\_fbf.bin$/i)) { //ASR 1X03
-                        tool_type = 'fbf';
-                    } else if (file_name.match(/.*\.pac$/i)) {      //UNISOC 8310 8910
-                        tool_type = 'pac';
-                    } else if (file_name.match(/.*\_download_usb.ini$/i)) {  //Eigen
-                        tool_type = 'ecf';
-                    } else {
-                        not_support_disp();
-                        return;
-                    }
-                    
-                }   
-           
-                tool = tool_set[tool_type];
-                const extension_path = context.extensionPath;
-                const tools_path = path.join(extension_path, 'tools');
-                const toolfile   = path.join(tools_path, tool);
-                if (!fs.existsSync(toolfile)) {
-                    vscode.window.showErrorMessage(localize('toolNotFound', tool));
+                const file_name = file_path;
+                
+                // Use firmware-cli.exe for flashing
+                const firmware_cli_path = getFirmwareCliPath(context);
+                
+                if (!firmware_cli_path) {
+                    vscode.window.showErrorMessage(localize('toolNotFound', FIRMWARE_CLI));
                     return;
                 }
+                
                 status_bar_dl.text = "$(sync) " + localize('waitingForDownload');
                 // Check if there is a running download task
                 console.info('last dl state', last_dl_info.dlState, last_dl_info.dlChild)
@@ -1235,83 +1059,31 @@ function activate(context)
                 
                 last_dl_info.filePath = file_path;
                 last_dl_info.fileName = file_name;
-                last_dl_info.toolType = tool_type;
+                last_dl_info.toolType = 'cli';
                 last_dl_info.dlState = 'waiting';
                 last_dl_info.dlChild = null;
 
-                // Send QDOWNLOAD command -> subprocess handling
-                if (process.platform === 'win32') {
-                    let ddl_cmd = 'cmd';
-                    const ddl_tool = path.join(tools_path, tool_set['ddl']);
-                    if (tool_type == 'pac') {
-                        ddl_run = `${ddl_tool} -t unisoc -f 1`
-                    } else {
-                        ddl_run = `${ddl_tool} -t asr`;
-                    }
-                    ddl_args = ['/c', ddl_run]; 
-                    const ddl_child = spawn(ddl_cmd, ddl_args, { shell: true });
-                    ddl_child.stdout.on('data', (data) => {
-                        let output;
-                        if (process.platform === 'win32') {
-                            output = iconv.decode(data, 'gbk');
-                        } else {
-                            output = data.toString('utf8');
-                        }
-                        output_chan.appendLine(output);
-                    });
-                    ddl_child.stderr.on('data', (data) => {
-                        let output;
-                        if (process.platform === 'win32') {
-                            output = iconv.decode(data, 'gbk');
-                        } else {
-                            output = data.toString('utf8');
-                        }
-                        output_chan.appendLine(output);
-                    });
-                    ddl_child.on('close', (code) => {
-                        if (!(code === 0)) {
-                            vscode.window.showInformationMessage(localize('enterDownloadMode'));
-                        } 
-                    });
-                }
-                // Build download command -> subprocess handling
+                // firmware-cli command
                 let command;
-                let cmdStr;
                 let args;
                 if (process.platform === 'win32') {
-                    command = 'cmd';
-                    //args = ['/c'];
-                    if (tool_type == 'ad') {
-                        cmdStr=`${toolfile} -r -q -a -u -s 115200 ${file_name}`;
-                    } else if (tool_type == 'pac') {
-                        cmdStr=`${toolfile} -pac ${file_name}`;
-                    } else if (tool_type == 'ecf') {
-                        cmdStr=`${toolfile} -f ${file_name} --timeout 60`;
-                    } else {
-                        cmdStr=`${toolfile} -b ${file_name}`;
-                    }
-                    args = ['/c', cmdStr]; 
-                    //console.log(`show: ${tool} ${command} ${args}`);
-                    output_chan.appendLine(`show: ${tool} ${command} ${args}`);
+                    command = firmware_cli_path;
+                    args = ['flash', file_name, '--progress', 'json'];
                 } else {
-                    // Unix-like systems
-                    command = toolfile;
-                    if (tool_type == 'ad') {
-                        args = ['-r', '-q', '-a', '-u', '-s', '115200', file_name];
-                    } else if (tool_type == 'pac') {
-                        args = ['-pac', file_name];
-                    } else {
-                        args = ['-b', file_name];
-                    }
+                    command = firmware_cli_path;
+                    args = ['flash', file_name, '--progress', 'json'];
                 }
-                const child   = spawn(command, args, { shell: true });
+                
+                output_chan.appendLine(`show: ${FIRMWARE_CLI} ${command} ${args.join(' ')}`);
+                
+                const child = spawn(command, args, { shell: true });
                 const tracker = new progress_tracker(status_bar_dl);
                 tracker.reset();
                 last_dl_info.dlState = 'running';
                 last_dl_info.dlChild = child;
+                
                 // 30-second timeout: kill download process if no output
                 let kill_timeout = setTimeout(() => {
-                    //vscode.window.showErrorMessage(`下载等待超时`);
                     output_chan.appendLine(localize('doChildDownloadProcessKill'));
                     kill_process_tree(child, 'SIGKILL')
                     .then(() => {
@@ -1331,21 +1103,24 @@ function activate(context)
                         output = data.toString('utf8');
                     }
                     output_chan.appendLine(output);
-                    progress = extract_progress_from_output(output, tool_type);
-                    if (progress == 0xFF) {
-                        tracker.start_pseudo_progress(tool_type,95);
-                    } else { 
-                        if (progress != null) {
-                            tracker.stop_pseudo_progress();
-                            tracker.update_progress(progress);
+                    
+                    // Try to parse JSON progress
+                    try {
+                        const lines = output.split('\n');
+                        for (const line of lines) {
+                            if (line.trim().startsWith('{') && line.trim().endsWith('}')) {
+                                const json = JSON.parse(line.trim());
+                                if (json.progress !== undefined) {
+                                    tracker.update_progress(json.progress);
+                                    if (kill_timeout) {
+                                        clearTimeout(kill_timeout);
+                                        kill_timeout = null;
+                                    }
+                                }
+                            }
                         }
-                    }
-                    if (progress != null) {
-                        if (kill_timeout) {
-                            clearTimeout(kill_timeout);
-                            kill_timeout = null;
-                        }
-                        vscode.commands.executeCommand('firmwareDownloader.devices_refresh');
+                    } catch (e) {
+                        // Not JSON, ignore
                     }
                 });
 
@@ -1353,7 +1128,6 @@ function activate(context)
                 child.stderr.on('data', (data) => {
                     let errorOutput;
                     if (process.platform === 'win32') {
-                        // Windows Chinese system typically uses GBK encoding
                         errorOutput = iconv.decode(data, 'gbk');
                     } else {
                         errorOutput = data.toString('utf8');
@@ -1430,16 +1204,6 @@ function activate(context)
         
     });
  
-    // Set terminal close event listener
-    function terminal_close_listener(last_dl_info) {
-        return vscode.window.onDidCloseTerminal((closed_terminal) => {
-            if (last_dl_info.terminal === closed_terminal) {
-                console.log("terminal close by user");
-                last_dl_info.terminal = null; 
-            }
-        });
-    }
-
     // Add to subscriptions for automatic cleanup
     context.subscriptions.push(status_bar_dl);
     context.subscriptions.push(status_bar_build);
