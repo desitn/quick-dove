@@ -53,7 +53,8 @@ function writeFirmwareCliConfig(config) {
         firmwarePath: config.get('firmwarePath') || '',
         buildCommand: buildCommand,
         buildGitBashPath: config.get('buildGitBashPath') || '',
-        defaultComPort: config.get('defaultComPort') || ''
+        defaultComPort: config.get('defaultComPort') || '',
+        workspacePath: workspacePath
     };
     
     try {
@@ -125,10 +126,17 @@ class FirmwareTreeDataProvider {
         try {
             const firmwareCliPath = getFirmwareCliPath(this.context);
             if (firmwareCliPath) {
+                const workspace = vscode.workspace.workspaceFolders;
+                const workspacePath = workspace && workspace.length > 0 ? workspace[0].uri.fsPath : '';
+                const configPath = path.join(workspacePath, 'firmware-cli.json');
                 const result = spawnSync(firmwareCliPath, ['list', '--json'], { 
                     shell: true,
                     encoding: 'utf8',
-                    timeout: 5000
+                    timeout: 5000,
+                    env: {
+                        ...process.env,
+                        FIRMWARE_CLI_CONFIG: configPath
+                    }
                 });
                 
                 if (result.status === 0 && result.stdout) {
@@ -168,6 +176,7 @@ class FirmwareTreeDataProvider {
             console.error('firmware-cli list error:', e);
         }
         
+        output_chan.appendLine("fall_back firmware list!");
         // Fallback to original method
         if (firmwarePath && firmwarePath.length > 0) {
             if (fs.existsSync(firmwarePath)) {
@@ -336,22 +345,30 @@ class DeviceTreeDataProvider {
                 }
                 
                 return new Promise((resolve) => {
-                    const child = spawn(firmwareCliPath, ['devices', '--json'], { shell: true });
+                    const workspace = vscode.workspace.workspaceFolders;
+                    const workspacePath = workspace && workspace.length > 0 ? workspace[0].uri.fsPath : '';
+                    const configPath = path.join(workspacePath, 'firmware-cli.json');
+                    const child = spawn(firmwareCliPath, ['devices', '--json'], { 
+                        env: {
+                            ...process.env,
+                            FIRMWARE_CLI_CONFIG: configPath
+                        }
+                    });
                     let output = '';
                     let errorOutput = '';
                     
                     child.stdout.on('data', (data) => {
-                        output += iconv.decode(data, 'gbk');
+                        output += data.toString('utf8');
                     });
                     
                     child.stderr.on('data', (data) => {
-                        errorOutput += iconv.decode(data, 'gbk');
+                        errorOutput += data.toString('utf8');
                     });
                     
                     child.on('close', (code) => {
                         if (code === 0) {
                             try {
-                                 output_chan.appendLine(output);
+                                output_chan.appendLine(output);
                                 const result = JSON.parse(output);
                                 if (result.devices && result.devices.length > 0) {
                                     // Sort and create device items
@@ -524,6 +541,10 @@ function kill_process_tree(child_process, signal = 'SIGKILL') {
 
 function activate(context) 
 {
+    // Initialize firmware-cli.json config file on activation
+    const config = get_configuration();
+    writeFirmwareCliConfig(config);
+    
     let last_dl_info = {
         dlPromise: null,
         filePath: '',
@@ -1076,7 +1097,16 @@ function activate(context)
                 
                 output_chan.appendLine(`show: ${FIRMWARE_CLI} ${command} ${args.join(' ')}`);
                 
-                const child = spawn(command, args, { shell: true });
+                const workspace = vscode.workspace.workspaceFolders;
+                const workspacePath = workspace && workspace.length > 0 ? workspace[0].uri.fsPath : '';
+                const configPath = path.join(workspacePath, 'firmware-cli.json');
+                const child = spawn(command, args, { 
+                    shell: true,
+                    env: {
+                        ...process.env,
+                        FIRMWARE_CLI_CONFIG: configPath
+                    }
+                });
                 const tracker = new progress_tracker(status_bar_dl);
                 tracker.reset();
                 last_dl_info.dlState = 'running';

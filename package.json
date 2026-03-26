@@ -20,9 +20,7 @@
     "Other"
   ],
   "dependencies": {
-    "adm-zip": "^0.5.16",
-    "iconv-lite": "^0.6.3",
-    "ini": "^6.0.0"
+    "iconv-lite": "^0.6.3"
   },
   "activationEvents": [
     "onStartupFinished"
