@@ -112,7 +112,16 @@ const messages = {
     'wizard.notSet': 'Not set',
     'wizard.configSaved': 'Configuration saved successfully!',
     'workspaceWizardPrompt': 'This workspace appears to be a firmware project. Would you like to run the setup wizard?',
-    'selectGitBash': 'Select Git Bash'
+    'selectGitBash': 'Select Git Bash',
+    // Wizard enhancements
+    'wizard.detectedPaths': 'Detected Paths',
+    'wizard.searchingPaths': 'Searching for firmware paths...',
+    'wizard.autoDetected': 'Auto',
+    'wizard.configured': 'Config',
+    'wizard.selectScriptFile': 'Select from Script File',
+    'wizard.addManualCommand': 'Add Manual Command',
+    'wizard.or': 'or',
+    'wizard.noCommandsAdded': 'No build commands added yet. Use the buttons above to add commands.'
   },
   'zh-cn': {
     'noBuildCommand': '没有配置构建命令。',
@@ -225,7 +234,16 @@ const messages = {
     'wizard.notSet': '未设置',
     'wizard.configSaved': '配置保存成功！',
     'workspaceWizardPrompt': '此工作空间看起来是一个固件项目。是否运行设置向导？',
-    'selectGitBash': '选择 Git Bash'
+    'selectGitBash': '选择 Git Bash',
+    // Wizard enhancements
+    'wizard.detectedPaths': '检测到的路径',
+    'wizard.searchingPaths': '正在搜索固件路径...',
+    'wizard.autoDetected': '自动',
+    'wizard.configured': '配置',
+    'wizard.selectScriptFile': '从脚本文件选择',
+    'wizard.addManualCommand': '手动添加命令',
+    'wizard.or': '或',
+    'wizard.noCommandsAdded': '尚未添加构建命令。使用上方按钮添加命令。'
   }
 };
 

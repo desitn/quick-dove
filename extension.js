@@ -437,7 +437,16 @@ class SettingsTreeDataProvider {
     getSettingsItems() {
         const items = [];
         
-        // Only keep Plugin Settings entry
+        // Add Welcome page entry
+        items.push(new SettingsItem(localize('view.showWelcome'), '', vscode.TreeItemCollapsibleState.None, 'show-welcome'));
+        
+        // Add Setup Wizard entry
+        items.push(new SettingsItem(localize('view.showSetupWizard'), '', vscode.TreeItemCollapsibleState.None, 'show-wizard'));
+        
+        // Add separator (empty item)
+        items.push(new SettingsItem('', '', vscode.TreeItemCollapsibleState.None, 'separator'));
+        
+        // Plugin Settings entry
         items.push(new SettingsItem(localize('view.pluginSettings'), '', vscode.TreeItemCollapsibleState.None, 'firmware-settings'));
         
         return items;
@@ -453,6 +462,25 @@ class SettingsItem extends vscode.TreeItem {
         this.data        = data;
 
         switch(type) {
+            case 'show-welcome':
+                this.iconPath = new vscode.ThemeIcon('home');
+                this.command = {
+                    command: 'firmwareDownloader.showWelcome',
+                    title: localize('view.showWelcome'),
+                    arguments: []
+                };
+                break;
+            case 'show-wizard':
+                this.iconPath = new vscode.ThemeIcon('wand');
+                this.command = {
+                    command: 'firmwareDownloader.showSetupWizard',
+                    title: localize('view.showSetupWizard'),
+                    arguments: []
+                };
+                break;
+            case 'separator':
+                // Separator item - no icon, no command
+                break;
             case 'firmware-settings':
                 this.iconPath = new vscode.ThemeIcon('gear');
                 this.command = {
@@ -1239,10 +1267,12 @@ function activate(context)
     context.subscriptions.push(status_bar_build);
     context.subscriptions.push(firmwareTreeDataProvider);
     context.subscriptions.push(settingsTreeDataProvider);
+    
     context.subscriptions.push(refreshFirmwareListCommand);
     context.subscriptions.push(selectFirmwareDirCommand);
     context.subscriptions.push(clearFirmwareDirCommand);
     context.subscriptions.push(refreshDevicesCommand);
+
     context.subscriptions.push(addBuildCommand);
     context.subscriptions.push(selectBuildCommand);
     context.subscriptions.push(configBuildCommand);

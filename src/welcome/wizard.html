@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="{{locale}}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{wizard.title}}</title>
+    <link rel="stylesheet" href="{{style.css}}">
+    <link rel="stylesheet" href="{{fontawesome.css}}">
+</head>
+<body class="wizard-body">
+    <div class="header">
+        <h1>{{wizard.title}}</h1>
+        <p>{{wizard.subtitle}}</p>
+    </div>
+
+    <div class="step-indicator">
+        <div class="step active" id="step1-indicator">1</div>
+        <div class="step" id="step2-indicator">2</div>
+        <div class="step" id="step3-indicator">3</div>
+        <div class="step" id="step4-indicator">4</div>
+    </div>
+
+    <!-- Step 1: Firmware Path -->
+    <div class="step-content active" id="step1">
+        <div class="form-group">
+            <label>{{wizard.firmwarePath}}</label>
+            <div class="path-selector">
+                <input type="text" id="firmwarePath" placeholder="{{wizard.firmwarePath.placeholder}}" readonly>
+                <button class="btn btn-secondary" onclick="selectFirmwarePath()">{{wizard.browse}}</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 2: Build Commands -->
+    <div class="step-content" id="step2">
+        <div class="form-group">
+            <label>{{wizard.buildCommands}}</label>
+            <div class="add-command-options">
+                <button class="btn btn-secondary" onclick="selectScriptFile()">
+                    <i class="fa-solid fa-file-code"></i> {{wizard.selectScriptFile}}
+                </button>
+                <span class="or-divider">{{wizard.or}}</span>
+                <button class="btn btn-secondary" onclick="addManualCommand()">
+                    <i class="fa-solid fa-plus"></i> {{wizard.addManualCommand}}
+                </button>
+            </div>
+            <div class="command-list" id="commandList">
+                <!-- Commands will be added here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 3: Git Bash Path -->
+    <div class="step-content" id="step3">
+        <div class="form-group">
+            <label>{{wizard.gitBashPath}}</label>
+            <div class="path-selector">
+                <input type="text" id="gitBashPath" placeholder="{{wizard.gitBashPath.placeholder}}" readonly>
+                <button class="btn btn-secondary" onclick="selectGitBashPath()">{{wizard.browse}}</button>
+            </div>
+            <small style="color: var(--vscode-descriptionForeground);">{{wizard.gitBashPath.optional}}</small>
+        </div>
+    </div>
+
+    <!-- Step 4: Summary -->
+    <div class="step-content" id="step4">
+        <div id="summary">
+            <div class="summary-item">
+                <label>{{wizard.firmwarePath}}</label>
+                <span id="summary-firmwarePath">-</span>
+            </div>
+            <div class="summary-item">
+                <label>{{wizard.buildCommands}}</label>
+                <span id="summary-buildCommands">-</span>
+            </div>
+            <div class="summary-item">
+                <label>{{wizard.gitBashPath}}</label>
+                <span id="summary-gitBashPath">-</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="actions">
+        <button class="btn btn-secondary" id="btn-prev" onclick="prevStep()" disabled>{{wizard.prev}}</button>
+        <div>
+            <button class="btn btn-secondary" onclick="closeWizard()">{{wizard.cancel}}</button>
+            <button class="btn btn-primary" id="btn-next" onclick="nextStep()">{{wizard.next}}</button>
+        </div>
+    </div>
+
+    <script src="{{wizard.js}}"></script>
+</body>
+</html>

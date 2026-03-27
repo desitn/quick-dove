@@ -89,6 +89,8 @@
   "msg.parsingJsonError": "解析JSON错误: {0}",
   "msg.configurationWritten": "配置已写入: {0}",
   "msg.failedToWriteConfig": "写入 firmware-cli.json 失败: {0}",
+  "view.showWelcome": "显示欢迎页",
+  "view.showSetupWizard": "运行设置向导",
   "view.pluginSettings": "插件设置",
   "msg.confirmBuildCommand": "当前构建命令:\n{0}\n\n执行编译?",
   "msg.executeBuild": "是",

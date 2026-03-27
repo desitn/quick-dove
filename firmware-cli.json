@@ -1,6 +1,7 @@
 {
   "firmwarePath": "",
-  "buildCommand": "",
+  "buildCommand": "vsce package",
   "buildGitBashPath": "",
-  "defaultComPort": ""
+  "defaultComPort": "",
+  "workspacePath": "f:\\vscode-extension\\quick-firmware"
 }

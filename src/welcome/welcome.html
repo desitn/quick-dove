@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="{{locale}}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{welcome.title}}</title>
+    <link rel="stylesheet" href="{{style.css}}">
+    <link rel="stylesheet" href="{{fontawesome.css}}">
+</head>
+<body class="welcome-body">
+    <div class="header welcome-header">
+        <h1>{{welcome.header}}</h1>
+        <p>{{welcome.subtitle}}</p>
+    </div>
+
+    <div class="features">
+        <div class="feature-card">
+            <h3><i class="fa-solid fa-download"></i> {{welcome.feature.download}}</h3>
+            <p>{{welcome.feature.download.desc}}</p>
+        </div>
+        <div class="feature-card">
+            <h3><i class="fa-solid fa-mug-hot"></i> {{welcome.feature.build}}</h3>
+            <p>{{welcome.feature.build.desc}}</p>
+        </div>
+        <div class="feature-card">
+            <h3><i class="fa-solid fa-plug"></i> {{welcome.feature.device}}</h3>
+            <p>{{welcome.feature.device.desc}}</p>
+        </div>
+    </div>
+
+    <div class="actions welcome-actions">
+        <button class="btn btn-primary" onclick="openWizard()">{{welcome.startWizard}}</button>
+        <button class="btn btn-secondary" onclick="openSettings()">{{welcome.openSettings}}</button>
+        <button class="btn btn-secondary" onclick="closeWelcome()">{{welcome.close}}</button>
+    </div>
+
+
+    <div class="footer">
+        <p>{{welcome.footer}} <a onclick="dontShowAgain()">{{welcome.dontShowAgain}}</a></p>
+    </div>
+
+    <script>
+        const vscode = acquireVsCodeApi();
+
+        function openWizard() {
+            vscode.postMessage({ command: 'openWizard' });
+        }
+
+        function openSettings() {
+            vscode.postMessage({ command: 'openSettings' });
+        }
+
+        function closeWelcome() {
+            vscode.postMessage({ command: 'close' });
+        }
+
+        function dontShowAgain() {
+            vscode.postMessage({ command: 'dontShowAgain' });
+        }
+    </script>
+</body>
+</html>

@@ -89,6 +89,8 @@
   "msg.parsingJsonError": "Error parsing JSON: {0}",
   "msg.configurationWritten": "Configuration written to: {0}",
   "msg.failedToWriteConfig": "Failed to write firmware-cli.json: {0}",
+  "view.showWelcome": "Show Welcome Page",
+  "view.showSetupWizard": "Run Setup Wizard",
   "view.pluginSettings": "Plugin Settings",
   "msg.confirmBuildCommand": "Current build command:\n{0}\n\nExecute build?",
   "msg.executeBuild": "Yes",
