@@ -148,39 +148,6 @@
     "configuration": {
       "title": "Quick Firmware +",
       "properties": {
-        "quickFirmwarePlus.firmwarePath": {
-          "type": "string",
-          "default": "",
-          "description": "%config.firmwarePath%"
-        },
-        "quickFirmwarePlus.buildCommands": {
-          "type": "array",
-          "default": [],
-          "description": "%config.buildCommands%",
-          "items": {
-            "type": "object",
-            "properties": {
-              "name": {
-                "type": "string",
-                "description": "命令名称"
-              },
-              "command": {
-                "type": "string",
-                "description": "构建命令"
-              }
-            }
-          }
-        },
-        "quickFirmwarePlus.lastBuildCommand": {
-          "type": "string",
-          "default": "",
-          "description": "%config.lastBuildCommand%"
-        },
-        "quickFirmwarePlus.buildGitBashPath": {
-          "type": "string",
-          "default": "",
-          "description": "%config.buildGitBashPath%"
-        },
         "quickFirmwarePlus.language": {
           "type": "string",
           "default": "auto",

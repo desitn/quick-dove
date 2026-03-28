@@ -1,7 +1,16 @@
 {
   "firmwarePath": "",
-  "buildCommand": "vsce package",
+  "buildCommands": [
+    {
+      "name": "vs package",
+      "command": "vsce package"
+    }
+  ],
+  "lastBuildCommand": "vs package",
   "buildGitBashPath": "",
   "defaultComPort": "",
+  "language": "auto",
+  "theme": "light",
+  "buildCommand": "vsce package",
   "workspacePath": "f:\\vscode-extension\\quick-firmware"
 }

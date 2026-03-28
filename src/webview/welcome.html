@@ -29,11 +29,13 @@
     </div>
 
     <div class="actions welcome-actions">
-        <button class="btn btn-primary" onclick="openWizard()">{{welcome.startWizard}}</button>
-        <button class="btn btn-secondary" onclick="openSettings()">{{welcome.openSettings}}</button>
-        <button class="btn btn-secondary" onclick="closeWelcome()">{{welcome.close}}</button>
+        <button class="btn btn-primary" onclick="openSettings()">
+            <i class="fa-solid fa-gear"></i> {{welcome.openSettings}}
+        </button>
+        <button class="btn btn-secondary" onclick="closeWelcome()">
+            <i class="fa-solid fa-xmark"></i> {{welcome.close}}
+        </button>
     </div>
-
 
     <div class="footer">
         <p>{{welcome.footer}} <a onclick="dontShowAgain()">{{welcome.dontShowAgain}}</a></p>
@@ -41,10 +43,6 @@
 
     <script>
         const vscode = acquireVsCodeApi();
-
-        function openWizard() {
-            vscode.postMessage({ command: 'openWizard' });
-        }
 
         function openSettings() {
             vscode.postMessage({ command: 'openSettings' });

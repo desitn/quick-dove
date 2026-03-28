@@ -10,7 +10,8 @@ const fs = require('fs');
 const iconv = require('iconv-lite');
 const { spawn, spawnSync } = require('child_process');
 const { localize } = require('./src/localization');
-const { WelcomeWebviewManager } = require('./src/welcome/welcomeWebview');
+const { WelcomeWebviewManager } = require('./src/webview/welcomeWebview');
+const { configManager } = require('./src/config/configManager');
 
 /** @note firmware-cli executable path */
 const FIRMWARE_CLI = 'firmware-cli.exe';
@@ -18,13 +19,18 @@ const FIRMWARE_CLI = 'firmware-cli.exe';
 const output_chan = vscode.window.createOutputChannel('Quick Firmware +');
 const alert = localize('noFirmware');
 
+/**
+ * Get configuration from config manager
+ * @returns {Object} Configuration object
+ */
 function get_configuration() {
-    return vscode.workspace.getConfiguration('quickFirmwarePlus');
+    return configManager.getConfig();
 }
 
 /**
  * Write firmware-cli.json configuration file to workspace root
  * This file is used by the independent firmware-cli tool
+ * Note: This function now preserves existing config and only updates necessary fields
  */
 function writeFirmwareCliConfig(config) {
     const workspace = vscode.workspace.workspaceFolders;
@@ -35,30 +41,30 @@ function writeFirmwareCliConfig(config) {
     const workspacePath = workspace[0].uri.fsPath;
     const configPath = path.join(workspacePath, 'firmware-cli.json');
     
-    const buildCommands = config.get('buildCommands') || [];
-    const lastBuildCommand = config.get('lastBuildCommand') || '';
-    // Get the command from last used or first command
-    let buildCommand = '';
-    if (lastBuildCommand && buildCommands.length > 0) {
-        const found = buildCommands.find(cmd => cmd.name === lastBuildCommand);
-        if (found) {
-            buildCommand = found.command;
+    // Read existing config to preserve all fields
+    let configData = {};
+    try {
+        if (fs.existsSync(configPath)) {
+            const content = fs.readFileSync(configPath, 'utf8');
+            configData = JSON.parse(content);
         }
-    }
-    if (!buildCommand && buildCommands.length > 0) {
-        buildCommand = buildCommands[0].command;
+    } catch (error) {
+        // If read/parse fails, start with empty object
+        configData = {};
     }
     
-    const configData = {
-        firmwarePath: config.get('firmwarePath') || '',
-        buildCommand: buildCommand,
-        buildGitBashPath: config.get('buildGitBashPath') || '',
-        defaultComPort: config.get('defaultComPort') || '',
+    // Merge with current config, preserving existing fields
+    const mergedConfig = {
+        ...configData,
+        firmwarePath: config.firmwarePath || configData.firmwarePath || '',
+        buildCommand: configManager.getActiveBuildCommand() || configData.buildCommand || '',
+        buildGitBashPath: config.buildGitBashPath || configData.buildGitBashPath || '',
+        defaultComPort: config.defaultComPort || configData.defaultComPort || '',
         workspacePath: workspacePath
     };
     
     try {
-        fs.writeFileSync(configPath, JSON.stringify(configData, null, 2));
+        fs.writeFileSync(configPath, JSON.stringify(mergedConfig, null, 2));
         output_chan.appendLine(localize('configurationWritten', configPath));
     } catch (error) {
         output_chan.appendLine(localize('failedToWriteConfig', error.message));
@@ -120,7 +126,7 @@ class FirmwareTreeDataProvider {
     getFirmwareRootItems() {
         const items = [];
         const config = get_configuration();
-        const firmwarePath = config.get('firmwarePath');
+        const firmwarePath = config.firmwarePath;
         
         // Try to use firmware-cli to list firmware
         try {
@@ -439,13 +445,6 @@ class SettingsTreeDataProvider {
         
         // Add Welcome page entry
         items.push(new SettingsItem(localize('view.showWelcome'), '', vscode.TreeItemCollapsibleState.None, 'show-welcome'));
-        
-        // Add Setup Wizard entry
-        items.push(new SettingsItem(localize('view.showSetupWizard'), '', vscode.TreeItemCollapsibleState.None, 'show-wizard'));
-        
-        // Add separator (empty item)
-        items.push(new SettingsItem('', '', vscode.TreeItemCollapsibleState.None, 'separator'));
-        
         // Plugin Settings entry
         items.push(new SettingsItem(localize('view.pluginSettings'), '', vscode.TreeItemCollapsibleState.None, 'firmware-settings'));
         
@@ -569,6 +568,9 @@ function kill_process_tree(child_process, signal = 'SIGKILL') {
 
 function activate(context) 
 {
+    // Initialize config manager
+    configManager.initialize(context);
+    
     // Initialize firmware-cli.json config file on activation
     const config = get_configuration();
     writeFirmwareCliConfig(config);
@@ -614,26 +616,11 @@ function activate(context)
         welcomeManager.showWelcome();
     }
 
-    // Show setup wizard for new workspace if needed
-    setTimeout(() => {
-        if (welcomeManager.shouldShowWorkspaceWizard()) {
-            const message = localize('workspaceWizardPrompt');
-            vscode.window.showInformationMessage(message, localize('yes'), localize('no'))
-                .then(selection => {
-                    if (selection === localize('yes')) {
-                        welcomeManager.showSetupWizard();
-                    }
-                });
-        }
-    }, 1000);
+    // Settings page can be opened via the settings tree view or welcome page
 
     // Register welcome commands
     const showWelcomeCommand = vscode.commands.registerCommand('firmwareDownloader.showWelcome', () => {
         welcomeManager.showWelcome();
-    });
-
-    const showSetupWizardCommand = vscode.commands.registerCommand('firmwareDownloader.showSetupWizard', () => {
-        welcomeManager.showSetupWizard();
     });
 
     const refreshFirmwareListCommand = vscode.commands.registerCommand('firmwareDownloader.refresh', () => {
@@ -656,24 +643,20 @@ function activate(context)
         const result = await vscode.window.showOpenDialog(options);
         if (result && result.length > 0) {
             const selectedPath = result[0].fsPath;
-            const config = get_configuration();
-            await config.update('firmwarePath', selectedPath, vscode.ConfigurationTarget.Workspace);
-            writeFirmwareCliConfig(config);
+            configManager.setFirmwarePath(selectedPath);
+            writeFirmwareCliConfig(configManager.getConfig());
             vscode.commands.executeCommand('firmwareDownloader.refresh');
         }
     });
 
     const clearFirmwareDirCommand = vscode.commands.registerCommand('firmwareDownloader.clear', async () => {
-        const config = get_configuration();
-        await config.update('firmwarePath', '', vscode.ConfigurationTarget.Workspace);
-        writeFirmwareCliConfig(config);
+        configManager.setFirmwarePath('');
+        writeFirmwareCliConfig(configManager.getConfig());
         vscode.commands.executeCommand('firmwareDownloader.refresh');
     });
  
     // Add build command
     const addBuildCommand = vscode.commands.registerCommand('firmwareDownloader.addBuildCommand', async () => {
-        const config = get_configuration();
-        
         // Get command name
         const name = await vscode.window.showInputBox({
             prompt: localize('enterCommandName'),
@@ -682,7 +665,7 @@ function activate(context)
                 if (!value || value.trim().length === 0) {
                     return localize('commandNameEmpty');
                 }
-                const buildCommands = config.get('buildCommands') || [];
+                const buildCommands = configManager.getBuildCommands();
                 if (buildCommands.some(cmd => cmd.name === value.trim())) {
                     return localize('commandNameExists');
                 }
@@ -711,16 +694,16 @@ function activate(context)
         }
         
         // Save to configuration
-        const buildCommands = config.get('buildCommands') || [];
+        const buildCommands = configManager.getBuildCommands();
         buildCommands.push({ name: name.trim(), command: command.trim() });
-        await config.update('buildCommands', buildCommands, vscode.ConfigurationTarget.Workspace);
+        configManager.setBuildCommands(buildCommands);
         
         // Set as last used if it's the first command
         if (buildCommands.length === 1) {
-            await config.update('lastBuildCommand', name.trim(), vscode.ConfigurationTarget.Workspace);
+            configManager.setLastBuildCommand(name.trim());
         }
         
-        writeFirmwareCliConfig(config);
+        writeFirmwareCliConfig(configManager.getConfig());
         vscode.commands.executeCommand('firmwareDownloader.refresh');
         vscode.window.showInformationMessage(localize('commandAdded', name));
     });
@@ -731,18 +714,16 @@ function activate(context)
             return;
         }
         
-        const config = get_configuration();
-        await config.update('lastBuildCommand', cmdData.name, vscode.ConfigurationTarget.Workspace);
-        writeFirmwareCliConfig(config);
+        configManager.setLastBuildCommand(cmdData.name);
+        writeFirmwareCliConfig(configManager.getConfig());
         vscode.commands.executeCommand('firmwareDownloader.refresh');
         vscode.window.showInformationMessage(localize('selectActiveCommand', cmdData.name));
     });
     
 
     const configBuildCommand = vscode.commands.registerCommand('firmwareDownloader.configBuildCommand', async () => {
-        const config = get_configuration();
-        const buildCommands = config.get('buildCommands') || [];
-        const lastBuildCommand = config.get('lastBuildCommand') || '';
+        const buildCommands = configManager.getBuildCommands();
+        const lastBuildCommand = configManager.getLastBuildCommand();
         let quickPickItems = [];
 
         if (buildCommands.length > 0) {
@@ -802,7 +783,7 @@ function activate(context)
                 const scriptCommand = path.basename(selectedPath);
                 
                 // Check if command name already exists
-                const existingCommands = config.get('buildCommands') || [];
+                const existingCommands = configManager.getBuildCommands();
                 let finalName = scriptName;
                 let counter = 1;
                 while (existingCommands.some(cmd => cmd.name === finalName)) {
@@ -812,9 +793,9 @@ function activate(context)
                 
                 // Add to configuration
                 existingCommands.push({ name: finalName, command: scriptCommand });
-                await config.update('buildCommands', existingCommands, vscode.ConfigurationTarget.Workspace);
-                await config.update('lastBuildCommand', finalName, vscode.ConfigurationTarget.Workspace);
-                writeFirmwareCliConfig(config);
+                configManager.setBuildCommands(existingCommands);
+                configManager.setLastBuildCommand(finalName);
+                writeFirmwareCliConfig(configManager.getConfig());
                 vscode.commands.executeCommand('firmwareDownloader.refresh');
                 vscode.window.showInformationMessage(localize('scriptFileAdded', finalName));
                 
@@ -825,8 +806,8 @@ function activate(context)
         }
         
         // Update lastBuildCommand
-        await config.update('lastBuildCommand', selected.command.name, vscode.ConfigurationTarget.Workspace);
-        writeFirmwareCliConfig(config);
+        configManager.setLastBuildCommand(selected.command.name);
+        writeFirmwareCliConfig(configManager.getConfig());
         vscode.commands.executeCommand('firmwareDownloader.refresh');
         //vscode.window.showInformationMessage(localize('switchedTo', selected.command.name));
         // Trigger build after switching command
@@ -844,18 +825,17 @@ function activate(context)
     });
     
     const openSettingsCommand = vscode.commands.registerCommand('firmwareDownloader.settings', () => {
-        vscode.commands.executeCommand('workbench.action.openSettings', 'quickFirmwarePlus');
+        welcomeManager.showSettings();
     });
 
     // Register build command - with confirmation dialog
     let build_disposable = vscode.commands.registerCommand('firmwareDownloader.build', async function () {
 
-        const config = get_configuration();
-        const buildCommands = config.get('buildCommands') || [];
-        const lastBuildCommand = config.get('lastBuildCommand') || '';
+        const buildCommands = configManager.getBuildCommands();
+        const lastBuildCommand = configManager.getLastBuildCommand();
         let build_args = '';
         let is_bash = false;
-        let bash_run = config.get('buildGitBashPath') || '';
+        let bash_run = configManager.getBuildGitBashPath();
         
         // If there are configured build commands, use the last used one or first one
         if (buildCommands.length > 0) {
@@ -873,9 +853,15 @@ function activate(context)
             
             // Update lastBuildCommand if it was not set
             if (selectedCmd.name !== lastBuildCommand) {
-                await config.update('lastBuildCommand', selectedCmd.name, vscode.ConfigurationTarget.Workspace);
-                writeFirmwareCliConfig(config);
+                configManager.setLastBuildCommand(selectedCmd.name);
+                writeFirmwareCliConfig(configManager.getConfig());
             }
+            // Check if the command is a bash script (.sh file)
+            // Match .sh followed by space or end of string to handle cases like "build.sh -app"
+            if (/\.sh(\s|$)/i.test(selectedCmd.command)) {
+                is_bash = true;
+            }
+            
         } else {
             // No configured commands, use auto-detection
             // Default to build OPT.bat
@@ -917,14 +903,14 @@ function activate(context)
                 
                 // Auto-save detected command as default
                 if (detectedCommand && detectedName) {
-                    const buildCommands = config.get('buildCommands') || [];
+                    const currentBuildCommands = configManager.getBuildCommands();
                     // Check if already exists
-                    const exists = buildCommands.some(cmd => cmd.name === detectedName);
+                    const exists = currentBuildCommands.some(cmd => cmd.name === detectedName);
                     if (!exists) {
-                        buildCommands.push({ name: detectedName, command: detectedCommand });
-                        await config.update('buildCommands', buildCommands, vscode.ConfigurationTarget.Workspace);
-                        await config.update('lastBuildCommand', detectedName, vscode.ConfigurationTarget.Workspace);
-                        writeFirmwareCliConfig(config);
+                        currentBuildCommands.push({ name: detectedName, command: detectedCommand });
+                        configManager.setBuildCommands(currentBuildCommands);
+                        configManager.setLastBuildCommand(detectedName);
+                        writeFirmwareCliConfig(configManager.getConfig());
                         vscode.commands.executeCommand('firmwareDownloader.refresh');
                         output_chan.appendLine(localize('autoDetectedSaved', detectedName));
                     }
@@ -949,8 +935,8 @@ function activate(context)
             confirmMessage,
             { modal: false },
             localize('yes'),
+            localize('switchCommand'),
             localize('no'),
-            localize('switchCommand')
         );
 
         if (choice === localize('switchCommand')) {
@@ -1038,11 +1024,10 @@ function activate(context)
                 output_chan.appendLine(localize('selectedUri', selected_uri));
                 // Load from configuration file
                 if (!selected_uri) {
-                    // Prioritize reading from VS Code configuration
-                    const config = get_configuration();
-                    let config_uri = config.get('firmwarePath');
+                    // Read from config manager
+                    const config_uri = configManager.getFirmwarePath();
                     output_chan.appendLine(localize('configUri', config_uri));
-                    if (fs.existsSync(config_uri)) {
+                    if (config_uri && fs.existsSync(config_uri)) {
                         selected_uri = vscode.Uri.file(config_uri);
                         output_chan.appendLine(localize('selectedUri', selected_uri));
                     }
@@ -1253,8 +1238,8 @@ function activate(context)
                     clearTimeout(kill_timeout);
                     kill_timeout = null;
                 }
+                last_dl_info.dlPromise = null;
             } finally {
-
                 last_dl_info.dlPromise = null;
             }
             
@@ -1281,12 +1266,13 @@ function activate(context)
     context.subscriptions.push(build_disposable);
     context.subscriptions.push(download_disposable);
     context.subscriptions.push(showWelcomeCommand);
-    context.subscriptions.push(showSetupWizardCommand);
 
 
 }
 
 function deactivate() {
+    // Dispose config manager
+    configManager.dispose();
 }
 
 // Add module exports to allow VS Code to activate this extension
