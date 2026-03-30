@@ -9,16 +9,19 @@ const path = require('path');
 const fs = require('fs');
 const { localize } = require('../localization');
 const { configManager } = require('../config/configManager');
+const SearchManager = require('../search/searchManager');
 
 /**
- * Welcome Webview Manager Class
- * Isolated from main extension logic
+ * Webview Manager Class
+ * Handles all webview panels including welcome, settings, and search
  */
-class WelcomeWebviewManager {
+class WebviewManager {
     constructor(context) {
         this.context = context;
         this.panel = null;
         this.settingsPanel = null;
+        this.searchPanel = null;
+        this.searchManager = null;
     }
 
     /**
@@ -128,6 +131,9 @@ class WelcomeWebviewManager {
         const styleUri = this.panel.webview.asWebviewUri(
             vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'style.css'))
         );
+        const welcomeCssUri = this.panel.webview.asWebviewUri(
+            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'welcome.css'))
+        );
         const fontAwesomeUri = this.panel.webview.asWebviewUri(
             vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'assets', 'fontawesome', 'all.min.css'))
         );
@@ -152,6 +158,7 @@ class WelcomeWebviewManager {
         
         // Replace CSS placeholders with webview URIs
         html = html.replace('href="{{style.css}}"', `href="${styleUri}"`);
+        html = html.replace('href="{{welcome.css}}"', `href="${welcomeCssUri}"`);
         html = html.replace('href="{{fontawesome.css}}"', `href="${fontAwesomeUri}"`);
         return html;
     }
@@ -386,12 +393,113 @@ class WelcomeWebviewManager {
     }
 
     /**
+     * Show search page
+     */
+    showSearch() {
+        if (this.searchPanel) {
+            this.searchPanel.reveal();
+            return;
+        }
+
+        this.searchPanel = vscode.window.createWebviewPanel(
+            'quickFirmwarePlusSearch',
+            localize('search.title'),
+            vscode.ViewColumn.One,
+            {
+                enableScripts: true,
+                retainContextWhenHidden: true,
+                localResourceRoots: [
+                    vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview'))
+                ]
+            }
+        );
+
+        this.searchPanel.webview.html = this.getSearchHtml();
+
+        // Create search manager
+        this.searchManager = new SearchManager(this.searchPanel.webview, configManager);
+        this.searchManager.initialize();
+
+        this.searchPanel.onDidDispose(
+            () => {
+                this.searchPanel = null;
+                this.searchManager = null;
+            },
+            null,
+            this.context.subscriptions
+        );
+    }
+
+    /**
+     * Get search page HTML
+     */
+    getSearchHtml() {
+        const locale = this.getLocale();
+        const styleUri = this.searchPanel.webview.asWebviewUri(
+            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'style.css'))
+        );
+        const searchPanelCssUri = this.searchPanel.webview.asWebviewUri(
+            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'searchPanel.css'))
+        );
+        const fontAwesomeUri = this.searchPanel.webview.asWebviewUri(
+            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'assets', 'fontawesome', 'all.min.css'))
+        );
+        const searchJsUri = this.searchPanel.webview.asWebviewUri(
+            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'searchPanel.js'))
+        );
+
+        let html = this.loadTemplate('searchPanel', {
+            'locale': locale,
+            'search.title': localize('search.title'),
+            'search.placeholder': localize('search.placeholder'),
+            'search.emptyTitle': localize('search.emptyTitle'),
+            'search.emptyDescription': localize('search.emptyDescription'),
+            'search.scopeLabel': localize('search.scopeLabel'),
+            'search.scopeGlobal': localize('search.scopeGlobal'),
+            'search.scopeWorkspace': localize('search.scopeWorkspace'),
+            'search.maxResultsLabel': localize('search.maxResultsLabel'),
+            'search.revealInExplorer': localize('search.revealInExplorer'),
+            'search.addToFavorites': localize('search.addToFavorites'),
+            'search.copyPath': localize('search.copyPath'),
+            'search.noResults': localize('search.noResults'),
+            'search.resultsFound': localize('search.resultsFound'),
+            'search.error': localize('search.error')
+        });
+
+        // Replace CSS and JS placeholders with webview URIs
+        html = html.replace('href="{{style.css}}"', `href="${styleUri}"`);
+        html = html.replace('href="{{searchPanel.css}}"', `href="${searchPanelCssUri}"`);
+        html = html.replace('href="{{fontawesome.css}}"', `href="${fontAwesomeUri}"`);
+        html = html.replace('src="{{search.js}}"', `src="${searchJsUri}"`);
+        return html;
+    }
+
+    /**
+     * Search with text (for command palette)
+     */
+    async searchWithText(text) {
+        this.showSearch();
+        // Wait for webview to be ready
+        setTimeout(() => {
+            if (this.searchPanel) {
+                this.searchPanel.webview.postMessage({
+                    command: 'triggerSearch',
+                    text: text
+                });
+            }
+        }, 500);
+    }
+
+    /**
      * Get settings page HTML
      */
     getSettingsHtml() {
         const locale = this.getLocale();
         const styleUri = this.settingsPanel.webview.asWebviewUri(
             vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'style.css'))
+        );
+        const settingsCssUri = this.settingsPanel.webview.asWebviewUri(
+            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'settings.css'))
         );
         const fontAwesomeUri = this.settingsPanel.webview.asWebviewUri(
             vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'assets', 'fontawesome', 'all.min.css'))
@@ -446,10 +554,11 @@ class WelcomeWebviewManager {
         
         // Replace CSS and JS placeholders with webview URIs
         html = html.replace('href="{{style.css}}"', `href="${styleUri}"`);
+        html = html.replace('href="{{settings.css}}"', `href="${settingsCssUri}"`);
         html = html.replace('href="{{fontawesome.css}}"', `href="${fontAwesomeUri}"`);
         html = html.replace('src="{{settings.js}}"', `src="${settingsJsUri}"`);
         return html;
     }
 }
 
-module.exports = { WelcomeWebviewManager };
+module.exports = { WebviewManager };

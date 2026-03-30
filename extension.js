@@ -10,7 +10,7 @@ const fs = require('fs');
 const iconv = require('iconv-lite');
 const { spawn, spawnSync } = require('child_process');
 const { localize } = require('./src/localization');
-const { WelcomeWebviewManager } = require('./src/webview/welcomeWebview');
+const { WebviewManager } = require('./src/webview/webviewManager');
 const { configManager } = require('./src/config/configManager');
 
 /** @note firmware-cli executable path */
@@ -608,19 +608,19 @@ function activate(context)
     vscode.window.registerTreeDataProvider('firmware-devices', deviceTreeDataProvider);
     deviceTreeDataProvider.startAutoRefresh();
 
-    // Initialize welcome webview manager
-    const welcomeManager = new WelcomeWebviewManager(context);
+    // Initialize webview manager
+    const webviewManager = new WebviewManager(context);
 
     // Show welcome page on first install
-    if (welcomeManager.shouldShowWelcome()) {
-        welcomeManager.showWelcome();
+    if (webviewManager.shouldShowWelcome()) {
+        webviewManager.showWelcome();
     }
 
     // Settings page can be opened via the settings tree view or welcome page
 
     // Register welcome commands
     const showWelcomeCommand = vscode.commands.registerCommand('firmwareDownloader.showWelcome', () => {
-        welcomeManager.showWelcome();
+        webviewManager.showWelcome();
     });
 
     const refreshFirmwareListCommand = vscode.commands.registerCommand('firmwareDownloader.refresh', () => {
@@ -825,7 +825,40 @@ function activate(context)
     });
     
     const openSettingsCommand = vscode.commands.registerCommand('firmwareDownloader.settings', () => {
-        welcomeManager.showSettings();
+        webviewManager.showSettings();
+    });
+
+    // Register show search panel command
+    const showSearchCommand = vscode.commands.registerCommand('firmwareDownloader.showSearch', () => {
+        webviewManager.showSearch();
+    });
+
+    // Register search with Everything command
+    const searchWithEverythingCommand = vscode.commands.registerCommand('firmwareDownloader.searchWithEverything', async () => {
+        try {
+            // Get current active editor
+            const activeEditor = vscode.window.activeTextEditor;
+            if (!activeEditor) {
+                vscode.window.showErrorMessage('No active editor');
+                return;
+            }
+
+            // Get selected text
+            const selection = activeEditor.selection;
+            const selectedText = activeEditor.document.getText(selection);
+            
+            if (!selectedText || selectedText.trim() === '') {
+                vscode.window.showErrorMessage('Please select text to search');
+                return;
+            }
+
+            // Open search panel and search
+            await webviewManager.searchWithText(selectedText.trim());
+            
+            vscode.window.showInformationMessage(`Searching: "${selectedText.trim()}"`);
+        } catch (error) {
+            vscode.window.showErrorMessage(`Search failed: ${error.message}`);
+        }
     });
 
     // Register build command - with confirmation dialog
@@ -1263,6 +1296,8 @@ function activate(context)
     context.subscriptions.push(configBuildCommand);
     context.subscriptions.push(copyPathCommand);
     context.subscriptions.push(openSettingsCommand);
+    context.subscriptions.push(showSearchCommand);
+    context.subscriptions.push(searchWithEverythingCommand);
     context.subscriptions.push(build_disposable);
     context.subscriptions.push(download_disposable);
     context.subscriptions.push(showWelcomeCommand);

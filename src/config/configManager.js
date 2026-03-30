@@ -20,7 +20,13 @@ const DEFAULT_CONFIG = {
     buildGitBashPath: '',
     defaultComPort: '',
     language: 'auto',
-    theme: 'auto'
+    theme: 'auto',
+    search: {
+        port: 8080,
+        scope: 'global',
+        maxResults: 50,
+        favorites: []
+    }
 };
 
 /**
@@ -354,6 +360,86 @@ class ConfigManager {
      */
     setTheme(theme) {
         return this.set('theme', theme);
+    }
+
+    /**
+     * Get search configuration
+     * @returns {Object} Search configuration object
+     */
+    getSearchConfig() {
+        const config = this.getConfig();
+        return config.search || DEFAULT_CONFIG.search;
+    }
+
+    /**
+     * Set search configuration
+     * @param {Object} searchConfig - Search configuration object
+     * @returns {boolean} Success status
+     */
+    setSearchConfig(searchConfig) {
+        const config = this.getConfig();
+        config.search = { ...config.search, ...searchConfig };
+        return this._writeConfig(config);
+    }
+
+    /**
+     * Get search port
+     * @returns {number} Search port number
+     */
+    getSearchPort() {
+        const searchConfig = this.getSearchConfig();
+        return searchConfig.port || 8080;
+    }
+
+    /**
+     * Set search port
+     * @param {number} port - Port number
+     * @returns {boolean} Success status
+     */
+    setSearchPort(port) {
+        const searchConfig = this.getSearchConfig();
+        searchConfig.port = port;
+        return this.setSearchConfig(searchConfig);
+    }
+
+    /**
+     * Get search scope
+     * @returns {string} Search scope ('global' | 'workspace')
+     */
+    getSearchScope() {
+        const searchConfig = this.getSearchConfig();
+        return searchConfig.scope || 'global';
+    }
+
+    /**
+     * Set search scope
+     * @param {string} scope - Search scope ('global' | 'workspace')
+     * @returns {boolean} Success status
+     */
+    setSearchScope(scope) {
+        const searchConfig = this.getSearchConfig();
+        searchConfig.scope = scope;
+        return this.setSearchConfig(searchConfig);
+    }
+
+    /**
+     * Get max search results
+     * @returns {number} Max results count
+     */
+    getSearchMaxResults() {
+        const searchConfig = this.getSearchConfig();
+        return searchConfig.maxResults || 50;
+    }
+
+    /**
+     * Set max search results
+     * @param {number} maxResults - Max results count
+     * @returns {boolean} Success status
+     */
+    setSearchMaxResults(maxResults) {
+        const searchConfig = this.getSearchConfig();
+        searchConfig.maxResults = maxResults;
+        return this.setSearchConfig(searchConfig);
     }
 
     /**

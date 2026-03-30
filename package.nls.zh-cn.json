@@ -143,5 +143,7 @@
   "settings.themeDesc": "选择您偏好的颜色主题",
   "settings.themeAuto": "自动（跟随 VS Code）",
   "settings.themeDark": "暗色",
-  "settings.themeLight": "浅色"
+  "settings.themeLight": "浅色",
+  "command.showSearch": "显示搜索面板",
+  "command.searchWithEverything": "使用 Everything 搜索"
 }

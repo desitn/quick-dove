@@ -174,7 +174,22 @@ const messages = {
     'settings.themeDesc': 'Select your preferred color theme',
     'settings.themeAuto': 'Auto (follow VS Code)',
     'settings.themeDark': 'Dark',
-    'settings.themeLight': 'Light'
+    'settings.themeLight': 'Light',
+    // Search panel
+    'search.title': 'File Search',
+    'search.placeholder': 'Type to search files...',
+    'search.emptyTitle': 'Start searching',
+    'search.emptyDescription': 'Type keywords above to search for files on your computer',
+    'search.scopeLabel': 'Search Scope',
+    'search.scopeGlobal': 'Global',
+    'search.scopeWorkspace': 'Workspace',
+    'search.maxResultsLabel': 'Max Results',
+    'search.revealInExplorer': 'Reveal in Explorer',
+    'search.addToFavorites': 'Add to Favorites',
+    'search.copyPath': 'Copy Path',
+    'search.noResults': 'No results found for "{0}"',
+    'search.resultsFound': 'Found {0} results for "{1}"',
+    'search.error': 'Search error: {0}'
   },
   'zh-cn': {
     'noBuildCommand': '没有配置构建命令。',
@@ -349,7 +364,22 @@ const messages = {
     'settings.themeDesc': '选择您偏好的颜色主题',
     'settings.themeAuto': '自动（跟随 VS Code）',
     'settings.themeDark': '暗色',
-    'settings.themeLight': '浅色'
+    'settings.themeLight': '浅色',
+    // Search panel
+    'search.title': '文件搜索',
+    'search.placeholder': '输入关键词搜索文件...',
+    'search.emptyTitle': '开始搜索',
+    'search.emptyDescription': '在上方输入关键词搜索电脑上的文件',
+    'search.scopeLabel': '搜索范围',
+    'search.scopeGlobal': '全局',
+    'search.scopeWorkspace': '工作区',
+    'search.maxResultsLabel': '最大结果数',
+    'search.revealInExplorer': '在资源管理器中显示',
+    'search.addToFavorites': '添加到收藏',
+    'search.copyPath': '复制路径',
+    'search.noResults': '未找到 "{0}" 的搜索结果',
+    'search.resultsFound': '找到 {0} 个 "{1}" 的搜索结果',
+    'search.error': '搜索错误: {0}'
   }
 };
 

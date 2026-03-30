@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="{{locale}}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{search.title}}</title>
+    <link rel="stylesheet" href="{{style.css}}">
+    <link rel="stylesheet" href="{{fontawesome.css}}">
+    <link rel="stylesheet" href="{{searchPanel.css}}">
+</head>
+<body>
+    <div class="search-container">
+        <!-- Left Sidebar - Categories -->
+        <aside class="search-sidebar">
+            <div class="sidebar-header">
+                <h1><i class="fa-solid fa-search"></i> {{search.title}}</h1>
+            </div>
+            <nav class="category-nav" id="categoryNav">
+                <!-- Categories will be populated by JavaScript -->
+            </nav>
+            <div class="sidebar-footer">
+                <div class="config-item">
+                    <label>{{search.scopeLabel}}</label>
+                    <select id="searchScope">
+                        <option value="global">{{search.scopeGlobal}}</option>
+                        <option value="workspace">{{search.scopeWorkspace}}</option>
+                    </select>
+                </div>
+                <div class="config-item">
+                    <label>{{search.maxResultsLabel}}</label>
+                    <select id="maxResults">
+                        <option value="50">50</option>
+                        <option value="100" selected>100</option>
+                        <option value="500">500</option>
+                        <option value="1000">1000</option>
+                        <option value="3000">3000</option>
+                        <option value="6000">6000</option>
+                    </select>
+                </div>
+                <div class="config-item">
+                    <label>Everything Port</label>
+                    <input type="number" id="searchPort" value="8080" min="1" max="65535" style="width: 100%; padding: 6px 8px; border: 1px solid var(--input-border); border-radius: 4px; background: var(--input-bg); color: var(--text-primary); font-size: 12px;">
+                </div>
+            </div>
+        </aside>
+
+        <!-- Right Content Area -->
+        <main class="search-content">
+            <!-- Search Header -->
+            <div class="search-header">
+                <div class="search-input-wrapper">
+                    <i class="fa-solid fa-search"></i>
+                    <input type="text" id="searchInput" placeholder="{{search.placeholder}}" autocomplete="off">
+                    <button class="clear-btn" id="clearBtn">
+                        <i class="fa-solid fa-times"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Search Status -->
+            <div class="search-status" id="searchStatus" style="display: none;">
+                <span id="statusText"></span>
+            </div>
+
+            <!-- Search Results -->
+            <div class="search-results" id="searchResults">
+                <div class="empty-state" id="emptyState">
+                    <i class="fa-solid fa-search"></i>
+                    <div class="title">{{search.emptyTitle}}</div>
+                    <div class="description">{{search.emptyDescription}}</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Context Menu -->
+    <div class="context-menu" id="contextMenu">
+        <div class="context-menu-item" id="ctxRevealInExplorer">
+            <i class="fa-solid fa-folder-open"></i>
+            <span>{{search.revealInExplorer}}</span>
+        </div>
+        <div class="context-menu-item" id="ctxAddToFavorites">
+            <i class="fa-solid fa-star"></i>
+            <span>{{search.addToFavorites}}</span>
+        </div>
+        <div class="context-menu-separator"></div>
+        <div class="context-menu-item" id="ctxCopyPath">
+            <i class="fa-solid fa-copy"></i>
+            <span>{{search.copyPath}}</span>
+        </div>
+    </div>
+
+    <script>
+        // Acquire VS Code API for webview communication
+        const vscode = acquireVsCodeApi();
+    </script>
+    <script src="{{search.js}}"></script>
+</body>
+</html>

@@ -143,5 +143,7 @@
   "settings.themeDesc": "Select your preferred color theme",
   "settings.themeAuto": "Auto (follow VS Code)",
   "settings.themeDark": "Dark",
-  "settings.themeLight": "Light"
+  "settings.themeLight": "Light",
+  "command.showSearch": "Show Search Panel",
+  "command.searchWithEverything": "Search with Everything"
 }

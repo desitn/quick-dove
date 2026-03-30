@@ -113,6 +113,16 @@
         "command": "firmwareDownloader.showSetupWizard",
         "title": "%command.showSetupWizard%",
         "icon": "$(wand)"
+      },
+      {
+        "command": "firmwareDownloader.showSearch",
+        "title": "%command.showSearch%",
+        "icon": "$(search)"
+      },
+      {
+        "command": "firmwareDownloader.searchWithEverything",
+        "title": "%command.searchWithEverything%",
+        "icon": "$(search)"
       }
     ],
     "menus": {
@@ -136,12 +146,24 @@
           "command": "firmwareDownloader.devices_refresh",
           "when": "view == firmware-devices",
           "group": "navigation"
+        },
+        {
+          "command": "firmwareDownloader.showSearch",
+          "when": "view == firmware-explorer",
+          "group": "navigation"
         }
       ],
       "view/item/context": [
         {
           "command": "firmwareDownloader.download",
           "when": "view == firmware-explorer && viewItem == firmware-file"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "firmwareDownloader.searchWithEverything",
+          "group": "4_search@1",
+          "when": "editorHasSelection"
         }
       ]
     },
