@@ -14,11 +14,14 @@
         <aside class="search-sidebar">
             <div class="sidebar-header">
                 <h1><i class="fa-solid fa-search"></i> {{search.title}}</h1>
+                <button class="settings-toggle" id="settingsToggle" title="Settings">
+                    <i class="fa-solid fa-cog"></i>
+                </button>
             </div>
             <nav class="category-nav" id="categoryNav">
                 <!-- Categories will be populated by JavaScript -->
             </nav>
-            <div class="sidebar-footer">
+            <div class="sidebar-footer collapsed" id="sidebarFooter">
                 <div class="config-item">
                     <label>{{search.scopeLabel}}</label>
                     <select id="searchScope">
@@ -29,17 +32,38 @@
                 <div class="config-item">
                     <label>{{search.maxResultsLabel}}</label>
                     <select id="maxResults">
-                        <option value="50">50</option>
-                        <option value="100" selected>100</option>
-                        <option value="500">500</option>
+                        <option value="500" selected>500</option>
                         <option value="1000">1000</option>
-                        <option value="3000">3000</option>
-                        <option value="6000">6000</option>
+                        <option value="5000">5000</option>
+                        <option value="10000">10000</option>
+                        <option value="65536">65536</option>
                     </select>
                 </div>
                 <div class="config-item">
-                    <label>Everything Port</label>
-                    <input type="number" id="searchPort" value="8080" min="1" max="65535" style="width: 100%; padding: 6px 8px; border: 1px solid var(--input-border); border-radius: 4px; background: var(--input-bg); color: var(--text-primary); font-size: 12px;">
+                    <div class="port-label-row">
+                        <label>Everything Port</label>
+                        <div class="port-actions">
+                            <button class="icon-btn" id="testConnectionBtn" title="Test Connection">
+                                <i class="fa-solid fa-plug"></i>
+                            </button>
+                            <div class="tooltip-wrapper">
+                                <button class="icon-btn" id="helpBtn">
+                                    <i class="fa-solid fa-circle-question"></i>
+                                </button>
+                                <div class="tooltip-content">
+                                    <div class="tooltip-title">Enable Everything HTTP </div>
+                                    <ol>
+                                        <li>Open Everything software</li>
+                                        <li>Click menu: Tools → Options</li>
+                                        <li>Select "HTTP Server" tab</li>
+                                        <li>Set port number (default 8080)</li>
+                                    </ol>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <input type="number" id="searchPort" value="8080" min="1" max="65535">
+                    <div class="connection-status" id="connectionStatus"></div>
                 </div>
             </div>
         </aside>

@@ -38,7 +38,11 @@
     const searchScope = document.getElementById('searchScope');
     const maxResults = document.getElementById('maxResults');
     const searchPort = document.getElementById('searchPort');
+    const testConnectionBtn = document.getElementById('testConnectionBtn');
+    const connectionStatus = document.getElementById('connectionStatus');
     const contextMenu = document.getElementById('contextMenu');
+    const settingsToggle = document.getElementById('settingsToggle');
+    const sidebarFooter = document.getElementById('sidebarFooter');
 
 
     // Initialize
@@ -57,10 +61,18 @@
         // Clear button
         clearBtn.addEventListener('click', clearSearch);
         
+        // Settings toggle
+        settingsToggle.addEventListener('click', toggleSettings);
+        
         // Config changes
         searchScope.addEventListener('change', handleConfigChange);
         maxResults.addEventListener('change', handleConfigChange);
         searchPort.addEventListener('change', handlePortChange);
+        
+        // Test connection button
+        if (testConnectionBtn) {
+            testConnectionBtn.addEventListener('click', testConnection);
+        }
         
         // Context menu
         document.getElementById('ctxRevealInExplorer').addEventListener('click', () => {
@@ -191,6 +203,12 @@
         searchStatus.style.display = 'none';
     }
 
+    // Toggle settings panel
+    function toggleSettings() {
+        sidebarFooter.classList.toggle('collapsed');
+        settingsToggle.classList.toggle('active');
+    }
+
     // Handle config change
     function handleConfigChange() {
         vscode.postMessage({
@@ -222,6 +240,69 @@
                 port: port
             }
         });
+    }
+
+    // Test Everything connection
+    function testConnection() {
+        if (!testConnectionBtn) return;
+        
+        // Update UI to testing state
+        testConnectionBtn.classList.add('testing');
+        testConnectionBtn.disabled = true;
+        if (connectionStatus) {
+            connectionStatus.textContent = 'Testing...';
+            connectionStatus.className = 'connection-status';
+        }
+        
+        // Send test command to extension
+        vscode.postMessage({
+            command: 'testEverythingConnection'
+        });
+    }
+
+    // Handle connection test result
+    function handleConnectionTestResult(message) {
+        if (!testConnectionBtn) return;
+        
+        // Remove testing state
+        testConnectionBtn.classList.remove('testing');
+        testConnectionBtn.disabled = false;
+        
+        if (message.connected) {
+            // Success
+            testConnectionBtn.classList.add('success');
+            testConnectionBtn.classList.remove('error');
+            if (connectionStatus) {
+                connectionStatus.textContent = 'Connected';
+                connectionStatus.className = 'connection-status success';
+            }
+            
+            // Clear success state after 3 seconds
+            setTimeout(() => {
+                testConnectionBtn.classList.remove('success');
+                if (connectionStatus) {
+                    connectionStatus.textContent = '';
+                    connectionStatus.className = 'connection-status';
+                }
+            }, 3000);
+        } else {
+            // Failed
+            testConnectionBtn.classList.add('error');
+            testConnectionBtn.classList.remove('success');
+            if (connectionStatus) {
+                connectionStatus.textContent = 'Connection failed';
+                connectionStatus.className = 'connection-status error';
+            }
+            
+            // Clear error state after 3 seconds
+            setTimeout(() => {
+                testConnectionBtn.classList.remove('error');
+                if (connectionStatus) {
+                    connectionStatus.textContent = '';
+                    connectionStatus.className = 'connection-status';
+                }
+            }, 3000);
+        }
     }
 
     // Request search config
@@ -256,6 +337,9 @@
                     clearBtn.classList.add('visible');
                     performSearch(message.text);
                 }
+                break;
+            case 'connectionTestResult':
+                handleConnectionTestResult(message);
                 break;
         }
     }

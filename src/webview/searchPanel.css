@@ -3,14 +3,14 @@
 /* Main Container - Two Column Layout */
 .search-container {
     display: flex;
-    height: calc(100vh - 40px);
+    height: calc(100vh - 10px);
     overflow: hidden;
 }
 
 /* Left Sidebar - Categories */
 .search-sidebar {
-    width: 220px;
-    min-width: 220px;
+    width: 260px;
+    min-width: 260px;
     background: var(--bg-secondary);
     border-right: 1px solid var(--border-color);
     display: flex;
@@ -21,6 +21,9 @@
     padding: 16px;
     border-bottom: 1px solid var(--border-color);
     background: var(--bg-primary);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
 .sidebar-header h1 {
@@ -30,10 +33,35 @@
     align-items: center;
     gap: 8px;
     font-weight: 600;
+    margin: 0;
 }
 
 .sidebar-header h1 i {
     color: var(--accent-color);
+}
+
+.settings-toggle {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 4px;
+    font-size: 16px;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.settings-toggle:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.settings-toggle.active {
+    color: var(--accent-color);
+    background: var(--sidebar-nav-active);
 }
 
 .category-nav {
@@ -96,6 +124,16 @@
     padding: 16px;
     border-top: 1px solid var(--border-color);
     background: var(--bg-secondary);
+    overflow: hidden;
+    transition: all 0.3s ease;
+    max-height: 500px;
+    opacity: 1;
+}
+
+.sidebar-footer.collapsed {
+    max-height: 0;
+    padding: 0 16px;
+    opacity: 0;
 }
 
 .config-item {
@@ -143,6 +181,144 @@
 .config-item input[type="number"]:focus {
     outline: none;
     border-color: var(--input-focus-border);
+}
+
+/* Port Label Row with Icons */
+.port-label-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.port-label-row label {
+    margin-bottom: 0;
+}
+
+.port-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.icon-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 4px;
+    font-size: 14px;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.icon-btn:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.icon-btn.testing {
+    color: var(--accent-color);
+    animation: pulse 1s infinite;
+}
+
+.icon-btn.success {
+    color: #28a745;
+}
+
+.icon-btn.error {
+    color: #dc3545;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* Tooltip Styles */
+.tooltip-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+.tooltip-content {
+    display: none;
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 12px 16px;
+    min-width: 280px;
+    max-width: 320px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    z-index: 100;
+    margin-bottom: 8px;
+}
+
+.tooltip-wrapper:hover .tooltip-content {
+    display: block;
+}
+
+/* Tooltip arrow */
+.tooltip-content::before {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-top-color: var(--border-color);
+}
+
+.tooltip-content::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: var(--bg-secondary);
+}
+
+.tooltip-title {
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.tooltip-content ol {
+    margin: 0;
+    padding-left: 16px;
+    font-size: 10px;
+    color: var(--text-muted);
+    line-height: 1.6;
+}
+
+.tooltip-content li {
+    margin-bottom: 4px;
+}
+
+/* Connection Status */
+.connection-status {
+    margin-top: 6px;
+    font-size: 11px;
+    min-height: 16px;
+}
+
+.connection-status.success {
+    color: #28a745;
+}
+
+.connection-status.error {
+    color: #dc3545;
 }
 
 /* Right Content Area */
@@ -301,7 +477,7 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 8px 12px;
+    padding: 4px 12px;
     border-radius: 6px;
     cursor: pointer;
     transition: all 0.2s ease;

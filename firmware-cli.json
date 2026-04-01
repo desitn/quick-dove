@@ -14,7 +14,7 @@
   "search": {
     "port": 8080,
     "scope": "global",
-    "maxResults": 6000,
+    "maxResults": 1000,
     "favorites": [
       {
         "name": "cmux",

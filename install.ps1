@@ -69,18 +69,24 @@ function Find-VsixFile {
         return $SpecifiedPath
     }
     
-    # Look in script directory
-    $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-    $vsixInScriptDir = Join-Path $scriptDir $DefaultVsixName
-    if (Test-Path $vsixInScriptDir) {
-        return $vsixInScriptDir
-    }
+    # Use $PSScriptRoot to get the script directory (works in all PowerShell versions)
+    $scriptDir = $PSScriptRoot
     
-    # Look in parent directory (project root)
-    $parentDir = Split-Path -Parent $scriptDir
-    $vsixInParentDir = Join-Path $parentDir $DefaultVsixName
-    if (Test-Path $vsixInParentDir) {
-        return $vsixInParentDir
+    # Look in script directory
+    if ($scriptDir) {
+        $vsixInScriptDir = Join-Path $scriptDir $DefaultVsixName
+        if (Test-Path $vsixInScriptDir) {
+            return $vsixInScriptDir
+        }
+        
+        # Look in parent directory (project root)
+        $parentDir = Split-Path -Parent $scriptDir
+        if ($parentDir) {
+            $vsixInParentDir = Join-Path $parentDir $DefaultVsixName
+            if (Test-Path $vsixInParentDir) {
+                return $vsixInParentDir
+            }
+        }
     }
     
     # Look in current directory
