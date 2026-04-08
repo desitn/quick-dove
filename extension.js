@@ -493,6 +493,65 @@ class SettingsItem extends vscode.TreeItem {
     }
 }
 
+class ExtensionToolsTreeDataProvider {
+    constructor() {
+        this._onDidChangeTreeData = new vscode.EventEmitter();
+        this.onDidChangeTreeData = this._onDidChangeTreeData.event;
+    }
+    refresh() {
+        this._onDidChangeTreeData.fire();
+    }
+    getTreeItem(element) {
+        return element;
+    }
+    getChildren(element) {
+        if (!element) {
+            return this.getExtensionToolsItems();
+        }
+        return [];
+    }
+    getExtensionToolsItems() {
+        const items = [];
+        
+        // Add Search panel entry
+        items.push(new ExtensionToolItem(localize('view.search'), '', vscode.TreeItemCollapsibleState.None, 'search'));
+        
+        // Add Log Viewer entry
+        items.push(new ExtensionToolItem(localize('view.logViewer'), '', vscode.TreeItemCollapsibleState.None, 'log-viewer'));
+        
+        return items;
+    }
+}
+
+class ExtensionToolItem extends vscode.TreeItem {
+    constructor(label, description, collapsibleState, type, data = null) {
+        super(label, collapsibleState);
+        this.description = description;
+        this.tooltip     = description;
+        this.type        = type;
+        this.data        = data;
+
+        switch(type) {
+            case 'search':
+                this.iconPath = new vscode.ThemeIcon('search');
+                this.command = {
+                    command: 'firmwareDownloader.showSearch',
+                    title: localize('view.search'),
+                    arguments: []
+                };
+                break;
+            case 'log-viewer':
+                this.iconPath = new vscode.ThemeIcon('file-text');
+                this.command = {
+                    command: 'firmwareDownloader.openLogViewer',
+                    title: localize('view.logViewer'),
+                    arguments: []
+                };
+                break;
+        }
+    }
+}
+
 class progress_tracker 
 {
     constructor(status_bar_dl) {
@@ -608,6 +667,10 @@ function activate(context)
     const deviceTreeDataProvider = new DeviceTreeDataProvider(context);
     vscode.window.registerTreeDataProvider('firmware-devices', deviceTreeDataProvider);
     deviceTreeDataProvider.startAutoRefresh();
+
+    // Initialize extension tools view
+    const extensionToolsTreeDataProvider = new ExtensionToolsTreeDataProvider();
+    vscode.window.registerTreeDataProvider('extension-tools-view', extensionToolsTreeDataProvider);
 
     // Initialize webview managers
     const webviewManager = new WebviewManager(context);

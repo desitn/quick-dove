@@ -4,6 +4,10 @@
     {
       "name": "vs package",
       "command": "vsce package"
+    },
+    {
+      "name": "install",
+      "command": "powershell ./install.ps1 -Force"
     }
   ],
   "lastBuildCommand": "vs package",

@@ -2,6 +2,7 @@
 
 .welcome-body {
     max-width: 900px;
+    margin: 0 auto;
     padding: 40px;
     padding-bottom: 40px; /* Reserve 40px space at bottom */
 }

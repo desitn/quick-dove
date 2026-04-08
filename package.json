@@ -33,6 +33,11 @@
           "id": "firmware-explorer",
           "title": "%extension.displayName%",
           "icon": "images/icon-quick.svg"
+        },
+        {
+          "id": "extension-tools",
+          "title": "%view.extensionTools%",
+          "icon": "$(tools)"
         }
       ]
     },
@@ -55,6 +60,14 @@
           "name": "%view.settings%",
           "icon": "$(gear)",
           "contextualTitle": "Quick Firmware +"
+        }
+      ],
+      "extension-tools": [
+        {
+          "id": "extension-tools-view",
+          "name": "%view.extensionTools%",
+          "icon": "$(tools)",
+          "contextualTitle": "%view.extensionTools%"
         }
       ]
     },
@@ -154,12 +167,12 @@
         },
         {
           "command": "firmwareDownloader.showSearch",
-          "when": "view == firmware-explorer",
+          "when": "view == extension-tools-view",
           "group": "navigation"
         },
         {
           "command": "firmwareDownloader.openLogViewer",
-          "when": "view == firmware-explorer",
+          "when": "view == extension-tools-view",
           "group": "navigation"
         }
       ],
