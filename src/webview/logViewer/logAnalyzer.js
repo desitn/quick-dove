@@ -1,0 +1,270 @@
+/**
+ * @description: Log Analyzer - Core log analysis engine
+ *               Handles log file loading, parsing, and line management
+ * @author: destin.zhang@quectel.com
+ */
+
+const fs = require('fs');
+const iconv = require('iconv-lite');
+const readline = require('readline');
+const events = require('events');
+
+/**
+ * Log Analyzer Class
+ * Handles log file loading with multiple encoding support
+ */
+class LogAnalyzer extends events.EventEmitter {
+    constructor() {
+        super();
+        this.lines = [];           // Array of log lines
+        this.filePath = '';        // Current file path
+        this.fileSize = 0;         // File size in bytes
+        this.encoding = 'utf8';    // Detected encoding
+        this.isLoading = false;    // Loading state
+    }
+
+    /**
+     * Load log file with automatic encoding detection
+     * @param {string} filePath - Path to log file
+     * @returns {Promise<boolean>} Success status
+     */
+    async loadFile(filePath) {
+        if (this.isLoading) {
+            return false;
+        }
+
+        this.isLoading = true;
+        this.filePath = filePath;
+        this.lines = [];
+
+        try {
+            // Detect file encoding
+            this.encoding = await this.detectEncoding(filePath);
+            
+            // Get file stats
+            const stats = fs.statSync(filePath);
+            this.fileSize = stats.size;
+
+            // Read file with detected encoding
+            const content = await this.readFileWithEncoding(filePath, this.encoding);
+            
+            // Split into lines
+            this.lines = content.split(/\r?\n/).map((text, index) => ({
+                lineNumber: index + 1,
+                text: text,
+                length: text.length
+            }));
+
+            this.emit('loaded', {
+                filePath: this.filePath,
+                lineCount: this.lines.length,
+                encoding: this.encoding,
+                fileSize: this.fileSize
+            });
+
+            this.isLoading = false;
+            return true;
+
+        } catch (error) {
+            this.emit('error', error);
+            this.isLoading = false;
+            return false;
+        }
+    }
+
+    /**
+     * Detect file encoding
+     * @param {string} filePath - Path to file
+     * @returns {Promise<string>} Detected encoding
+     */
+    async detectEncoding(filePath) {
+        try {
+            // Read first 4KB for detection
+            const buffer = fs.readFileSync(filePath, { length: 4096 });
+            
+            // Check BOM
+            if (buffer.length >= 3 && buffer[0] === 0xEF && buffer[1] === 0xBB && buffer[2] === 0xBF) {
+                return 'utf8';
+            }
+            if (buffer.length >= 2 && buffer[0] === 0xFF && buffer[1] === 0xFE) {
+                return 'utf16le';
+            }
+
+            // Try UTF-8 first
+            if (this.isValidUTF8(buffer)) {
+                return 'utf8';
+            }
+
+            // Try GBK/GB2312
+            const gbkContent = iconv.decode(buffer, 'gbk');
+            const utf8FromGbk = iconv.encode(gbkContent, 'utf8');
+            
+            // If conversion is reversible, likely GBK
+            if (utf8FromGbk.length >= buffer.length * 0.8) {
+                return 'gbk';
+            }
+
+            return 'utf8'; // Default fallback
+        } catch (error) {
+            return 'utf8';
+        }
+    }
+
+    /**
+     * Check if buffer is valid UTF-8
+     * @param {Buffer} buffer - Buffer to check
+     * @returns {boolean} Is valid UTF-8
+     */
+    isValidUTF8(buffer) {
+        try {
+            const decoder = new TextDecoder('utf-8', { fatal: true });
+            decoder.decode(buffer);
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    /**
+     * Read file with specific encoding
+     * @param {string} filePath - Path to file
+     * @param {string} encoding - Encoding to use
+     * @returns {Promise<string>} File content
+     */
+    async readFileWithEncoding(filePath, encoding) {
+        if (encoding === 'utf8') {
+            return fs.readFileSync(filePath, 'utf8');
+        }
+        
+        const buffer = fs.readFileSync(filePath);
+        return iconv.decode(buffer, encoding);
+    }
+
+    /**
+     * Get line by line number
+     * @param {number} lineNumber - 1-based line number
+     * @returns {Object|null} Line object or null
+     */
+    getLine(lineNumber) {
+        const index = lineNumber - 1;
+        if (index >= 0 && index < this.lines.length) {
+            return this.lines[index];
+        }
+        return null;
+    }
+
+    /**
+     * Get lines range
+     * @param {number} start - Start line number (1-based)
+     * @param {number} end - End line number (1-based)
+     * @returns {Array} Array of line objects
+     */
+    getLinesRange(start, end) {
+        const startIndex = Math.max(0, start - 1);
+        const endIndex = Math.min(this.lines.length, end);
+        return this.lines.slice(startIndex, endIndex);
+    }
+
+    /**
+     * Search lines with regex
+     * @param {string} pattern - Search pattern
+     * @param {boolean} useRegex - Use regex mode
+     * @returns {Array} Array of matching line objects
+     */
+    search(pattern, useRegex = true) {
+        let regex;
+        try {
+            if (useRegex) {
+                regex = new RegExp(pattern, 'gi');
+            } else {
+                regex = new RegExp(this.escapeRegex(pattern), 'gi');
+            }
+        } catch (error) {
+            // Invalid regex, treat as literal
+            regex = new RegExp(this.escapeRegex(pattern), 'gi');
+        }
+
+        const results = [];
+        for (const line of this.lines) {
+            if (regex.test(line.text)) {
+                results.push({
+                    ...line,
+                    matches: this.getMatches(line.text, regex)
+                });
+            }
+        }
+        return results;
+    }
+
+    /**
+     * Get all matches in text
+     * @param {string} text - Text to search
+     * @param {RegExp} regex - Regex pattern
+     * @returns {Array} Array of match positions
+     */
+    getMatches(text, regex) {
+        const matches = [];
+        let match;
+        const globalRegex = new RegExp(regex.source, 'gi');
+        while ((match = globalRegex.exec(text)) !== null) {
+            matches.push({
+                start: match.index,
+                end: match.index + match[0].length,
+                text: match[0]
+            });
+        }
+        return matches;
+    }
+
+    /**
+     * Filter lines with regex (for creating filter view)
+     * @param {string} pattern - Filter pattern
+     * @param {boolean} useRegex - Use regex mode
+     * @returns {Array} Array of matching line objects
+     */
+    filter(pattern, useRegex = true) {
+        return this.search(pattern, useRegex);
+    }
+
+    /**
+     * Escape special regex characters
+     * @param {string} string - String to escape
+     * @returns {string} Escaped string
+     */
+    escapeRegex(string) {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    /**
+     * Get total line count
+     * @returns {number} Line count
+     */
+    getLineCount() {
+        return this.lines.length;
+    }
+
+    /**
+     * Get file info
+     * @returns {Object} File information
+     */
+    getFileInfo() {
+        return {
+            filePath: this.filePath,
+            lineCount: this.lines.length,
+            encoding: this.encoding,
+            fileSize: this.fileSize
+        };
+    }
+
+    /**
+     * Clear loaded data
+     */
+    clear() {
+        this.lines = [];
+        this.filePath = '';
+        this.fileSize = 0;
+        this.encoding = 'utf8';
+    }
+}
+
+module.exports = { LogAnalyzer };

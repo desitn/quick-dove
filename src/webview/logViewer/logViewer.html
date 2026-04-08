@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="{{locale}}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{logviewer.title}}</title>
+    <link rel="stylesheet" href="{{style.css}}">
+    <link rel="stylesheet" href="{{fontawesome.css}}">
+</head>
+<body>
+    <div class="log-viewer-container" data-panel-id="{{panelId}}" data-is-filter-view="{{isFilterView}}" data-original-panel-id="{{originalPanelId}}" data-filter-keyword="{{filterKeyword}}">
+        <!-- Header -->
+        <div class="header">
+            <div class="file-info">
+                <span class="file-name">{{fileName}}</span>
+                <span class="file-stats">{{fileInfo}}</span>
+            </div>
+            <div class="toolbar">
+                <button class="btn btn-icon" id="btnSearch" title="{{logviewer.search}} (Ctrl+F)">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                </button>
+                <button class="btn btn-icon" id="btnFilter" title="{{logviewer.filter}} (Ctrl+H)">
+                    <i class="fa-solid fa-filter"></i>
+                </button>
+                <button class="btn btn-icon" id="btnMarkbook" title="{{logviewer.markbook}} (Ctrl+B)">
+                    <i class="fa-solid fa-bookmark"></i>
+                </button>
+                <button class="btn btn-icon" id="btnTools" title="{{logviewer.tools}} (Ctrl+X)">
+                    <i class="fa-solid fa-screwdriver-wrench"></i>
+                </button>
+                <button class="btn btn-icon" id="btnClearHighlights" title="{{logviewer.clearHighlight}}">
+                    <i class="fa-solid fa-palette"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Line Numbers + Content -->
+            <div class="content-wrapper">
+                <div class="lines-container" id="linesContainer">
+                    {{linesContent}}
+                </div>
+            </div>
+
+            <!-- Markbook Panel -->
+            <div class="markbook-panel" id="markbookPanel">
+                <div class="markbook-header">
+                    <span>{{logviewer.markbook}}</span>
+                    <button class="btn btn-close" id="btnCloseMarkbook"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="markbook-list" id="markbookList">
+                    <!-- Bookmarks will be populated here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Search Panel -->
+        <div class="search-panel" id="searchPanel">
+            <div class="search-header">
+                <input type="text" class="search-input" id="searchInput" placeholder="{{logviewer.searchPlaceholder}}">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="regexToggle">
+                    <span>{{logviewer.useRegex}}</span>
+                </label>
+                <button class="btn btn-icon" id="btnCloseSearch"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="search-history" id="searchHistory">
+                <!-- Search history will be populated here -->
+            </div>
+            <div class="search-results" id="searchResults">
+                <!-- Search results will be populated here -->
+            </div>
+        </div>
+
+        <!-- Filter Panel -->
+        <div class="filter-panel" id="filterPanel">
+            <div class="filter-header">
+                <input type="text" class="filter-input" id="filterInput" placeholder="{{logviewer.filterPlaceholder}}">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="filterRegexToggle">
+                    <span>{{logviewer.useRegex}}</span>
+                </label>
+                <button class="btn btn-icon" id="btnCloseFilter"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="filter-actions">
+                <button class="btn btn-primary" id="btnApplyFilter">{{logviewer.applyFilter}}</button>
+            </div>
+        </div>
+
+        <!-- Tools Panel -->
+        <div class="tools-panel" id="toolsPanel">
+            <div class="tools-header">
+                <span>{{logviewer.tools}}</span>
+                <button class="btn btn-close" id="btnCloseTools"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="tools-content">
+                <!-- Hex/String Converter -->
+                <div class="tool-section">
+                    <h4>{{logviewer.hexConverter}}</h4>
+                    <textarea class="tool-input" id="hexStringInput" placeholder="{{logviewer.searchPlaceholder}}"></textarea>
+                    <div class="tool-actions">
+                        <button class="btn btn-secondary" id="btnHexToString">{{logviewer.hexToStr}}</button>
+                        <button class="btn btn-secondary" id="btnStringToHex">{{logviewer.strToHex}}</button>
+                    </div>
+                    <div class="tool-result" id="hexStringResult"></div>
+                </div>
+
+                <!-- Base Converter -->
+                <div class="tool-section">
+                    <h4>{{logviewer.programmerCalc}}</h4>
+                    <input type="text" class="tool-input" id="baseInput" placeholder="{{logviewer.searchPlaceholder}}">
+                    <div class="tool-actions">
+                        <button class="btn btn-secondary" id="btnToHex">{{logviewer.inputHex}}</button>
+                        <button class="btn btn-secondary" id="btnToDec">{{logviewer.inputDec}}</button>
+                        <button class="btn btn-secondary" id="btnToOct">{{logviewer.inputOct}}</button>
+                        <button class="btn btn-secondary" id="btnToBin">{{logviewer.inputBin}}</button>
+                    </div>
+                    <div class="tool-result" id="baseResult"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Context Menu -->
+        <div class="context-menu" id="contextMenu">
+            <div class="context-menu-item" id="ctxCopySelection">
+                <i class="fa-solid fa-copy"></i>
+                <span>Copy Selection</span>
+            </div>
+            <div class="context-menu-separator"></div>
+            <div class="context-menu-item" id="ctxHighlight">
+                <i class="fa-solid fa-circle" style="color: #ff6b6b;"></i>
+                <span>{{logviewer.highlightAll}}</span>
+            </div>
+            <div class="context-menu-item" id="ctxRemoveHighlight">
+                <i class="fa-regular fa-circle"></i>
+                <span>{{logviewer.clearHighlight}}</span>
+            </div>
+            <div class="context-menu-separator"></div>
+            <div class="context-menu-item" id="ctxSearch">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <span>{{logviewer.search}}</span>
+            </div>
+            <div class="context-menu-item" id="ctxFilter">
+                <i class="fa-solid fa-filter"></i>
+                <span>{{logviewer.filter}}</span>
+            </div>
+            <div class="context-menu-separator"></div>
+            <div class="context-menu-item" id="ctxBookmark">
+                <i class="fa-solid fa-bookmark"></i>
+                <span>{{logviewer.addToMarkbook}}</span>
+            </div>
+            <div class="context-menu-item" id="ctxCopy">
+                <i class="fa-solid fa-file-code"></i>
+                <span>{{logviewer.copyPath}}</span>
+            </div>
+            <div class="context-menu-separator"></div>
+            <div class="context-menu-item" id="ctxGotoOriginal">
+                <i class="fa-solid fa-location-dot"></i>
+                <span>{{logviewer.syncWithOriginal}}</span>
+            </div>
+        </div>
+
+        <!-- Notification -->
+        <div class="notification" id="notification"></div>
+    </div>
+
+    <script src="{{logViewer.js}}"></script>
+</body>
+</html>

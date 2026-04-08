@@ -123,6 +123,11 @@
         "command": "firmwareDownloader.searchWithEverything",
         "title": "%command.searchWithEverything%",
         "icon": "$(search)"
+      },
+      {
+        "command": "firmwareDownloader.openLogViewer",
+        "title": "%command.openLogViewer%",
+        "icon": "$(file-text)"
       }
     ],
     "menus": {
@@ -151,6 +156,11 @@
           "command": "firmwareDownloader.showSearch",
           "when": "view == firmware-explorer",
           "group": "navigation"
+        },
+        {
+          "command": "firmwareDownloader.openLogViewer",
+          "when": "view == firmware-explorer",
+          "group": "navigation"
         }
       ],
       "view/item/context": [
@@ -164,6 +174,13 @@
           "command": "firmwareDownloader.searchWithEverything",
           "group": "4_search@1",
           "when": "editorHasSelection"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "firmwareDownloader.openLogViewer",
+          "when": "resourceExtname == .txt || resourceExtname == .log",
+          "group": "2_workspace@5"
         }
       ]
     },

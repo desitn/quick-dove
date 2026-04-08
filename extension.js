@@ -11,6 +11,7 @@ const iconv = require('iconv-lite');
 const { spawn, spawnSync } = require('child_process');
 const { localize } = require('./src/localization');
 const { WebviewManager } = require('./src/webview/webviewManager');
+const { LogViewerManager } = require('./src/webview/logViewer/logViewerManager');
 const { configManager } = require('./src/config/configManager');
 
 /** @note firmware-cli executable path */
@@ -608,8 +609,9 @@ function activate(context)
     vscode.window.registerTreeDataProvider('firmware-devices', deviceTreeDataProvider);
     deviceTreeDataProvider.startAutoRefresh();
 
-    // Initialize webview manager
+    // Initialize webview managers
     const webviewManager = new WebviewManager(context);
+    const logViewerManager = new LogViewerManager(context);
 
     // Show welcome page on first install
     if (webviewManager.shouldShowWelcome()) {
@@ -831,6 +833,40 @@ function activate(context)
     // Register show search panel command
     const showSearchCommand = vscode.commands.registerCommand('firmwareDownloader.showSearch', () => {
         webviewManager.showSearch();
+    });
+
+    // Register Log Viewer commands
+    const openLogViewerCommand = vscode.commands.registerCommand('firmwareDownloader.openLogViewer', async (uri) => {
+        try {
+            let filePath = null;
+            
+            if (uri && uri.fsPath) {
+                // Called from context menu
+                filePath = uri.fsPath;
+            } else {
+                // Called from command palette - show file picker
+                const options = {
+                    canSelectFiles: true,
+                    canSelectFolders: false,
+                    canSelectMany: false,
+                    openLabel: 'Select Log File',
+                    filters: {
+                        'Log Files': ['txt', 'log'],
+                        'All Files': ['*']
+                    }
+                };
+                const result = await vscode.window.showOpenDialog(options);
+                if (result && result.length > 0) {
+                    filePath = result[0].fsPath;
+                }
+            }
+            
+            if (filePath) {
+                await logViewerManager.openLogFile(filePath);
+            }
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to open log file: ${error.message}`);
+        }
     });
 
     // Register search with Everything command
@@ -1298,6 +1334,7 @@ function activate(context)
     context.subscriptions.push(openSettingsCommand);
     context.subscriptions.push(showSearchCommand);
     context.subscriptions.push(searchWithEverythingCommand);
+    context.subscriptions.push(openLogViewerCommand);
     context.subscriptions.push(build_disposable);
     context.subscriptions.push(download_disposable);
     context.subscriptions.push(showWelcomeCommand);

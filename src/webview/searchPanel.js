@@ -489,12 +489,7 @@
 
     // Render file item
     function renderFileItem(file) {
-        // Debug: Log file data for first item only
-        if (!window._debugFileLogged) {
-            console.log('[renderFileItem] Sample file data:', JSON.stringify(file, null, 2));
-            window._debugFileLogged = true;
-        }
-        
+
         const icon = getFileIcon(file);
         const displayPath = shortenPath(file.path);
         const meta = file.size ? formatFileSize(file.size) : '';
