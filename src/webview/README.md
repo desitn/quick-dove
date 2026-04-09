@@ -1,104 +1,70 @@
-# Welcome Webview Module
+# Webview Module
 
-This module provides the welcome page and setup wizard functionality for Quick Firmware + extension.
+This module provides all webview-based user interfaces for Quick Firmware + extension.
 
-## Features
-
-### Welcome Page
-- Displayed on first install of the extension
-- Shows key features and keyboard shortcuts
-- Provides quick access to setup wizard and settings
-- "Don't show again" option to disable
-
-### Setup Wizard
-- 4-step configuration wizard for new workspaces
-- Guides users through:
-  1. Firmware path selection
-  2. Build command configuration
-  3. Git Bash path (optional, for .sh scripts on Windows)
-  4. Configuration summary
-
-### Auto-detection
-- Automatically detects firmware projects when opening new workspaces
-- Checks for:
-  - `quectel_build/release` directory structure
-  - Build scripts (build.bat, build.sh, etc.)
-- Prompts user to run setup wizard if project structure detected
-
-## Usage
-
-### Manual Commands
-- `Quick Firmware +: Show Welcome Page` - Display welcome page
-- `Quick Firmware +: Run Setup Wizard` - Run configuration wizard
-
-### Automatic
-- Welcome page shows on first install
-- Setup wizard prompt shows when opening firmware project workspaces
-
-## Architecture Design
-
-### File Structure
+## Directory Structure
 
 ```
-src/welcome/
-├── README.md           # This documentation
-├── welcomeWebview.js   # Main module - WelcomeWebviewManager class
-├── welcome.html        # Welcome page HTML template
-├── wizard.html         # Setup wizard HTML template
-├── wizard.js           # Setup wizard JavaScript logic
-└── style.css           # Common styles for both pages
+src/webview/
+├── README.md              # This documentation
+├── webviewManager.js      # Main module - WebviewManager class
+├── style.css              # Common styles (theme variables, buttons, forms)
+├── assets/                # Shared assets
+│   ├── fontawesome/       # FontAwesome CSS
+│   └── webfonts/          # FontAwesome webfonts
+│
+├── welcome/               # Welcome page module
+│   ├── welcome.html       # Welcome page HTML template
+│   └── welcome.css        # Welcome page specific styles
+│
+├── settings/              # Settings page module
+│   ├── settings.html      # Settings page HTML template
+│   ├── settings.css       # Settings page specific styles
+│   └── settings.js        # Settings page JavaScript logic
+│
+├── searchPanel/           # Search panel module
+│   ├── searchPanel.html   # Search panel HTML template
+│   ├── searchPanel.css    # Search panel specific styles
+│   └── searchPanel.js     # Search panel JavaScript logic
+│
+└── logViewer/             # Log viewer module
+    ├── logViewer.html     # Log viewer HTML template
+    ├── logViewer.css      # Log viewer specific styles
+    ├── logViewer.js       # Log viewer JavaScript logic
+    ├── logViewerManager.js # Log viewer backend manager
+    ├── logAnalyzer.js     # Log analysis logic
+    ├── keywordHighlighter.js # Keyword highlighting
+    └── markbookManager.js # Bookmark management
 ```
 
-### Module Relationships
+## Module Architecture
 
-```
-extension.js (Extension Entry)
-    │
-    ├──► WelcomeWebviewManager (welcomeWebview.js)
-    │       │
-    │       ├──► Welcome Page (welcome.html + style.css)
-    │       │       │
-    │       │       └── User clicks "Start Setup Wizard"
-    │       │               │
-    │       │               ▼
-    │       └──► Setup Wizard (wizard.html + wizard.js + style.css)
-    │               │
-    │               ├── Step 1: Firmware Path Selection
-    │               ├── Step 2: Build Commands Configuration
-    │               ├── Step 3: Git Bash Path (Optional)
-    │               └── Step 4: Configuration Summary
-    │
-    └──► Auto-detection (shouldShowWorkspaceWizard)
-            │
-            └── Detects firmware project structure
-                    │
-                    └──► Prompts to run Setup Wizard
-```
+### WebviewManager (webviewManager.js)
 
-### Class Diagram
+The central manager class that handles all webview panels:
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    WelcomeWebviewManager                     │
-├─────────────────────────────────────────────────────────────┤
-│ - context: ExtensionContext                                  │
-│ - panel: WebviewPanel | null                                 │
-│ - wizardPanel: WebviewPanel | null                           │
-├─────────────────────────────────────────────────────────────┤
-│ + shouldShowWelcome(): boolean                               │
-│ + markWelcomeShown(): void                                   │
-│ + setDontShowAgain(): void                                   │
-│ + showWelcome(): void                                        │
-│ + shouldShowWorkspaceWizard(): boolean                       │
-│ + showSetupWizard(): void                                    │
-│ + detectFirmwarePaths(): Promise<DetectedPath[]>             │
-│ + detectBuildScripts(): Promise<BuildScript[]>               │
-│ + saveWizardConfig(config: WizardConfig): Promise<void>      │
-│ - loadTemplate(name: string, replacements: object): string   │
-│ - getWelcomeHtml(): string                                   │
-│ - getWizardHtml(): string                                    │
-│ - getLocale(): string                                        │
-└─────────────────────────────────────────────────────────────┘
+```javascript
+class WebviewManager {
+    // Panel instances
+    panel           // Welcome page panel
+    settingsPanel   // Settings page panel
+    searchPanel     // Search panel
+    searchManager   // Search backend manager
+    
+    // Public methods
+    showWelcome()           // Display welcome page
+    showSettings()          // Display settings page
+    showSearch()            // Display search panel
+    searchWithText(text)    // Search with predefined text
+    
+    // Internal methods
+    getWelcomeHtml()        // Generate welcome page HTML
+    getSettingsHtml()       // Generate settings page HTML
+    getSearchHtml()         // Generate search panel HTML
+    loadTemplate(name, replacements)  // Load and process HTML templates
+    getLocale()             // Get current language setting
+    getEffectiveTheme(theme) // Resolve theme (auto → dark/light)
+}
 ```
 
 ### Communication Flow
@@ -111,151 +77,409 @@ extension.js (Extension Entry)
 │   Webview (Frontend)              Extension Backend (Node.js)           │
 │        │                                    │                           │
 │        │  1. User Action                    │                           │
-│        │     (click button)                 │                           │
+│        │     (click/button/input)           │                           │
 │        │                                    │                           │
 │        ├─────► postMessage({command}) ─────►│                           │
 │        │                                    │                           │
 │        │                                    ├─► onDidReceiveMessage      │
 │        │                                    │       │                   │
-│        │                                    │       ├── openWizard       │
-│        │                                    │       ├── openSettings     │
-│        │                                    │       ├── selectFirmwarePath│
-│        │                                    │       ├── selectScriptFile │
-│        │                                    │       ├── saveConfig       │
+│        │                                    │       ├── process command  │
+│        │                                    │       ├── call handlers    │
 │        │                                    │       └── ...              │
 │        │                                    │                           │
 │        │◄──── postMessage({result}) ◄───────┤                           │
 │        │                                    │                           │
 │        │  2. Update UI                       │                           │
-│        │     (show result)                   │                           │
+│        │     (display result)                │                           │
 │        │                                    │                           │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Resource Loading Flow
+## Adding a New Webview Module
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        Resource Loading Process                          │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│  1. Load HTML Template                                                   │
-│     └── loadTemplate('welcome' | 'wizard', replacements)                │
-│                                                                          │
-│  2. Replace Placeholders                                                 │
-│     ├── {{locale}}          → 'en' | 'zh-cn'                            │
-│     ├── {{welcome.title}}   → localized string                          │
-│     ├── {{style.css}}       → placeholder (step 4)                      │
-│     └── {{wizard.js}}       → placeholder (step 4)                      │
-│                                                                          │
-│  3. Generate Webview URIs                                                │
-│     ├── styleUri  = panel.webview.asWebviewUri(style.css)               │
-│     └── wizardJsUri = panel.webview.asWebviewUri(wizard.js)             │
-│                                                                          │
-│  4. Replace Resource Placeholders                                        │
-│     ├── href="{{style.css}}"  → href="vscode-resource://..."            │
-│     └── src="{{wizard.js}}"   → src="vscode-resource://..."             │
-│                                                                          │
-│  5. Set Webview HTML                                                     │
-│     └── panel.webview.html = finalHtml                                  │
-│                                                                          │
-└─────────────────────────────────────────────────────────────────────────┘
+Follow this step-by-step guide to add a new webview module:
+
+### Step 1: Create Module Directory
+
+```bash
+# Create new module directory under src/webview/
+mkdir src/webview/yourModule/
 ```
 
-### State Management
+### Step 2: Create Required Files
 
-#### Global State (Extension Level)
-| Key | Type | Description |
-|-----|------|-------------|
-| `quickFirmwarePlus.welcomeShown` | boolean | Whether welcome page has been shown |
-| `quickFirmwarePlus.dontShowWelcome` | boolean | User preference to hide welcome |
+Each webview module should contain:
 
-#### Workspace Configuration
-| Key | Type | Description |
-|-----|------|-------------|
-| `quickFirmwarePlus.firmwarePath` | string | Path to firmware directory |
-| `quickFirmwarePlus.buildCommands` | array | List of build commands |
-| `quickFirmwarePlus.lastBuildCommand` | string | Last used build command name |
-| `quickFirmwarePlus.buildGitBashPath` | string | Path to Git Bash executable |
+| File | Purpose |
+|------|---------|
+| `yourModule.html` | HTML template with `{{placeholder}}` syntax |
+| `yourModule.css` | Module-specific styles |
+| `yourModule.js` | Frontend JavaScript logic (optional if JS is embedded in HTML) |
 
-### Message Protocol
+### Step 3: HTML Template Structure
 
-#### From Webview to Extension
+```html
+<!DOCTYPE html>
+<html lang="{{locale}}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{yourModule.title}}</title>
+    
+    <!-- Common styles (required) -->
+    <link rel="stylesheet" href="{{style.css}}">
+    
+    <!-- FontAwesome icons (optional) -->
+    <link rel="stylesheet" href="{{fontawesome.css}}">
+    
+    <!-- Module-specific styles (required) -->
+    <link rel="stylesheet" href="{{yourModule.css}}">
+</head>
+<body>
+    <!-- Your content here -->
+    
+    <!-- JavaScript (if external file) -->
+    <script src="{{yourModule.js}}"></script>
+    
+    <!-- Or embedded JavaScript -->
+    <script>
+        const vscode = acquireVsCodeApi();
+        // Your frontend logic here
+    </script>
+</body>
+</html>
+```
+
+### Step 4: CSS Style Guidelines
+
+Use CSS variables for theme support:
+
+```css
+/* Use variables from style.css */
+:root[data-theme="dark"] {
+    /* Variables are already defined in style.css */
+}
+
+:root[data-theme="light"] {
+    /* Variables are already defined in style.css */
+}
+
+/* Your module-specific styles */
+.your-module-container {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+/* Use accent color for highlights */
+.your-module-highlight {
+    color: var(--accent-color);
+}
+```
+
+### Step 5: JavaScript Frontend Pattern
+
+```javascript
+(function() {
+    // Acquire VS Code API
+    const vscode = acquireVsCodeApi();
+    
+    // State variables
+    let yourState = {};
+    
+    // Initialize
+    function init() {
+        setupEventListeners();
+        requestInitialData();
+    }
+    
+    // Setup event listeners
+    function setupEventListeners() {
+        document.getElementById('yourButton')
+            .addEventListener('click', handleButtonClick);
+        
+        // Listen for messages from extension
+        window.addEventListener('message', handleMessage);
+    }
+    
+    // Request initial data from extension
+    function requestInitialData() {
+        vscode.postMessage({ command: 'getYourData' });
+    }
+    
+    // Handle messages from extension
+    function handleMessage(event) {
+        const message = event.data;
+        switch (message.command) {
+            case 'yourData':
+                // Process received data
+                yourState = message.data;
+                renderUI();
+                break;
+        }
+    }
+    
+    // Send message to extension
+    function sendToExtension(command, data) {
+        vscode.postMessage({
+            command: command,
+            ...data
+        });
+    }
+    
+    // Initialize when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+})();
+```
+
+### Step 6: Integrate with WebviewManager
+
+Add to `webviewManager.js`:
+
+```javascript
+// 1. Add panel property
+class WebviewManager {
+    constructor(context) {
+        this.yourModulePanel = null;  // Add this
+    }
+    
+    // 2. Add show method
+    showYourModule() {
+        if (this.yourModulePanel) {
+            this.yourModulePanel.reveal();
+            return;
+        }
+        
+        this.yourModulePanel = vscode.window.createWebviewPanel(
+            'quickFirmwarePlusYourModule',
+            localize('yourModule.title'),
+            vscode.ViewColumn.One,
+            {
+                enableScripts: true,
+                retainContextWhenHidden: true,
+                localResourceRoots: [
+                    vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview'))
+                ]
+            }
+        );
+        
+        this.yourModulePanel.webview.html = this.getYourModuleHtml();
+        
+        // Handle messages from webview
+        this.yourModulePanel.webview.onDidReceiveMessage(
+            message => {
+                switch (message.command) {
+                    case 'getYourData':
+                        // Send data to webview
+                        this.yourModulePanel.webview.postMessage({
+                            command: 'yourData',
+                            data: yourBackendData
+                        });
+                        return;
+                    // Add more message handlers
+                }
+            },
+            undefined,
+            this.context.subscriptions
+        );
+        
+        this.yourModulePanel.onDidDispose(
+            () => {
+                this.yourModulePanel = null;
+            },
+            null,
+            this.context.subscriptions
+        );
+    }
+    
+    // 3. Add HTML generation method
+    getYourModuleHtml() {
+        const locale = this.getLocale();
+        const styleUri = this.yourModulePanel.webview.asWebviewUri(
+            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'style.css'))
+        );
+        const yourModuleCssUri = this.yourModulePanel.webview.asWebviewUri(
+            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'yourModule', 'yourModule.css'))
+        );
+        const fontAwesomeUri = this.yourModulePanel.webview.asWebviewUri(
+            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'assets', 'fontawesome', 'all.min.css'))
+        );
+        const yourModuleJsUri = this.yourModulePanel.webview.asWebviewUri(
+            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'yourModule', 'yourModule.js'))
+        );
+        
+        // Get effective theme
+        const currentConfig = configManager.getConfig();
+        const themeConfig = currentConfig.theme || 'auto';
+        const effectiveTheme = this.getEffectiveTheme(themeConfig);
+        
+        // Load template (use module path: 'yourModule/yourModule')
+        let html = this.loadTemplate('yourModule/yourModule', {
+            'locale': locale,
+            'yourModule.title': localize('yourModule.title'),
+            // Add more placeholders
+        });
+        
+        // Replace CSS/JS placeholders with webview URIs
+        html = html.replace('href="{{style.css}}"', `href="${styleUri}"`);
+        html = html.replace('href="{{yourModule.css}}"', `href="${yourModuleCssUri}"`);
+        html = html.replace('href="{{fontawesome.css}}"', `href="${fontAwesomeUri}"`);
+        html = html.replace('src="{{yourModule.js}}"', `src="${yourModuleJsUri}"`);
+        
+        // Apply effective theme
+        html = html.replace(`<html lang="${locale}">`, `<html lang="${locale}" data-theme="${effectiveTheme}">`);
+        
+        return html;
+    }
+}
+```
+
+### Step 7: Add Localization Strings
+
+Add to localization files (`package.nls.json`, `package.nls.zh-cn.json`):
+
+```json
+// package.nls.json
+{
+    "yourModule.title": "Your Module",
+    "yourModule.description": "Description of your module"
+}
+
+// package.nls.zh-cn.json
+{
+    "yourModule.title": "你的模块",
+    "yourModule.description": "模块描述"
+}
+```
+
+### Step 8: Register Command (optional)
+
+Add to `package.json`:
+
+```json
+{
+    "contributes": {
+        "commands": [
+            {
+                "command": "firmwareDownloader.showYourModule",
+                "title": "%yourModule.title%",
+                "category": "Quick Firmware +"
+            }
+        ]
+    }
+}
+```
+
+Add to `extension.js`:
+
+```javascript
+const { WebviewManager } = require('./src/webview/webviewManager');
+
+// Register command
+context.subscriptions.push(
+    vscode.commands.registerCommand('firmwareDownloader.showYourModule', () => {
+        webviewManager.showYourModule();
+    })
+);
+```
+
+## Message Protocol Reference
+
+### Common Message Patterns
+
 | Command | Parameters | Description |
 |---------|------------|-------------|
-| `openWizard` | - | Open setup wizard |
-| `openSettings` | - | Open VS Code settings |
-| `dontShowAgain` | - | Disable welcome page |
-| `close` | - | Close current webview |
-| `getDetectedPaths` | - | Request auto-detected firmware paths |
-| `selectFirmwarePath` | - | Show folder picker dialog |
-| `selectScriptFile` | - | Show file picker for build script |
-| `selectGitBashPath` | - | Show file picker for Git Bash |
-| `saveConfig` | `{firmwarePath, buildCommands, gitBashPath}` | Save wizard configuration |
+| `getConfig` | - | Request configuration data |
+| `getEffectiveTheme` | - | Request current theme |
+| `themeChanged` | `{theme}` | Theme update notification |
 
-#### From Extension to Webview
+### Settings Page Commands
+
 | Command | Parameters | Description |
 |---------|------------|-------------|
-| `firmwarePathSelected` | `{path}` | Return selected firmware path |
-| `detectedPaths` | `{paths}` | Return auto-detected paths list |
-| `gitBashPathSelected` | `{path}` | Return selected Git Bash path |
-| `scriptFileSelected` | `{name, commandValue}` | Return selected script info |
+| `browseFirmwarePath` | - | Show folder picker |
+| `browseGitBashPath` | - | Show file picker for Git Bash |
+| `selectScriptFile` | - | Show script file picker |
+| `saveConfig` | `{config}` | Save configuration |
+| `resetConfig` | - | Reset to defaults |
+| `openConfigFile` | - | Open config file in editor |
 
-## Files
+### Search Panel Commands
 
-### welcomeWebview.js
-Main module containing:
-- `WelcomeWebviewManager` class
-- Welcome page HTML generation
-- Wizard HTML generation
-- Configuration persistence
-- Auto-detection logic
+| Command | Parameters | Description |
+|---------|------------|-------------|
+| `search` | `{keyword, scope, maxResults}` | Perform search |
+| `openFile` | `{filePath}` | Open file in editor |
+| `revealInExplorer` | `{filePath}` | Reveal in file explorer |
+| `addToFavorites` | `{filePath, fileName}` | Add to favorites |
+| `copyPath` | `{filePath}` | Copy path to clipboard |
 
-### welcome.html
-Template for welcome page with placeholders:
-- `{{locale}}` - Language code
-- `{{welcome.*}}` - Localized welcome strings
-- `{{command.*}}` - Localized command strings
-- `{{style.css}}` - CSS resource placeholder
+## Theme Support
 
-### wizard.html
-Template for setup wizard with placeholders:
-- `{{locale}}` - Language code
-- `{{wizard.*}}` - Localized wizard strings
-- `{{style.css}}` - CSS resource placeholder
-- `{{wizard.js}}` - JavaScript resource placeholder
+### CSS Variables (defined in style.css)
 
-### wizard.js
-JavaScript logic for wizard page:
-- Step navigation (next/prev)
-- Command list management
-- Message handling
-- Form validation
+```css
+/* Background colors */
+--bg-primary      /* Main background */
+--bg-secondary    /* Secondary background */
+--bg-tertiary     /* Tertiary background */
 
-### style.css
-Common styles for both pages:
-- VS Code theme variables integration
-- Button styles
-- Form styles
-- Step indicator styles
-- Command list styles
-- Responsive layout
+/* Text colors */
+--text-primary    /* Primary text */
+--text-secondary  /* Secondary text */
+--text-muted      /* Muted/disabled text */
 
-## Integration Points
+/* Accent colors */
+--accent-color    /* Primary accent (links, buttons) */
 
-### With Extension
-- Registered commands: `firmwareDownloader.showWelcome`, `firmwareDownloader.showSetupWizard`
-- Tree view integration: Settings view shows welcome/wizard entries
-- Configuration updates: Saves to VS Code workspace settings
+/* Border colors */
+--border-color    /* Standard border */
 
-### With firmware-cli
-- Writes `firmware-cli.json` configuration file
-- Uses `firmware-cli.exe` for device detection and firmware flashing
+/* Input colors */
+--input-bg        /* Input background */
+--input-border    /* Input border */
+--input-focus-border /* Focused input border */
+```
+
+### Applying Theme
+
+The theme is applied via HTML attribute:
+
+```html
+<html lang="en" data-theme="dark">
+```
+
+CSS automatically responds:
+
+```css
+:root[data-theme="dark"] { /* dark mode styles */ }
+:root[data-theme="light"] { /* light mode styles */ }
+```
 
 ## Best Practices
 
-1. **Separation of Concerns**: HTML templates, CSS, and JS are in separate files
-2. **Localization**: All user-facing strings use the `localize()` function
-3. **Resource Security**: Uses `asWebviewUri()` for all external resources
-4. **State Persistence**: Uses VS Code's built-in state management
-5. **Error Handling**: Graceful fallbacks for missing configurations
+1. **Modular Structure**: Each webview feature should be in its own directory
+2. **Localization**: All user-facing strings use `localize()` function
+3. **Resource Security**: Use `asWebviewUri()` for all external resources
+4. **Theme Support**: Use CSS variables, apply `data-theme` attribute
+5. **Error Handling**: Handle all message commands gracefully
+6. **State Management**: Use VS Code's state API for persistence
+7. **Template Pattern**: Use `{{placeholder}}` for all dynamic content
+8. **Separation**: Keep HTML, CSS, and JS in separate files
+
+## Testing
+
+To test a new webview module:
+
+1. Open VS Code with extension loaded
+2. Execute command: `Quick Firmware +: Show [Your Module]`
+3. Verify:
+   - Page renders correctly
+   - Theme switching works (dark/light/auto)
+   - All buttons/inputs respond
+   - Messages are sent/received correctly
+   - Localization strings display correctly

@@ -198,6 +198,6 @@
   "logviewer.encodingGbk": "GBK",
   "logviewer.encodingLatin1": "Latin-1",
   "view.extensionTools": "扩展工具",
-  "view.search": "全搜索",
-  "view.logViewer": "微日志"
+  "view.search": "本地搜索",
+  "view.logViewer": "日志分析"
 }

@@ -10,11 +10,11 @@
       "command": "powershell ./install.ps1 -Force"
     }
   ],
-  "lastBuildCommand": "vs package",
+  "lastBuildCommand": "install",
   "buildGitBashPath": "",
   "defaultComPort": "",
-  "language": "auto",
-  "theme": "light",
+  "language": "en",
+  "theme": "dark",
   "search": {
     "port": 8080,
     "scope": "global",
@@ -31,6 +31,6 @@
       }
     ]
   },
-  "buildCommand": "vsce package",
+  "buildCommand": "powershell ./install.ps1 -Force",
   "workspacePath": "f:\\vscode-extension\\quick-firmware"
 }

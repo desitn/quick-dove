@@ -203,6 +203,10 @@ window.addEventListener('message', event => {
             currentConfig.configFilePath = message.configFilePath;
             populateForm();
             clearModifiedIndicators();
+            // Apply effective theme from server
+            if (message.effectiveTheme) {
+                applyEffectiveTheme(message.effectiveTheme);
+            }
             break;
         case 'themeChanged':
             applyTheme(message.theme);
@@ -228,6 +232,10 @@ window.addEventListener('message', event => {
             // Add command from selected script file
             addCommandFromScript(message.name, message.commandValue);
             break;
+        case 'effectiveTheme':
+            // Apply effective theme from extension (for auto mode)
+            applyEffectiveTheme(message.theme);
+            break;
     }
 });
 
@@ -248,10 +256,10 @@ function populateForm() {
     document.getElementById('comPort').value = currentConfig.defaultComPort || '';
     
     // Language
-    document.getElementById('language').value = currentConfig.language || 'auto';
+    document.getElementById('languageSelect').value = currentConfig.language || 'auto';
     
     // Theme
-    document.getElementById('theme').value = currentConfig.theme || 'auto';
+    document.getElementById('themeSelect').value = currentConfig.theme || 'auto';
     
     // Apply theme preview
     applyTheme(currentConfig.theme || 'auto');
@@ -526,18 +534,30 @@ function deleteCommand(index) {
  * Apply theme to the document
  */
 function applyTheme(theme) {
-    let effectiveTheme = theme;
-    
-    // If auto, use dark as default (can be enhanced to follow VS Code via message from extension)
+    // If auto, request effective theme from extension
     if (theme === 'auto') {
-        effectiveTheme = 'dark';
+        vscode.postMessage({ command: 'getEffectiveTheme' });
+        return;
     }
     
+    document.documentElement.setAttribute('data-theme', theme);
+}
+
+/**
+ * Apply effective theme from extension (for auto mode)
+ */
+function applyEffectiveTheme(effectiveTheme) {
     document.documentElement.setAttribute('data-theme', effectiveTheme);
 }
 
 // Apply initial theme as soon as possible
 (function applyInitialTheme() {
+    // Check if theme is already set by server-side (in HTML data-theme attribute)
+    const htmlTheme = document.documentElement.getAttribute('data-theme');
+    if (htmlTheme && (htmlTheme === 'dark' || htmlTheme === 'light')) {
+        // Theme already set by server, use it
+        return;
+    }
     // Default to dark until we receive config
     document.documentElement.setAttribute('data-theme', 'dark');
 })();
@@ -550,11 +570,11 @@ function saveSettings() {
     currentConfig.firmwarePath = document.getElementById('firmwarePath').value.trim();
     currentConfig.buildGitBashPath = document.getElementById('gitBashPath').value.trim();
     currentConfig.defaultComPort = document.getElementById('comPort').value.trim();
-    currentConfig.language = document.getElementById('language').value;
-    currentConfig.theme = document.getElementById('theme').value;
+    currentConfig.language = document.getElementById('languageSelect').value;
+    currentConfig.theme = document.getElementById('themeSelect').value;
     
-    // Ensure buildCommands and lastBuildCommand are preserved
-    // (they are managed separately via command table operations)
+    // Debug: log the config being saved
+    console.log('[Settings] Saving config, theme:', currentConfig.theme);
     
     vscode.postMessage({
         command: 'saveConfig',

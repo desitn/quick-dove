@@ -132,13 +132,18 @@ class WebviewManager {
             vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'style.css'))
         );
         const welcomeCssUri = this.panel.webview.asWebviewUri(
-            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'welcome.css'))
+            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'welcome', 'welcome.css'))
         );
         const fontAwesomeUri = this.panel.webview.asWebviewUri(
             vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'assets', 'fontawesome', 'all.min.css'))
         );
         
-        let html = this.loadTemplate('welcome', {
+        // Get effective theme
+        const currentConfig = configManager.getConfig();
+        const themeConfig = currentConfig.theme || 'auto';
+        const effectiveTheme = this.getEffectiveTheme(themeConfig);
+        
+        let html = this.loadTemplate('welcome/welcome', {
             'locale': locale,
             'welcome.title': localize('welcome.title'),
             'welcome.header': localize('welcome.header'),
@@ -149,6 +154,8 @@ class WebviewManager {
             'welcome.feature.build.desc': localize('welcome.feature.build.desc'),
             'welcome.feature.device': localize('welcome.feature.device'),
             'welcome.feature.device.desc': localize('welcome.feature.device.desc'),
+            'welcome.feature.extensionTools': localize('welcome.feature.extensionTools'),
+            'welcome.feature.extensionTools.desc': localize('welcome.feature.extensionTools.desc'),
             'welcome.startWizard': localize('welcome.startWizard'),
             'welcome.openSettings': localize('welcome.openSettings'),
             'welcome.close': localize('welcome.close'),
@@ -160,6 +167,11 @@ class WebviewManager {
         html = html.replace('href="{{style.css}}"', `href="${styleUri}"`);
         html = html.replace('href="{{welcome.css}}"', `href="${welcomeCssUri}"`);
         html = html.replace('href="{{fontawesome.css}}"', `href="${fontAwesomeUri}"`);
+        
+        // Apply effective theme to HTML
+        // Note: {{locale}} was already replaced by loadTemplate(), so use actual locale value
+        html = html.replace(`<html lang="${locale}">`, `<html lang="${locale}" data-theme="${effectiveTheme}">`);
+        
         return html;
     }
 
@@ -241,6 +253,15 @@ class WebviewManager {
                             config: config,
                             configFilePath: configManager.getConfigPath(),
                             effectiveTheme: effectiveTheme
+                        });
+                        return;
+                    case 'getEffectiveTheme':
+                        // Send effective theme for auto mode
+                        const currentThemeConfig = configManager.getConfig().theme || 'auto';
+                        const currentEffectiveTheme = this.getEffectiveTheme(currentThemeConfig);
+                        this.settingsPanel.webview.postMessage({
+                            command: 'effectiveTheme',
+                            theme: currentEffectiveTheme
                         });
                         return;
                     case 'browseFirmwarePath':
@@ -439,16 +460,21 @@ class WebviewManager {
             vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'style.css'))
         );
         const searchPanelCssUri = this.searchPanel.webview.asWebviewUri(
-            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'searchPanel.css'))
+            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'searchPanel', 'searchPanel.css'))
         );
         const fontAwesomeUri = this.searchPanel.webview.asWebviewUri(
             vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'assets', 'fontawesome', 'all.min.css'))
         );
         const searchJsUri = this.searchPanel.webview.asWebviewUri(
-            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'searchPanel.js'))
+            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'searchPanel', 'searchPanel.js'))
         );
+        
+        // Get effective theme
+        const currentConfig = configManager.getConfig();
+        const themeConfig = currentConfig.theme || 'auto';
+        const effectiveTheme = this.getEffectiveTheme(themeConfig);
 
-        let html = this.loadTemplate('searchPanel', {
+        let html = this.loadTemplate('searchPanel/searchPanel', {
             'locale': locale,
             'search.title': localize('search.title'),
             'search.placeholder': localize('search.placeholder'),
@@ -471,6 +497,11 @@ class WebviewManager {
         html = html.replace('href="{{searchPanel.css}}"', `href="${searchPanelCssUri}"`);
         html = html.replace('href="{{fontawesome.css}}"', `href="${fontAwesomeUri}"`);
         html = html.replace('src="{{search.js}}"', `src="${searchJsUri}"`);
+        
+        // Apply effective theme to HTML
+        // Note: {{locale}} was already replaced by loadTemplate(), so use actual locale value
+        html = html.replace(`<html lang="${locale}">`, `<html lang="${locale}" data-theme="${effectiveTheme}">`);
+        
         return html;
     }
 
@@ -499,16 +530,21 @@ class WebviewManager {
             vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'style.css'))
         );
         const settingsCssUri = this.settingsPanel.webview.asWebviewUri(
-            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'settings.css'))
+            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'settings', 'settings.css'))
         );
         const fontAwesomeUri = this.settingsPanel.webview.asWebviewUri(
             vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'assets', 'fontawesome', 'all.min.css'))
         );
         const settingsJsUri = this.settingsPanel.webview.asWebviewUri(
-            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'settings.js'))
+            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'settings', 'settings.js'))
         );
         
-        let html = this.loadTemplate('settings', {
+        // Get current config and effective theme
+        const currentConfig = configManager.getConfig();
+        const themeConfig = currentConfig.theme || 'auto';
+        const effectiveTheme = this.getEffectiveTheme(themeConfig);
+
+        let html = this.loadTemplate('settings/settings', {
             'locale': locale,
             'settings.title': localize('settings.title'),
             'settings.subtitle': localize('settings.subtitle'),
@@ -549,7 +585,14 @@ class WebviewManager {
             'settings.openConfigFile': localize('settings.openConfigFile'),
             'settings.reset': localize('settings.reset'),
             'settings.save': localize('settings.save'),
-            'settings.selectScriptFile': localize('selectScriptFile')
+            'settings.selectScriptFile': localize('selectScriptFile'),
+            // Theme settings - add missing theme localization strings
+            'settings.theme': localize('settings.theme'),
+            'settings.themeLabel': localize('settings.themeLabel'),
+            'settings.themeDesc': localize('settings.themeDesc'),
+            'settings.themeAuto': localize('settings.themeAuto'),
+            'settings.themeDark': localize('settings.themeDark'),
+            'settings.themeLight': localize('settings.themeLight')
         });
         
         // Replace CSS and JS placeholders with webview URIs
@@ -557,6 +600,11 @@ class WebviewManager {
         html = html.replace('href="{{settings.css}}"', `href="${settingsCssUri}"`);
         html = html.replace('href="{{fontawesome.css}}"', `href="${fontAwesomeUri}"`);
         html = html.replace('src="{{settings.js}}"', `src="${settingsJsUri}"`);
+        
+        // Apply effective theme to HTML
+        // Note: {{locale}} was already replaced by loadTemplate(), so use actual locale value
+        html = html.replace(`<html lang="${locale}">`, `<html lang="${locale}" data-theme="${effectiveTheme}">`);
+        
         return html;
     }
 }
