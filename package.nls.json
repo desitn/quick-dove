@@ -197,6 +197,11 @@
   "logviewer.encodingUtf8": "UTF-8",
   "logviewer.encodingGbk": "GBK",
   "logviewer.encodingLatin1": "Latin-1",
+  "logviewer.emptyDesc": "Open a log file to view and analyze its content",
+  "logviewer.selectFile": "Select Log File",
+  "logviewer.supportedFormats": "Supported formats: .log, .txt, .out, .err",
+  "logviewer.recentFiles": "Recent Files",
+  "logviewer.fileNotFound": "File not found or inaccessible",
   "view.extensionTools": "Extension Tools",
   "view.search": "Search",
   "view.logViewer": "Log Viewer"

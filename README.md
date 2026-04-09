@@ -12,37 +12,6 @@
 
 ## 下载架构
 
-插件采用分层架构设计，下载流程如下：
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    VS Code 扩展 UI                          │
-│              (extension.js - 插件界面层)                     │
-└─────────────────────────┬───────────────────────────────────┘
-                          │ 调用
-                          ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    firmware-cli.exe                         │
-│              (CLI工具 - 业务逻辑层)                         │
-│                                                             │
-│  • 固件类型自动识别 (.zip, ._fbf.bin, .pac, .binpkg)      │
-│  • 设备下载模式自动切换                                     │
-│  • 进度追踪与JSON格式输出                                  │
-│  • 串口设备管理                                            │
-└─────────────────────────┬───────────────────────────────────┘
-                          │ 调用
-                          ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   平台烧录工具                              │
-│              (底层工具 - 执行层)                            │
-│                                                             │
-│  • adownload.exe    → ASR 160X 平台                       │
-│  • FBFDownloader.exe → ASR 1803/1903/1802 平台           │
-│  • ResearchDownload → UNISOC 平台                          │
-│  • FlashtoolCLI    → EIGEN 平台                           │
-└─────────────────────────────────────────────────────────────┘
-```
-
 **架构说明：**
 
 | 层级 | 组件 | 职责 |
@@ -59,7 +28,6 @@
 - ✅ 支持多平台（ASR、UNISOC、EIGEN、ESP等）
 
 > 💡 **注意**：串口调试功能已独立为单独的插件，可通过组合包方式使用
-
 
 
 目前支持芯片平台(RTOS):
@@ -83,7 +51,6 @@
 
 （🧩*表示未作充分验证，插件适配OS环境WIN 语言中文 如有需要可以适配更多平台）
 
-
 ## 快速开始
 
 ### 插件安装
@@ -94,9 +61,7 @@
    
 3. 拖动此插件文件拖到`扩展`视图中或点击`扩展`右侧`...`更多菜单 > 从VSIX安装... ：选择安装此插件；
    
-
 ![安装视图](images/install.png)
-
 
 
 ### 基本使用
@@ -137,48 +102,8 @@
 
 1. VS Code 底部状态栏右侧点击`编译`执行工作空间的 build*OPTfile.bat文件进行编译；
 
-2. build*.sh git bash 脚本编译文件需要手动配置bash安装路径，详见配置项：Quick Firmware Plus: Build Git Bash Path；
+2. build*.sh git bash 脚本编译文件需要手动配置bash安装路径，详见插件设置；
 
-#### 五、firmware-cli.exe 独立使用
-
-`firmware-cli.exe` 也可作为独立命令行工具使用，位于插件安装目录的 `firmware-cli/` 文件夹下。
-
-**基本命令：**
-
-```bash
-# 烧录固件（自动识别）
-firmware-cli.exe flash
-
-# 指定固件路径烧录
-firmware-cli.exe flash "C:\path\to\firmware.zip"
-
-# 跳过自动进入下载模式
-firmware-cli.exe flash --skip-dl-mode
-
-# 输出JSON格式进度（供程序调用）
-firmware-cli.exe flash "firmware.zip" --progress json
-
-# 列出可用固件
-firmware-cli.exe list
-
-# 列出USB设备
-firmware-cli.exe devices
-
-# 列出串口设备
-firmware-cli.exe serial
-
-# 监控串口输出
-firmware-cli.exe monitor -p COM9
-
-# 发送AT命令
-firmware-cli.exe at -c "ATI"
-
-# 编译固件
-firmware-cli.exe build
-
-# 显示帮助
-firmware-cli.exe help
-```
 
 **配置文件：**
 
@@ -192,8 +117,6 @@ firmware-cli.exe help
   "defaultComPort": "COM9"
 }
 ```
-
-
 
 ## 联系方式
 

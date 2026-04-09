@@ -23,13 +23,65 @@ class LogViewerManager {
         this.filterRelations = new Map();  // filterPanelId -> originalPanelId
         this.searchHistory = [];           // In-memory search history
         this.maxHistorySize = 10;
+        this.recentFiles = [];             // Recent opened files
+        this.maxRecentFiles = 5;           // Max recent files to store
+    }
+
+    /**
+     * Show empty panel (for first-time use)
+     * User can select a log file from the empty state
+     */
+    async showEmptyPanel() {
+        const panelId = `logViewer-${Date.now()}`;
+        
+        const panel = vscode.window.createWebviewPanel(
+            'logViewer',
+            localize('logviewer.title'),
+            vscode.ViewColumn.One,
+            {
+                enableScripts: true,
+                retainContextWhenHidden: true,
+                localResourceRoots: [
+                    vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview'))
+                ]
+            }
+        );
+
+        // Initialize panel info with no file loaded
+        const panelInfo = {
+            id: panelId,
+            panel: panel,
+            filePath: null,
+            analyzer: new LogAnalyzer(),
+            highlighter: new KeywordHighlighter(),
+            markbook: new MarkbookManager(),
+            isFilterView: false,
+            originalPanelId: null,
+            filterKeyword: null,
+            isEmptyState: true
+        };
+
+        this.panels.set(panelId, panelInfo);
+
+        // Generate empty state HTML
+        const html = this.generateEmptyStateHtml(panelInfo);
+        panel.webview.html = html;
+
+        // Setup message handlers
+        this.setupMessageHandlers(panelInfo);
+
+        // Handle panel disposal
+        panel.onDidDispose(() => {
+            this.onPanelDisposed(panelId);
+        }, null, this.context.subscriptions);
     }
 
     /**
      * Open log file in viewer
      * @param {string} filePath - Path to log file
+     * @param {Object} existingPanelInfo - Optional existing panel info to reuse
      */
-    async openLogFile(filePath) {
+    async openLogFile(filePath, existingPanelInfo = null) {
         const panelId = `logViewer-${Date.now()}`;
         
         const panel = vscode.window.createWebviewPanel(
@@ -167,7 +219,7 @@ class LogViewerManager {
     generateLogViewerHtml(panelInfo) {
         const fileInfo = panelInfo.analyzer.getFileInfo();
         const lines = panelInfo.analyzer.lines;
-        
+
         // Generate line content HTML
         const linesHtml = lines.map(line => {
             const highlightedText = panelInfo.highlighter.buildHighlightedHtml(line.text);
@@ -184,6 +236,11 @@ class LogViewerManager {
 
         const templatePath = path.join(this.context.extensionPath, 'src', 'webview', 'logViewer', 'logViewer.html');
         let html = fs.readFileSync(templatePath, 'utf8');
+
+        // Set display states for file loaded view
+        html = html.replace('{{emptyStateClass}}', 'hidden');
+        html = html.replace('{{headerDisplay}}', 'flex');
+        html = html.replace('{{mainContentDisplay}}', 'flex');
 
         // Replace placeholders
         html = html.replace('{{fileName}}', path.basename(panelInfo.filePath));
@@ -221,7 +278,7 @@ class LogViewerManager {
      */
     generateFilterViewHtml(filterInfo) {
         const lines = filterInfo.filteredLines;
-        
+
         // Generate filtered line content HTML
         const linesHtml = lines.map(line => {
             const highlightedText = filterInfo.highlighter.buildHighlightedHtml(line.text);
@@ -238,6 +295,11 @@ class LogViewerManager {
 
         const templatePath = path.join(this.context.extensionPath, 'src', 'webview', 'logViewer', 'logViewer.html');
         let html = fs.readFileSync(templatePath, 'utf8');
+
+        // Set display states for filter view (same as file loaded view)
+        html = html.replace('{{emptyStateClass}}', 'hidden');
+        html = html.replace('{{headerDisplay}}', 'flex');
+        html = html.replace('{{mainContentDisplay}}', 'flex');
 
         // Replace placeholders
         html = html.replace('{{fileName}}', `Filter: ${filterInfo.filterKeyword}`);
@@ -321,6 +383,15 @@ class LogViewerManager {
         panelInfo.panel.webview.onDidReceiveMessage(
             async (message) => {
                 switch (message.command) {
+                    case 'selectLogFile':
+                        await this.handleSelectLogFile(panelInfo);
+                        break;
+                    case 'openRecentFile':
+                        await this.handleOpenRecentFile(panelInfo, message);
+                        break;
+                    case 'getRecentFiles':
+                        await this.handleGetRecentFiles(panelInfo);
+                        break;
                     case 'search':
                         await this.handleSearch(panelInfo, message);
                         break;
@@ -362,6 +433,54 @@ class LogViewerManager {
             undefined,
             this.context.subscriptions
         );
+    }
+
+    /**
+     * Handle select log file command (from empty state)
+     * @param {Object} panelInfo - Panel info
+     */
+    async handleSelectLogFile(panelInfo) {
+        const fileUri = await vscode.window.showOpenDialog({
+            canSelectFiles: true,
+            canSelectFolders: false,
+            canSelectMany: false,
+            openLabel: localize('logviewer.selectFile'),
+            filters: {
+                'Log Files': ['log', 'txt', 'out', 'err'],
+                'All Files': ['*']
+            }
+        });
+
+        if (fileUri && fileUri.length > 0) {
+            const filePath = fileUri[0].fsPath;
+            await this.loadFileIntoPanel(panelInfo, filePath);
+        }
+    }
+
+    /**
+     * Handle open recent file command
+     * @param {Object} panelInfo - Panel info
+     * @param {Object} message - Message data
+     */
+    async handleOpenRecentFile(panelInfo, message) {
+        const filePath = message.filePath;
+        if (filePath && fs.existsSync(filePath)) {
+            await this.loadFileIntoPanel(panelInfo, filePath);
+        } else {
+            vscode.window.showErrorMessage(localize('logviewer.fileNotFound'));
+        }
+    }
+
+    /**
+     * Handle get recent files command
+     * @param {Object} panelInfo - Panel info
+     */
+    async handleGetRecentFiles(panelInfo) {
+        const recentFiles = this.getRecentFiles();
+        panelInfo.panel.webview.postMessage({
+            command: 'recentFiles',
+            files: recentFiles
+        });
     }
 
     /**
@@ -703,6 +822,117 @@ class LogViewerManager {
         const sizes = ['B', 'KB', 'MB', 'GB'];
         const i = Math.floor(Math.log(bytes) / Math.log(k));
         return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    /**
+     * Generate empty state HTML for first-time use
+     * @param {Object} panelInfo - Panel info
+     * @returns {string} HTML content
+     */
+    generateEmptyStateHtml(panelInfo) {
+        const templatePath = path.join(this.context.extensionPath, 'src', 'webview', 'logViewer', 'logViewer.html');
+        let html = fs.readFileSync(templatePath, 'utf8');
+
+        // Set display states for empty state view
+        html = html.replace('{{emptyStateClass}}', '');
+        html = html.replace('{{headerDisplay}}', 'none');
+        html = html.replace('{{mainContentDisplay}}', 'none');
+
+        // Replace placeholders for empty state
+        html = html.replace('{{fileName}}', localize('logviewer.title'));
+        html = html.replace('{{fileInfo}}', '');
+        html = html.replace('{{linesContent}}', '');
+        html = html.replace('{{panelId}}', panelInfo.id);
+        html = html.replace('{{isFilterView}}', 'false');
+        html = html.replace('{{originalPanelId}}', '');
+        html = html.replace('{{filterKeyword}}', '');
+        html = html.replace('{{locale}}', this.getLocale());
+
+        // Replace localization strings
+        html = this.replaceLocalizationStrings(html);
+
+        // Add empty state specific strings
+        html = html.replace('{{logviewer.emptyDesc}}', localize('logviewer.emptyDesc'));
+        html = html.replace('{{logviewer.selectFile}}', localize('logviewer.selectFile'));
+        html = html.replace('{{logviewer.supportedFormats}}', localize('logviewer.supportedFormats'));
+        html = html.replace('{{logviewer.recentFiles}}', localize('logviewer.recentFiles'));
+
+        // Replace resource URIs
+        const styleUri = panelInfo.panel.webview.asWebviewUri(
+            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'logViewer', 'logViewer.css'))
+        );
+        const scriptUri = panelInfo.panel.webview.asWebviewUri(
+            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'logViewer', 'logViewer.js'))
+        );
+        const fontAwesomeUri = panelInfo.panel.webview.asWebviewUri(
+            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'assets', 'fontawesome', 'all.min.css'))
+        );
+
+        html = html.replace('{{style.css}}', styleUri.toString());
+        html = html.replace('{{logViewer.js}}', scriptUri.toString());
+        html = html.replace('{{fontawesome.css}}', fontAwesomeUri.toString());
+
+        return html;
+    }
+
+    /**
+     * Add file to recent files list
+     * @param {string} filePath - File path
+     */
+    addToRecentFiles(filePath) {
+        // Remove if exists
+        const index = this.recentFiles.indexOf(filePath);
+        if (index > -1) {
+            this.recentFiles.splice(index, 1);
+        }
+        
+        // Add to front
+        this.recentFiles.unshift(filePath);
+        
+        // Limit size
+        if (this.recentFiles.length > this.maxRecentFiles) {
+            this.recentFiles.pop();
+        }
+    }
+
+    /**
+     * Get recent files list
+     * @returns {Array} Recent files
+     */
+    getRecentFiles() {
+        return this.recentFiles;
+    }
+
+    /**
+     * Load file into existing empty panel
+     * @param {Object} panelInfo - Existing panel info
+     * @param {string} filePath - File path to load
+     */
+    async loadFileIntoPanel(panelInfo, filePath) {
+        try {
+            // Load file
+            const success = await panelInfo.analyzer.loadFile(filePath);
+            if (!success) {
+                throw new Error('Failed to load file');
+            }
+
+            // Update panel info
+            panelInfo.filePath = filePath;
+            panelInfo.isEmptyState = false;
+
+            // Add to recent files
+            this.addToRecentFiles(filePath);
+
+            // Update panel title
+            panelInfo.panel.title = `Log: ${path.basename(filePath)}`;
+
+            // Generate new HTML with file content
+            const html = this.generateLogViewerHtml(panelInfo);
+            panelInfo.panel.webview.html = html;
+
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to open log file: ${error.message}`);
+        }
     }
 }
 

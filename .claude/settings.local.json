@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell ./install.ps1 -Force)",
+      "Bash(vsce package:*)"
+    ]
+  }
+}

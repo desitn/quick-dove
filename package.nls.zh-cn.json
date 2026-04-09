@@ -197,7 +197,12 @@
   "logviewer.encodingUtf8": "UTF-8",
   "logviewer.encodingGbk": "GBK",
   "logviewer.encodingLatin1": "Latin-1",
+  "logviewer.emptyDesc": "打开日志文件以查看和分析其内容",
+  "logviewer.selectFile": "选择日志文件",
+  "logviewer.supportedFormats": "日志过滤分层、高亮关键词、支持的格式: .log, .txt, .out, .err",
+  "logviewer.recentFiles": "最近文件",
+  "logviewer.fileNotFound": "文件未找到或无法访问",
   "view.extensionTools": "扩展工具",
-  "view.search": "本地搜索",
-  "view.logViewer": "日志分析"
+  "view.search": "搜索",
+  "view.logViewer": "日志查看器"
 }

@@ -9,8 +9,37 @@
 </head>
 <body>
     <div class="log-viewer-container" data-panel-id="{{panelId}}" data-is-filter-view="{{isFilterView}}" data-original-panel-id="{{originalPanelId}}" data-filter-keyword="{{filterKeyword}}">
-        <!-- Header -->
-        <div class="header">
+        <!-- Empty State (shown when no file is loaded) -->
+        <div class="empty-state-container {{emptyStateClass}}" id="emptyStateContainer">
+            <div class="empty-state-content">
+                <div class="empty-state-icon">
+                    <i class="fa-solid fa-file-lines"></i>
+                </div>
+                <div class="empty-state-title">{{logviewer.title}}</div>
+                <div class="empty-state-desc">{{logviewer.emptyDesc}}</div>
+                <div class="empty-state-actions">
+                    <button class="btn btn-primary" id="btnSelectLogFile">
+                        <i class="fa-solid fa-folder-open"></i> {{logviewer.selectFile}}
+                    </button>
+                </div>
+                <div class="empty-state-tips">
+                    <p>{{logviewer.supportedFormats}}</p>
+                </div>
+                <!-- Recent Files Section -->
+                <div class="recent-files-section" id="recentFilesSection">
+                    <div class="recent-files-header">
+                        <i class="fa-solid fa-clock-rotate-left"></i>
+                        <span>{{logviewer.recentFiles}}</span>
+                    </div>
+                    <div class="recent-files-list" id="recentFilesList">
+                        <!-- Recent files will be populated here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Header (hidden when empty state is shown) -->
+        <div class="header" id="headerBar" style="display: {{headerDisplay}};">
             <div class="file-info">
                 <span class="file-name">{{fileName}}</span>
                 <span class="file-stats">{{fileInfo}}</span>
@@ -35,7 +64,40 @@
         </div>
 
         <!-- Main Content -->
-        <div class="main-content">
+        <div class="main-content" style="display: {{mainContentDisplay}};">
+            <!-- Search Panel -->
+            <div class="search-panel" id="searchPanel">
+                <div class="search-header">
+                    <input type="text" class="search-input" id="searchInput" placeholder="{{logviewer.searchPlaceholder}}">
+                    <button class="btn btn-icon regex-toggle-btn" id="regexToggleBtn" title="{{logviewer.useRegex}}">
+                        <i class="fa-solid fa-asterisk"></i>
+                    </button>
+                    <input type="checkbox" id="regexToggle" class="hidden-checkbox">
+                    <button class="btn btn-icon" id="btnCloseSearch"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="search-history" id="searchHistory">
+                    <!-- Search history will be populated here -->
+                </div>
+                <div class="search-results" id="searchResults">
+                    <!-- Search results will be populated here -->
+                </div>
+            </div>
+
+            <!-- Resize Handle -->
+            <div class="resize-handle" id="resizeHandle"></div>
+
+            <!-- Filter Panel -->
+            <div class="filter-panel" id="filterPanel">
+                <div class="filter-header">
+                    <input type="text" class="filter-input" id="filterInput" placeholder="{{logviewer.filterPlaceholder}}">
+                    <button class="btn btn-icon regex-toggle-btn" id="filterRegexToggleBtn" title="{{logviewer.useRegex}}">
+                        <i class="fa-solid fa-asterisk"></i>
+                    </button>
+                    <input type="checkbox" id="filterRegexToggle" class="hidden-checkbox">
+                    <button class="btn btn-icon" id="btnCloseFilter"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            </div>
+
             <!-- Line Numbers + Content -->
             <div class="content-wrapper">
                 <div class="lines-container" id="linesContainer">
@@ -52,39 +114,6 @@
                 <div class="markbook-list" id="markbookList">
                     <!-- Bookmarks will be populated here -->
                 </div>
-            </div>
-        </div>
-
-        <!-- Search Panel -->
-        <div class="search-panel" id="searchPanel">
-            <div class="search-header">
-                <input type="text" class="search-input" id="searchInput" placeholder="{{logviewer.searchPlaceholder}}">
-                <label class="checkbox-label">
-                    <input type="checkbox" id="regexToggle">
-                    <span>{{logviewer.useRegex}}</span>
-                </label>
-                <button class="btn btn-icon" id="btnCloseSearch"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            <div class="search-history" id="searchHistory">
-                <!-- Search history will be populated here -->
-            </div>
-            <div class="search-results" id="searchResults">
-                <!-- Search results will be populated here -->
-            </div>
-        </div>
-
-        <!-- Filter Panel -->
-        <div class="filter-panel" id="filterPanel">
-            <div class="filter-header">
-                <input type="text" class="filter-input" id="filterInput" placeholder="{{logviewer.filterPlaceholder}}">
-                <label class="checkbox-label">
-                    <input type="checkbox" id="filterRegexToggle">
-                    <span>{{logviewer.useRegex}}</span>
-                </label>
-                <button class="btn btn-icon" id="btnCloseFilter"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            <div class="filter-actions">
-                <button class="btn btn-primary" id="btnApplyFilter">{{logviewer.applyFilter}}</button>
             </div>
         </div>
 
@@ -129,7 +158,7 @@
             </div>
             <div class="context-menu-separator"></div>
             <div class="context-menu-item" id="ctxHighlight">
-                <i class="fa-solid fa-circle" style="color: #ff6b6b;"></i>
+                <i class="fa-solid fa-circle highlight-red-icon"></i>
                 <span>{{logviewer.highlightAll}}</span>
             </div>
             <div class="context-menu-item" id="ctxRemoveHighlight">
@@ -149,10 +178,6 @@
             <div class="context-menu-item" id="ctxBookmark">
                 <i class="fa-solid fa-bookmark"></i>
                 <span>{{logviewer.addToMarkbook}}</span>
-            </div>
-            <div class="context-menu-item" id="ctxCopy">
-                <i class="fa-solid fa-file-code"></i>
-                <span>{{logviewer.copyPath}}</span>
             </div>
             <div class="context-menu-separator"></div>
             <div class="context-menu-item" id="ctxGotoOriginal">

@@ -184,7 +184,7 @@ const messages = {
     'search.title': 'File Search',
     'search.placeholder': 'Type to search files...',
     'search.emptyTitle': 'Start searching',
-    'search.emptyDescription': 'Global search classification UI based on Everything',
+    'search.emptyDescription': 'Everything global search categorization, please configure the http connection on first use.',
     'search.scopeLabel': 'Search Scope',
     'search.scopeGlobal': 'Global',
     'search.scopeWorkspace': 'Workspace',
@@ -245,7 +245,13 @@ const messages = {
     'logviewer.encodingAuto': 'Auto Detect',
     'logviewer.encodingUtf8': 'UTF-8',
     'logviewer.encodingGbk': 'GBK',
-    'logviewer.encodingLatin1': 'Latin-1'
+    'logviewer.encodingLatin1': 'Latin-1',
+    'logviewer.emptyDesc': 'Open a log file to view and analyze its content',
+    'logviewer.selectFile': 'Select Log File',
+    'logviewer.supportedFormats': 'Supported formats: .log, .txt, .out, .err',
+    'logviewer.recentFiles': 'Recent Files',
+    'logviewer.fileNotFound': 'File not found or inaccessible',
+    'logviewer.copyPath': 'Copy Path'
   },
   'zh-cn': {
     'noBuildCommand': '没有配置构建命令。',
@@ -430,7 +436,7 @@ const messages = {
     'search.title': '文件搜索',
     'search.placeholder': '输入关键词搜索文件...',
     'search.emptyTitle': '开始搜索',
-    'search.emptyDescription': '基于everything的PC全局搜索分类UI',
+    'search.emptyDescription': '基于everything的全局搜索分类，首次使用请先设置连接HTTP服务',
     'search.scopeLabel': '搜索范围',
     'search.scopeGlobal': '全局',
     'search.scopeWorkspace': '工作区',
@@ -491,7 +497,13 @@ const messages = {
     'logviewer.encodingAuto': '自动检测',
     'logviewer.encodingUtf8': 'UTF-8',
     'logviewer.encodingGbk': 'GBK',
-    'logviewer.encodingLatin1': 'Latin-1'
+    'logviewer.encodingLatin1': 'Latin-1',
+    'logviewer.emptyDesc': '打开日志文件以查看和分析其内容',
+    'logviewer.selectFile': '选择日志文件',
+    'logviewer.supportedFormats': '支持的格式: .log, .txt, .out, .err',
+    'logviewer.recentFiles': '最近文件',
+    'logviewer.fileNotFound': '文件未找到或无法访问',
+    'logviewer.copyPath': '复制路径'
   }
 };
 

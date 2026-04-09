@@ -904,28 +904,11 @@ function activate(context)
             let filePath = null;
             
             if (uri && uri.fsPath) {
-                // Called from context menu
-                filePath = uri.fsPath;
+                // Called from context menu with a file - directly open that file
+                await logViewerManager.openLogFile(uri.fsPath);
             } else {
-                // Called from command palette - show file picker
-                const options = {
-                    canSelectFiles: true,
-                    canSelectFolders: false,
-                    canSelectMany: false,
-                    openLabel: 'Select Log File',
-                    filters: {
-                        'Log Files': ['txt', 'log'],
-                        'All Files': ['*']
-                    }
-                };
-                const result = await vscode.window.showOpenDialog(options);
-                if (result && result.length > 0) {
-                    filePath = result[0].fsPath;
-                }
-            }
-            
-            if (filePath) {
-                await logViewerManager.openLogFile(filePath);
+                // Called from command palette or tree view - show empty panel first
+                await logViewerManager.showEmptyPanel();
             }
         } catch (error) {
             vscode.window.showErrorMessage(`Failed to open log file: ${error.message}`);

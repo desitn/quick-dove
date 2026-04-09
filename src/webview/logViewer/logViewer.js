@@ -23,6 +23,16 @@
     const toolsPanel = document.getElementById('toolsPanel');
     const contextMenu = document.getElementById('contextMenu');
     const notification = document.getElementById('notification');
+    const resizeHandle = document.getElementById('resizeHandle');
+
+    // Resize state
+    let isResizing = false;
+    let startX = 0;
+    let startWidth = 280;
+
+    // Search result navigation state
+    let selectedSearchIndex = -1;
+    let searchResultItems = [];
 
     // Initialize
     function init() {
@@ -33,13 +43,28 @@
         setupEventListeners();
         setupMessageHandlers();
         
-        // Request initial data
-        vscode.postMessage({ command: 'getBookmarks' });
-        vscode.postMessage({ command: 'getSearchHistory' });
+        // Check if in empty state (no file loaded)
+        const emptyStateContainer = document.getElementById('emptyStateContainer');
+        if (emptyStateContainer && !emptyStateContainer.classList.contains('hidden')) {
+            // Request recent files for empty state
+            vscode.postMessage({ command: 'getRecentFiles' });
+        } else {
+            // Request initial data for loaded file
+            vscode.postMessage({ command: 'getBookmarks' });
+            vscode.postMessage({ command: 'getSearchHistory' });
+        }
     }
 
     // Setup Event Listeners
     function setupEventListeners() {
+        // Empty state handlers
+        const btnSelectLogFile = document.getElementById('btnSelectLogFile');
+        if (btnSelectLogFile) {
+            btnSelectLogFile.addEventListener('click', () => {
+                vscode.postMessage({ command: 'selectLogFile' });
+            });
+        }
+
         // Toolbar buttons
         document.getElementById('btnSearch').addEventListener('click', toggleSearchPanel);
         document.getElementById('btnFilter').addEventListener('click', toggleFilterPanel);
@@ -53,11 +78,14 @@
         document.getElementById('btnCloseMarkbook').addEventListener('click', hideMarkbookPanel);
         document.getElementById('btnCloseTools').addEventListener('click', hideToolsPanel);
 
+        // Regex toggle buttons
+        document.getElementById('regexToggleBtn').addEventListener('click', toggleSearchRegex);
+        document.getElementById('filterRegexToggleBtn').addEventListener('click', toggleFilterRegex);
+
         // Search functionality
         document.getElementById('searchInput').addEventListener('keydown', handleSearchKeydown);
 
         // Filter functionality
-        document.getElementById('btnApplyFilter').addEventListener('click', applyFilter);
         document.getElementById('filterInput').addEventListener('keydown', handleFilterKeydown);
 
         // Tools functionality
@@ -93,10 +121,6 @@
             addBookmark();
             hideContextMenu();
         });
-        document.getElementById('ctxCopy').addEventListener('click', () => {
-            copySelection();
-            hideContextMenu();
-        });
         document.getElementById('ctxGotoOriginal').addEventListener('click', () => {
             syncToOriginal();
             hideContextMenu();
@@ -118,6 +142,37 @@
 
         // Text selection tracking
         document.addEventListener('selectionchange', handleSelectionChange);
+
+        // Resize handle
+        if (resizeHandle) {
+            resizeHandle.addEventListener('mousedown', startResize);
+        }
+    }
+
+    // Resize Functions
+    function startResize(e) {
+        isResizing = true;
+        startX = e.clientX;
+        startWidth = searchPanel.offsetWidth || filterPanel.offsetWidth || 280;
+        resizeHandle.classList.add('dragging');
+        document.addEventListener('mousemove', doResize);
+        document.addEventListener('mouseup', stopResize);
+        e.preventDefault();
+    }
+
+    function doResize(e) {
+        if (!isResizing) return;
+        const diff = e.clientX - startX;
+        const newWidth = Math.max(150, Math.min(500, startWidth + diff));
+        searchPanel.style.width = newWidth + 'px';
+        filterPanel.style.width = newWidth + 'px';
+    }
+
+    function stopResize() {
+        isResizing = false;
+        resizeHandle.classList.remove('dragging');
+        document.removeEventListener('mousemove', doResize);
+        document.removeEventListener('mouseup', stopResize);
     }
 
     // Setup Message Handlers
@@ -153,12 +208,84 @@
                 case 'updateLines':
                     updateLinesContent(message.lines);
                     break;
+                case 'recentFiles':
+                    displayRecentFiles(message.files);
+                    break;
+                case 'fileLoaded':
+                    handleFileLoaded(message);
+                    break;
             }
         });
     }
 
+    // Display recent files in empty state
+    function displayRecentFiles(files) {
+        const recentFilesSection = document.getElementById('recentFilesSection');
+        const recentFilesList = document.getElementById('recentFilesList');
+        
+        if (!recentFilesSection || !recentFilesList) return;
+        
+        if (!files || files.length === 0) {
+            recentFilesSection.classList.add('hidden');
+            return;
+        }
+        
+        recentFilesSection.classList.remove('hidden');
+        
+        const html = files.map(file => {
+            const fileName = file.split(/[\\/]/).pop();
+            return `
+                <div class="recent-file-item" data-file-path="${escapeHtml(file)}">
+                    <span class="file-icon"><i class="fa-solid fa-file-lines"></i></span>
+                    <span class="file-name">${escapeHtml(fileName)}</span>
+                    <span class="file-path">${escapeHtml(file)}</span>
+                </div>
+            `;
+        }).join('');
+        
+        recentFilesList.innerHTML = html;
+        
+        // Add click handlers
+        recentFilesList.querySelectorAll('.recent-file-item').forEach(item => {
+            item.addEventListener('click', () => {
+                vscode.postMessage({
+                    command: 'openRecentFile',
+                    filePath: item.dataset.filePath
+                });
+            });
+        });
+    }
+
+    // Handle file loaded (switch from empty state to file view)
+    function handleFileLoaded(message) {
+        const emptyStateContainer = document.getElementById('emptyStateContainer');
+        const headerBar = document.getElementById('headerBar');
+        const mainContent = document.querySelector('.main-content');
+
+        // Hide empty state
+        if (emptyStateContainer) {
+            emptyStateContainer.classList.add('hidden');
+        }
+
+        // Show header and main content
+        if (headerBar) {
+            headerBar.style.display = 'flex';
+        }
+        if (mainContent) {
+            mainContent.style.display = 'flex';
+        }
+
+        // Request bookmarks and search history
+        vscode.postMessage({ command: 'getBookmarks' });
+        vscode.postMessage({ command: 'getSearchHistory' });
+    }
+
     // Toolbar Functions
     function toggleSearchPanel() {
+        // Close filter panel when opening search panel (mutual exclusion)
+        if (filterPanel.classList.contains('visible')) {
+            filterPanel.classList.remove('visible');
+        }
         searchPanel.classList.toggle('visible');
         if (searchPanel.classList.contains('visible')) {
             document.getElementById('searchInput').focus();
@@ -167,9 +294,25 @@
 
     function hideSearchPanel() {
         searchPanel.classList.remove('visible');
+        // Clear search result selection
+        selectedSearchIndex = -1;
+        searchResultItems.forEach(item => item.classList.remove('selected'));
+    }
+
+    function toggleSearchRegex() {
+        const checkbox = document.getElementById('regexToggle');
+        const btn = document.getElementById('regexToggleBtn');
+        checkbox.checked = !checkbox.checked;
+        btn.classList.toggle('active', checkbox.checked);
     }
 
     function toggleFilterPanel() {
+        // Close search panel when opening filter panel (mutual exclusion)
+        if (searchPanel.classList.contains('visible')) {
+            searchPanel.classList.remove('visible');
+            selectedSearchIndex = -1;
+            searchResultItems.forEach(item => item.classList.remove('selected'));
+        }
         filterPanel.classList.toggle('visible');
         if (filterPanel.classList.contains('visible')) {
             document.getElementById('filterInput').focus();
@@ -178,6 +321,13 @@
 
     function hideFilterPanel() {
         filterPanel.classList.remove('visible');
+    }
+
+    function toggleFilterRegex() {
+        const checkbox = document.getElementById('filterRegexToggle');
+        const btn = document.getElementById('filterRegexToggleBtn');
+        checkbox.checked = !checkbox.checked;
+        btn.classList.toggle('active', checkbox.checked);
     }
 
     function toggleMarkbookPanel() {
@@ -226,28 +376,64 @@
 
         if (totalCount === 0) {
             resultsContainer.innerHTML = '<div class="empty-state"><div class="empty-state-text">No results found</div></div>';
+            searchResultItems = [];
+            selectedSearchIndex = -1;
             return;
         }
 
         const html = results.map(result => `
             <div class="search-result-item" data-line="${result.lineNumber}">
-                <span class="search-result-line">Line ${result.lineNumber}</span>
+                <span class="search-result-line">${result.lineNumber}</span>
                 <span class="search-result-text">${escapeHtml(result.text)}</span>
-                <div class="search-result-actions">
-                    <button class="btn btn-icon" onclick="gotoLine(${result.lineNumber})">⬆</button>
-                </div>
             </div>
         `).join('');
 
         resultsContainer.innerHTML = html;
 
+        // Store result items for keyboard navigation
+        searchResultItems = Array.from(resultsContainer.querySelectorAll('.search-result-item'));
+        selectedSearchIndex = -1;
+
         // Add click handlers to results
-        resultsContainer.querySelectorAll('.search-result-item').forEach(item => {
+        searchResultItems.forEach((item, index) => {
             item.addEventListener('click', () => {
+                // Update keyboard navigation index
+                if (selectedSearchIndex >= 0 && searchResultItems[selectedSearchIndex]) {
+                    searchResultItems[selectedSearchIndex].classList.remove('selected');
+                }
+                selectedSearchIndex = index;
+                item.classList.add('selected');
+
                 const lineNumber = parseInt(item.dataset.line);
                 gotoLine(lineNumber);
             });
         });
+    }
+
+    function navigateSearchResults(direction) {
+        if (searchResultItems.length === 0) return;
+
+        // Remove previous selection highlight
+        if (selectedSearchIndex >= 0 && searchResultItems[selectedSearchIndex]) {
+            searchResultItems[selectedSearchIndex].classList.remove('selected');
+        }
+
+        // Calculate new index
+        if (direction === 1) {
+            selectedSearchIndex = (selectedSearchIndex + 1) % searchResultItems.length;
+        } else {
+            selectedSearchIndex = selectedSearchIndex <= 0 ? searchResultItems.length - 1 : selectedSearchIndex - 1;
+        }
+
+        // Highlight new selection and auto jump to line
+        const selectedItem = searchResultItems[selectedSearchIndex];
+        if (selectedItem) {
+            selectedItem.classList.add('selected');
+            selectedItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            // Auto jump to the line
+            const lineNumber = parseInt(selectedItem.dataset.line);
+            gotoLine(lineNumber);
+        }
     }
 
     function displaySearchHistory(history) {
@@ -273,8 +459,12 @@
     }
 
     function searchSelection() {
-        if (currentSelection) {
-            document.getElementById('searchInput').value = currentSelection;
+        // Use selection stored in context menu
+        const selectionFromMenu = contextMenu.dataset.selection;
+        const keywordToSearch = selectionFromMenu || currentSelection;
+
+        if (keywordToSearch) {
+            document.getElementById('searchInput').value = keywordToSearch;
             showSearchPanel();
             performSearch();
         }
@@ -304,8 +494,12 @@
     }
 
     function filterSelection() {
-        if (currentSelection) {
-            document.getElementById('filterInput').value = currentSelection;
+        // Use selection stored in context menu
+        const selectionFromMenu = contextMenu.dataset.selection;
+        const keywordToFilter = selectionFromMenu || currentSelection;
+
+        if (keywordToFilter) {
+            document.getElementById('filterInput').value = keywordToFilter;
             showFilterPanel();
         }
     }
@@ -332,10 +526,14 @@
     }
 
     function removeHighlight() {
-        if (currentSelection) {
+        // Use selection stored in context menu (same pattern as highlightSelection)
+        const selectionFromMenu = contextMenu.dataset.selection;
+        const keywordToRemove = selectionFromMenu || currentSelection;
+
+        if (keywordToRemove) {
             vscode.postMessage({
                 command: 'removeHighlight',
-                keyword: currentSelection
+                keyword: keywordToRemove
             });
         }
     }
@@ -639,16 +837,6 @@
     }
 
     // Copy Function
-    function copySelection() {
-        if (currentSelection) {
-            navigator.clipboard.writeText(currentSelection).then(() => {
-                showNotification('Copied to clipboard', 'success');
-            }).catch(() => {
-                showNotification('Failed to copy', 'error');
-            });
-        }
-    }
-
     // Copy current selection (for context menu)
     function copyCurrentSelection() {
         // First try to get from context menu stored selection (captured during right-click)
@@ -678,6 +866,24 @@
 
     // Keyboard shortcuts handler
     function handleKeyboardShortcuts(e) {
+        // Handle search result navigation when search panel is visible
+        if (searchPanel.classList.contains('visible') && searchResultItems.length > 0) {
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                navigateSearchResults(e.key === 'ArrowDown' ? 1 : -1);
+                return;
+            }
+            if (e.key === 'Enter' && selectedSearchIndex >= 0) {
+                e.preventDefault();
+                const item = searchResultItems[selectedSearchIndex];
+                if (item) {
+                    const lineNumber = parseInt(item.dataset.line);
+                    gotoLine(lineNumber);
+                }
+                return;
+            }
+        }
+
         // Don't trigger shortcuts when typing in input fields
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
             return;
