@@ -1,5 +1,5 @@
 {
-  "name": "quick-firmware-plus",
+  "name": "quick-dove",
   "displayName": "%extension.displayName%",
   "description": "%extension.description%",
   "version": "0.2.6",
@@ -11,7 +11,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Le-destin-jere/quick-firmware.git"
+    "url": "https://github.com/desitn/quick-dove"
   },
   "engines": {
     "vscode": "^1.74.0"
@@ -47,19 +47,19 @@
           "id": "firmware-explorer",
           "name": "%view.firmwareList%",
           "icon": "$(list-tree)",
-          "contextualTitle": "Quick Firmware +"
+          "contextualTitle": "Quick Dove"
         },
         {
           "id": "firmware-devices",
           "name": "%view.deviceList%",
           "icon": "$(list-tree)",
-          "contextualTitle": "Quick Firmware +"
+          "contextualTitle": "Quick Dove"
         },
         {
           "id": "firmware-settings",
           "name": "%view.settings%",
           "icon": "$(gear)",
-          "contextualTitle": "Quick Firmware +"
+          "contextualTitle": "Quick Dove"
         }
       ],
       "extension-tools": [
@@ -198,7 +198,7 @@
       ]
     },
     "configuration": {
-      "title": "Quick Firmware +",
+      "title": "Quick Dove",
       "properties": {
         "quickFirmwarePlus.language": {
           "type": "string",

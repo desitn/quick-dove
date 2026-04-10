@@ -42,7 +42,7 @@ function debugLog(module, message, data) {
     
     // Also log to output channel if available
     try {
-        const outputChannel = vscode.window.createOutputChannel('Quick Firmware+ Debug');
+        const outputChannel = vscode.window.createOutputChannel('Quick Dove Debug');
         outputChannel.appendLine(logMessage);
         if (data !== undefined) {
             outputChannel.appendLine(typeof data === 'object' ? JSON.stringify(data, null, 2) : String(data));

@@ -36,6 +36,11 @@
                     <span class="nav-text">{{settings.comPort}}</span>
                     <span class="nav-indicator"></span>
                 </a>
+                <a class="nav-item" data-section="agent">
+                    <i class="fa-solid fa-robot"></i>
+                    <span class="nav-text">{{settings.agentIntegration}}</span>
+                    <span class="nav-indicator"></span>
+                </a>
                 <a class="nav-item" data-section="language">
                     <i class="fa-solid fa-language"></i>
                     <span class="nav-text">{{settings.language}}</span>
@@ -181,6 +186,111 @@
                                 <option value="dark">{{settings.themeDark}}</option>
                                 <option value="light">{{settings.themeLight}}</option>
                             </select>
+                        </div>
+                        <div class="config-item">
+                            <label>{{settings.accentColorLabel}}</label>
+                            <div class="description">{{settings.accentColorDesc}}</div>
+                            <select id="accentColorSelect" data-modified="false">
+                                <option value="blue">{{settings.accentBlue}}</option>
+                                <option value="green">{{settings.accentGreen}}</option>
+                                <option value="purple">{{settings.accentPurple}}</option>
+                                <option value="orange">{{settings.accentOrange}}</option>
+                                <option value="pink">{{settings.accentPink}}</option>
+                            </select>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Agent Integration Section -->
+                <section id="agent" class="content-section">
+                    <!-- Environment Setup -->
+                    <div class="settings-section">
+                        <h3><i class="fa-solid fa-terminal"></i> {{settings.envSetup}}</h3>
+                        <div class="config-item">
+                            <div class="description">{{settings.envSetupDesc}}</div>
+
+                            <!-- Installation Status -->
+                            <div class="install-status-container">
+                                <div class="install-status-header">
+                                    <span class="status-label">{{settings.installStatus}}</span>
+                                    <button class="btn btn-sm btn-secondary" id="btnCheckEnvStatus" onclick="checkEnvStatus()">
+                                        <i class="fa-solid fa-sync-alt"></i> {{settings.checkStatus}}
+                                    </button>
+                                </div>
+                                <div class="install-status-content" id="envInstallStatus">
+                                    <div class="status-loading">
+                                        <i class="fa-solid fa-spinner fa-spin"></i> {{settings.checkingStatus}}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Install/Uninstall Buttons -->
+                            <div class="action-buttons-row">
+                                <button class="btn btn-primary" id="btnRunEnvSetup" onclick="runEnvSetup()">
+                                    <i class="fa-solid fa-play"></i> {{settings.runEnvSetup}}
+                                </button>
+                                <button class="btn btn-danger" id="btnUninstallEnv" onclick="uninstallEnv()">
+                                    <i class="fa-solid fa-trash"></i> {{settings.uninstall}}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Skill Integration -->
+                    <div class="settings-section">
+                        <h3><i class="fa-solid fa-robot"></i> {{settings.skillIntegration}}</h3>
+                        <div class="config-item">
+                            <div class="description">{{settings.skillIntegrationDesc}}</div>
+
+                            <!-- Skill Installation Status -->
+                            <div class="install-status-container">
+                                <div class="install-status-header">
+                                    <span class="status-label">{{settings.installStatus}}</span>
+                                </div>
+                                <div class="install-status-content" id="skillInstallStatus">
+                                    <!-- Claude Code Status -->
+                                    <div class="skill-status-item">
+                                        <div class="skill-status-header">
+                                            <i class="fa-solid fa-robot"></i>
+                                            <span>Claude Code</span>
+                                        </div>
+                                        <div class="skill-status-body" id="claudeCodeStatus">
+                                            <div class="status-loading">
+                                                <i class="fa-solid fa-spinner fa-spin"></i> {{settings.checkingStatus}}
+                                            </div>
+                                        </div>
+                                        <div class="skill-status-actions">
+                                            <button class="btn btn-sm btn-secondary" id="btnInstallClaudeCode" onclick="installToClaudeCode()">
+                                                <i class="fa-solid fa-download"></i> {{settings.install}}
+                                            </button>
+                                            <button class="btn btn-sm btn-danger" id="btnUninstallClaudeCode" onclick="uninstallFromClaudeCode()">
+                                                <i class="fa-solid fa-trash"></i> {{settings.uninstall}}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Cline Status -->
+                                    <div class="skill-status-item">
+                                        <div class="skill-status-header">
+                                            <i class="fa-solid fa-code"></i>
+                                            <span>Cline</span>
+                                        </div>
+                                        <div class="skill-status-body" id="clineStatus">
+                                            <div class="status-loading">
+                                                <i class="fa-solid fa-spinner fa-spin"></i> {{settings.checkingStatus}}
+                                            </div>
+                                        </div>
+                                        <div class="skill-status-actions">
+                                            <button class="btn btn-sm btn-secondary" id="btnInstallCline" onclick="installToCline()">
+                                                <i class="fa-solid fa-download"></i> {{settings.install}}
+                                            </button>
+                                            <button class="btn btn-sm btn-danger" id="btnUninstallCline" onclick="uninstallFromCline()">
+                                                <i class="fa-solid fa-trash"></i> {{settings.uninstall}}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </section>

@@ -1,6 +1,6 @@
 # Webview Module
 
-This module provides all webview-based user interfaces for Quick Firmware + extension.
+This module provides all webview-based user interfaces for Quick Dove extension.
 
 ## Directory Structure
 
@@ -367,7 +367,7 @@ Add to `package.json`:
             {
                 "command": "firmwareDownloader.showYourModule",
                 "title": "%yourModule.title%",
-                "category": "Quick Firmware +"
+                "category": "Quick Dove"
             }
         ]
     }
@@ -476,7 +476,7 @@ CSS automatically responds:
 To test a new webview module:
 
 1. Open VS Code with extension loaded
-2. Execute command: `Quick Firmware +: Show [Your Module]`
+2. Execute command: `Quick Dove: Show [Your Module]`
 3. Verify:
    - Page renders correctly
    - Theme switching works (dark/light/auto)

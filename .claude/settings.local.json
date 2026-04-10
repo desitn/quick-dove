@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(powershell ./install.ps1 -Force)",
-      "Bash(vsce package:*)"
+      "Bash(vsce package:*)",
+      "WebFetch(domain:docs.cline.bot)",
+      "WebSearch"
     ]
   }
 }

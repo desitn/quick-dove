@@ -1,5 +1,5 @@
 #!/usr/bin/env pwsh
-# VS Code Extension Install Script for quick-firmware-plus
+# VS Code Extension Install Script for quick-dove
 # Usage: .\install.ps1 [-VsixPath <path>] [-System] [-Force]
 
 param(
@@ -10,9 +10,9 @@ param(
 )
 
 # Extension info
-$ExtensionId = "destin-zhang.quick-firmware-plus"
-$ExtensionName = "quick-firmware-plus"
-$DefaultVsixName = "quick-firmware-plus-0.2.6.vsix"
+$ExtensionId = "destin-zhang.quick-dove"
+$ExtensionName = "quick-dove"
+$DefaultVsixName = "quick-dove-0.2.6.vsix"
 
 # Colors for output
 $ColorSuccess = "Green"

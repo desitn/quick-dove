@@ -1,6 +1,6 @@
 /**
  * @description: Configuration Manager
- *               Unified configuration management using firmware-cli.json only
+ *               Unified configuration management using dove.json only
  *               No dependency on VS Code settings
  * @author: destin.zhang@quectel.com
  */
@@ -21,6 +21,7 @@ const DEFAULT_CONFIG = {
     defaultComPort: '',
     language: 'auto',
     theme: 'auto',
+    accentColor: 'blue',
     search: {
         port: 8080,
         scope: 'global',
@@ -31,7 +32,7 @@ const DEFAULT_CONFIG = {
 
 /**
  * Configuration Manager Class
- * Manages all configuration through firmware-cli.json file only
+ * Manages all configuration through dove.json file only
  */
 class ConfigManager {
     constructor() {
@@ -60,7 +61,7 @@ class ConfigManager {
         const workspace = vscode.workspace.workspaceFolders;
         if (workspace && workspace.length > 0) {
             this._workspacePath = workspace[0].uri.fsPath;
-            this._configPath = path.join(this._workspacePath, 'firmware-cli.json');
+            this._configPath = path.join(this._workspacePath, 'dove.json');
         } else {
             this._workspacePath = null;
             this._configPath = null;
@@ -69,7 +70,7 @@ class ConfigManager {
 
     /**
      * Get configuration file path
-     * @returns {string|null} Path to firmware-cli.json or null if no workspace
+     * @returns {string|null} Path to dove.json or null if no workspace
      */
     getConfigPath() {
         return this._configPath;
@@ -273,7 +274,7 @@ class ConfigManager {
     }
 
     /**
-     * Get active build command (for firmware-cli)
+     * Get active build command (for dove)
      * @returns {string} Active build command string
      */
     getActiveBuildCommand() {
@@ -360,6 +361,23 @@ class ConfigManager {
      */
     setTheme(theme) {
         return this.set('theme', theme);
+    }
+
+    /**
+     * Get accent color setting
+     * @returns {string} Accent color setting (blue/green/purple/orange/pink)
+     */
+    getAccentColor() {
+        return this.get('accentColor', 'blue');
+    }
+
+    /**
+     * Set accent color
+     * @param {string} accentColor - Accent color setting (blue/green/purple/orange/pink)
+     * @returns {boolean} Success status
+     */
+    setAccentColor(accentColor) {
+        return this.set('accentColor', accentColor);
     }
 
     /**

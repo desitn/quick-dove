@@ -6,9 +6,7 @@ tools/*.log
 tools/detect_dl/*
 tools/ecflashtool/*
 tools/pacdownload/*
-firmware+.ini
 *.vsix
 quectel_build/
 node_modules
-firmware-cli.json
-everything-sidebar-7ree
+dove.json

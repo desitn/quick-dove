@@ -170,7 +170,8 @@ class WebviewManager {
         
         // Apply effective theme to HTML
         // Note: {{locale}} was already replaced by loadTemplate(), so use actual locale value
-        html = html.replace(`<html lang="${locale}">`, `<html lang="${locale}" data-theme="${effectiveTheme}">`);
+        const accentColor = currentConfig.accentColor || 'blue';
+        html = html.replace(`<html lang="${locale}">`, `<html lang="${locale}" data-theme="${effectiveTheme}" data-accent="${accentColor}">`);
         
         return html;
     }
@@ -252,8 +253,21 @@ class WebviewManager {
                             command: 'configData',
                             config: config,
                             configFilePath: configManager.getConfigPath(),
-                            effectiveTheme: effectiveTheme
+                            effectiveTheme: effectiveTheme,
+                            localizedStrings: {
+                                runEnvSetup: localize('settings.runEnvSetup'),
+                                uninstall: localize('settings.uninstall'),
+                                installing: localize('settings.installing'),
+                                uninstalling: localize('settings.uninstalling'),
+                                checkingStatus: localize('settings.checkingStatus'),
+                                checkStatus: localize('settings.checkStatus'),
+                                install: localize('settings.install')
+                            }
                         });
+                        // Also check initial installation status
+                        this.checkEnvStatus();
+                        this.checkSkillStatus('claude-code');
+                        this.checkSkillStatus('cline');
                         return;
                     case 'getEffectiveTheme':
                         // Send effective theme for auto mode
@@ -304,9 +318,10 @@ class WebviewManager {
                             buildGitBashPath: message.config.buildGitBashPath,
                             defaultComPort: message.config.defaultComPort,
                             language: message.config.language,
-                            theme: message.config.theme
+                            theme: message.config.theme,
+                            accentColor: message.config.accentColor
                         };
-                        
+
                         const success = configManager.setMultiple(updates);
                         if (success) {
                             // Apply theme if changed
@@ -315,6 +330,13 @@ class WebviewManager {
                                 this.settingsPanel.webview.postMessage({
                                     command: 'themeChanged',
                                     theme: effectiveTheme
+                                });
+                            }
+                            // Apply accent color if changed
+                            if (updates.accentColor) {
+                                this.settingsPanel.webview.postMessage({
+                                    command: 'accentColorChanged',
+                                    accentColor: updates.accentColor
                                 });
                             }
                             this.settingsPanel.webview.postMessage({
@@ -352,7 +374,7 @@ class WebviewManager {
                         }
                         return;
                     case 'openConfigFile':
-                        // Open firmware-cli.json in editor
+                        // Open dove.json in editor
                         const configPath = configManager.getConfigPath();
                         if (configPath && fs.existsSync(configPath)) {
                             const doc = await vscode.workspace.openTextDocument(configPath);
@@ -360,6 +382,30 @@ class WebviewManager {
                         } else {
                             vscode.window.showErrorMessage(localize('settings.configFileNotFound'));
                         }
+                        return;
+                    case 'runEnvSetup':
+                        // Run environment setup script
+                        await this.runEnvSetup();
+                        return;
+                    case 'uninstallEnv':
+                        // Uninstall dove from PATH
+                        await this.uninstallEnv();
+                        return;
+                    case 'checkEnvStatus':
+                        // Check environment installation status
+                        await this.checkEnvStatus();
+                        return;
+                    case 'installSkill':
+                        // Install skill to specified agent
+                        await this.installSkill(message.agent);
+                        return;
+                    case 'uninstallSkill':
+                        // Uninstall skill from specified agent
+                        await this.uninstallSkill(message.agent);
+                        return;
+                    case 'checkSkillStatus':
+                        // Check skill installation status for specified agent
+                        await this.checkSkillStatus(message.agent);
                         return;
                     case 'selectScriptFile':
                         // Select script file for build command
@@ -500,7 +546,8 @@ class WebviewManager {
         
         // Apply effective theme to HTML
         // Note: {{locale}} was already replaced by loadTemplate(), so use actual locale value
-        html = html.replace(`<html lang="${locale}">`, `<html lang="${locale}" data-theme="${effectiveTheme}">`);
+        const accentColor = currentConfig.accentColor || 'blue';
+        html = html.replace(`<html lang="${locale}">`, `<html lang="${locale}" data-theme="${effectiveTheme}" data-accent="${accentColor}">`);
         
         return html;
     }
@@ -519,6 +566,609 @@ class WebviewManager {
                 });
             }
         }, 500);
+    }
+
+    /**
+     * Run environment setup script
+     */
+    async runEnvSetup() {
+        const extensionPath = this.context.extensionPath;
+        const packageJson = require(path.join(extensionPath, 'package.json'));
+        const extensionVersion = packageJson.version;
+        const extensionName = packageJson.name;
+
+        // Get extension info for versioned path tracking
+        const versionedDirName = `${extensionName}-${extensionVersion}`;
+
+        // Check for old versions first
+        const oldVersions = await this.findOldEnvVersions(extensionName, extensionVersion);
+
+        if (oldVersions.length > 0) {
+            // Uninstall old versions before installing new one
+            for (const oldVersion of oldVersions) {
+                await this.uninstallEnvVersion(oldVersion.path);
+            }
+        }
+
+        const initScript = path.join(extensionPath, 'dove', 'env', 'init.ps1');
+
+        if (!fs.existsSync(initScript)) {
+            this.settingsPanel.webview.postMessage({
+                command: 'envSetupResult',
+                success: false,
+                message: localize('settings.envSetupFailed') + ': Environment setup script not found'
+            });
+            return;
+        }
+
+        try {
+            // Run PowerShell script
+            const { exec } = require('child_process');
+            const command = `powershell -ExecutionPolicy Bypass -File "${initScript}"`;
+
+            exec(command, { cwd: path.join(extensionPath, 'dove', 'env') }, (error, stdout, stderr) => {
+                if (error) {
+                    this.settingsPanel.webview.postMessage({
+                        command: 'envSetupResult',
+                        success: false,
+                        message: localize('settings.envSetupFailed') + ': ' + error.message
+                    });
+                    return;
+                }
+
+                // Store installed version info in global state
+                this.context.globalState.update('quickFirmwarePlus.envInstalledVersion', {
+                    version: extensionVersion,
+                    extensionName: extensionName,
+                    path: path.join(extensionPath, 'dove'),
+                    installedAt: new Date().toISOString()
+                });
+
+                // Note: VSCode terminal environment is auto-configured by extension
+                // via environmentVariableCollection API - no terminal restart needed
+                const vscodeNote = '\n\n(' + localize('settings.vscodeTerminalNote') + ')';
+                this.settingsPanel.webview.postMessage({
+                    command: 'envSetupResult',
+                    success: true,
+                    message: localize('settings.envSetupSuccess') + (oldVersions.length > 0 ? ' (' + localize('settings.oldVersionFound') + ')' : '') + vscodeNote
+                });
+            });
+        } catch (error) {
+            this.settingsPanel.webview.postMessage({
+                command: 'envSetupResult',
+                success: false,
+                message: localize('settings.envSetupFailed') + ': ' + error.message
+            });
+        }
+    }
+
+    /**
+     * Find old environment versions installed
+     * Uses same cleaning logic as fix_path.ps1
+     */
+    async findOldEnvVersions(currentExtensionName, currentVersion) {
+        const oldVersions = [];
+        const userHome = process.env.USERPROFILE || process.env.HOME;
+
+        // Use PowerShell to get User PATH from registry (like fix_path.ps1)
+        const { exec } = require('child_process');
+        const command = `powershell -Command "[Environment]::GetEnvironmentVariable('PATH', 'User')"`;
+
+        try {
+            const userPath = await new Promise((resolve) => {
+                exec(command, (error, stdout) => {
+                    if (error) {
+                        // Fallback to process PATH
+                        resolve(process.env.PATH || '');
+                    } else {
+                        resolve(stdout.trim());
+                    }
+                });
+            });
+
+            // Clean PATH entries (remove quotes, empty entries)
+            const cleanedPaths = this.cleanPathString(userPath);
+
+            for (const pathPart of cleanedPaths) {
+                // Check if this is a dove path from our extension
+                if (pathPart.includes('dove') && pathPart.includes('quick-dove')) {
+                    // Extract version info from path if possible
+                    const versionMatch = pathPart.match(/quick-dove-(\d+\.\d+\.\d+)/);
+                    if (versionMatch) {
+                        const foundVersion = versionMatch[1];
+                        if (foundVersion !== currentVersion) {
+                            oldVersions.push({
+                                version: foundVersion,
+                                path: pathPart
+                            });
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            // Fallback to process PATH with cleaning
+            const currentPath = process.env.PATH || '';
+            const cleanedPaths = this.cleanPathString(currentPath);
+
+            for (const pathPart of cleanedPaths) {
+                if (pathPart.includes('dove') && pathPart.includes('quick-dove')) {
+                    const versionMatch = pathPart.match(/quick-dove-(\d+\.\d+\.\d+)/);
+                    if (versionMatch) {
+                        const foundVersion = versionMatch[1];
+                        if (foundVersion !== currentVersion) {
+                            oldVersions.push({
+                                version: foundVersion,
+                                path: pathPart
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        // Also check global state for previous installations
+        const installedInfo = this.context.globalState.get('quickFirmwarePlus.envInstalledVersion');
+        if (installedInfo && installedInfo.version !== currentVersion) {
+            if (!oldVersions.find(v => v.version === installedInfo.version)) {
+                oldVersions.push({
+                    version: installedInfo.version,
+                    path: installedInfo.path
+                });
+            }
+        }
+
+        return oldVersions;
+    }
+
+    /**
+     * Uninstall a specific environment version from PATH
+     * Uses same cleaning logic as fix_path.ps1
+     */
+    async uninstallEnvVersion(firmwareCliPath) {
+        try {
+            // Use PowerShell to remove from PATH with proper cleaning
+            const { exec } = require('child_process');
+            // Only escape single quotes for PowerShell
+            const escapedPath = firmwareCliPath.replace(/'/g, "''");
+            // PowerShell's -ne is case-insensitive by default
+            const command = `powershell -Command "$currPath = [Environment]::GetEnvironmentVariable('PATH', 'User'); $removePath = '${escapedPath}'; $cleanedParts = @($currPath -split ';' | ForEach-Object { $p = $_.Trim().Trim('"'); if (-not [string]::IsNullOrWhiteSpace($p) -and $p -ne $removePath) { $p } }); $newPath = $cleanedParts -join ';'; [Environment]::SetEnvironmentVariable('PATH', $newPath, 'User')"`;
+
+            return new Promise((resolve) => {
+                exec(command, (error) => {
+                    if (error) {
+                        console.error('Failed to uninstall old version:', error);
+                    }
+                    resolve();
+                });
+            });
+        } catch (error) {
+            console.error('Failed to uninstall old version:', error);
+        }
+    }
+
+    /**
+     * Uninstall dove from system PATH
+     * Uses same cleaning logic as fix_path.ps1 to properly match and remove paths
+     */
+    async uninstallEnv() {
+        const extensionPath = this.context.extensionPath;
+        const firmwareCliDir = path.join(extensionPath, 'dove');
+
+        try {
+            // Run PowerShell to clean PATH and remove entry
+            const { exec } = require('child_process');
+            // Only escape single quotes for PowerShell
+            const escapedPath = firmwareCliDir.replace(/'/g, "''");
+            // PowerShell's -ne is case-insensitive by default, so no need for .ToLower()
+            const command = `powershell -Command "$currPath = [Environment]::GetEnvironmentVariable('PATH', 'User'); $removePath = '${escapedPath}'; $cleanedParts = @($currPath -split ';' | ForEach-Object { $p = $_.Trim().Trim('"'); if (-not [string]::IsNullOrWhiteSpace($p) -and $p -ne $removePath) { $p } }); $newPath = $cleanedParts -join ';'; [Environment]::SetEnvironmentVariable('PATH', $newPath, 'User'); Write-Output 'Done'"`;
+
+            exec(command, (error, stdout, stderr) => {
+                if (error) {
+                    this.settingsPanel.webview.postMessage({
+                        command: 'envUninstallResult',
+                        success: false,
+                        message: localize('settings.uninstallFailed') + ': ' + error.message
+                    });
+                    return;
+                }
+
+                // Clear global state
+                this.context.globalState.update('quickFirmwarePlus.envInstalledVersion', undefined);
+
+                this.settingsPanel.webview.postMessage({
+                    command: 'envUninstallResult',
+                    success: true,
+                    message: localize('settings.uninstallSuccess')
+                });
+            });
+        } catch (error) {
+            this.settingsPanel.webview.postMessage({
+                command: 'envUninstallResult',
+                success: false,
+                message: localize('settings.uninstallFailed') + ': ' + error.message
+            });
+        }
+    }
+
+    /**
+     * Clean PATH string by removing quotes and empty entries
+     * Similar to fix_path.ps1 logic
+     * @param {string} pathString - PATH string to clean
+     * @returns {string[]} - Array of cleaned paths
+     */
+    cleanPathString(pathString) {
+        if (!pathString) return [];
+        return pathString.split(';')
+            .map(p => p.trim().replace(/^"|"$/g, '')) // Remove quotes from both ends
+            .filter(p => p.length > 0); // Remove empty entries
+    }
+
+    /**
+     * Normalize path for comparison (handle case sensitivity and slashes)
+     * @param {string} path - Path to normalize
+     * @returns {string} - Normalized path
+     */
+    normalizePath(path) {
+        if (!path) return '';
+        return path.trim().replace(/^"|"$/g, '').toLowerCase().replace(/\\/g, '/');
+    }
+
+    /**
+     * Check environment installation status
+     */
+    async checkEnvStatus() {
+        const extensionPath = this.context.extensionPath;
+        const packageJson = require(path.join(extensionPath, 'package.json'));
+        const extensionVersion = packageJson.version;
+        const extensionName = packageJson.name;
+        const firmwareCliDir = path.join(extensionPath, 'dove');
+
+        // Use PowerShell to get User PATH from registry (like fix_path.ps1)
+        // This ensures we get the actual stored PATH, not the process PATH
+        const { exec } = require('child_process');
+        const command = `powershell -Command "[Environment]::GetEnvironmentVariable('PATH', 'User')"`;
+
+        try {
+            const userPath = await new Promise((resolve) => {
+                exec(command, (error, stdout) => {
+                    if (error) {
+                        // Fallback to process PATH if PowerShell fails
+                        resolve(process.env.PATH || '');
+                    } else {
+                        resolve(stdout.trim());
+                    }
+                });
+            });
+
+            // Clean and normalize paths for comparison (like fix_path.ps1)
+            const cleanedPaths = this.cleanPathString(userPath);
+            const normalizedFirmwareCliDir = this.normalizePath(firmwareCliDir);
+            const isInPath = cleanedPaths.some(p => this.normalizePath(p) === normalizedFirmwareCliDir);
+
+            // Check for old versions
+            const oldVersions = await this.findOldEnvVersions(extensionName, extensionVersion);
+
+            // Get stored installation info
+            const installedInfo = this.context.globalState.get('quickFirmwarePlus.envInstalledVersion');
+
+            this.settingsPanel.webview.postMessage({
+                command: 'envStatusResult',
+                installed: isInPath,
+                path: firmwareCliDir,
+                version: extensionVersion,
+                extensionName: `${extensionName} v${extensionVersion}`,
+                hasOldVersion: oldVersions.length > 0,
+                oldVersions: oldVersions.map(v => `${v.path} (v${v.version})`)
+            });
+        } catch (error) {
+            // Fallback: use process PATH with cleaning
+            const currentPath = process.env.PATH || '';
+            const cleanedPaths = this.cleanPathString(currentPath);
+            const normalizedFirmwareCliDir = this.normalizePath(firmwareCliDir);
+            const isInPath = cleanedPaths.some(p => this.normalizePath(p) === normalizedFirmwareCliDir);
+
+            const oldVersions = await this.findOldEnvVersions(extensionName, extensionVersion);
+            const installedInfo = this.context.globalState.get('quickFirmwarePlus.envInstalledVersion');
+
+            this.settingsPanel.webview.postMessage({
+                command: 'envStatusResult',
+                installed: isInPath,
+                path: firmwareCliDir,
+                version: extensionVersion,
+                extensionName: `${extensionName} v${extensionVersion}`,
+                hasOldVersion: oldVersions.length > 0,
+                oldVersions: oldVersions.map(v => `${v.path} (v${v.version})`)
+            });
+        }
+    }
+
+    /**
+     * Install skill to specified agent
+     * @param {string} agent - Agent name ('claude-code' or 'cline')
+     */
+    async installSkill(agent) {
+        const extensionPath = this.context.extensionPath;
+        const packageJson = require(path.join(extensionPath, 'package.json'));
+        const extensionVersion = packageJson.version;
+        const extensionName = packageJson.name;
+        const userHome = process.env.USERPROFILE || process.env.HOME;
+
+        // Source skill files
+        const firmwareActionSrc = path.join(extensionPath, 'dove', 'skill', 'firmware-action', 'SKILL.md');
+        const firmwareToolSrc = path.join(extensionPath, 'dove', 'skill', 'firmware-tool', 'SKILL.md');
+
+        // Check source files exist
+        if (!fs.existsSync(firmwareActionSrc) || !fs.existsSync(firmwareToolSrc)) {
+            this.settingsPanel.webview.postMessage({
+                command: 'skillInstallResult',
+                agent: agent,
+                success: false,
+                message: localize('settings.installFailed') + ': Skill files not found'
+            });
+            return;
+        }
+
+        try {
+            let installedPath;
+
+            if (agent === 'claude-code') {
+                // Claude Code: versioned structure ~/.claude/skills/<skill-name>/<extension-version>/SKILL.md
+                const skillsBaseDir = path.join(userHome, '.claude', 'skills');
+                const versionedDirName = `${extensionName}-${extensionVersion}`;
+
+                // Check for old versions and remove them
+                const skillDirNames = ['firmware-action', 'firmware-tool'];
+                for (const skillName of skillDirNames) {
+                    const skillDir = path.join(skillsBaseDir, skillName);
+                    if (fs.existsSync(skillDir)) {
+                        const items = fs.readdirSync(skillDir);
+                        for (const item of items) {
+                            if (item !== versionedDirName && item !== 'SKILL.md') {
+                                const oldVersionDir = path.join(skillDir, item);
+                                if (fs.statSync(oldVersionDir).isDirectory()) {
+                                    fs.rmSync(oldVersionDir, { recursive: true, force: true });
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Create versioned skill directories
+                const firmwareActionDir = path.join(skillsBaseDir, 'firmware-action', versionedDirName);
+                const firmwareToolDir = path.join(skillsBaseDir, 'firmware-tool', versionedDirName);
+
+                fs.mkdirSync(firmwareActionDir, { recursive: true });
+                fs.mkdirSync(firmwareToolDir, { recursive: true });
+
+                // Copy skill files
+                fs.copyFileSync(firmwareActionSrc, path.join(firmwareActionDir, 'SKILL.md'));
+                fs.copyFileSync(firmwareToolSrc, path.join(firmwareToolDir, 'SKILL.md'));
+
+                installedPath = skillsBaseDir;
+            } else if (agent === 'cline') {
+                // Cline: flat structure in TWO locations:
+                // 1. ~/.cline/skills/<skill-name>/SKILL.md
+                // 2. ~/.agents/skills/<skill-name>/SKILL.md
+                const clineSkillsDir = path.join(userHome, '.cline', 'skills');
+                const agentsSkillsDir = path.join(userHome, '.agents', 'skills');
+
+                const skillDirNames = ['firmware-action', 'firmware-tool'];
+
+                for (const skillsDir of [clineSkillsDir, agentsSkillsDir]) {
+                    for (const skillName of skillDirNames) {
+                        const skillDir = path.join(skillsDir, skillName);
+                        fs.mkdirSync(skillDir, { recursive: true });
+                        const skillSrc = skillName === 'firmware-action' ? firmwareActionSrc : firmwareToolSrc;
+                        fs.copyFileSync(skillSrc, path.join(skillDir, 'SKILL.md'));
+                    }
+                }
+
+                installedPath = `${clineSkillsDir} & ${agentsSkillsDir}`;
+            } else {
+                this.settingsPanel.webview.postMessage({
+                    command: 'skillInstallResult',
+                    agent: agent,
+                    success: false,
+                    message: localize('settings.installFailed') + ': Unknown agent: ' + agent
+                });
+                return;
+            }
+
+            // Store installed version info in global state
+            this.context.globalState.update(`quickFirmwarePlus.skillInstalledVersion.${agent}`, {
+                version: extensionVersion,
+                extensionName: extensionName,
+                path: installedPath,
+                installedAt: new Date().toISOString()
+            });
+
+            this.settingsPanel.webview.postMessage({
+                command: 'skillInstallResult',
+                agent: agent,
+                success: true,
+                message: localize('settings.installSuccess') + `: ${installedPath}`
+            });
+        } catch (error) {
+            this.settingsPanel.webview.postMessage({
+                command: 'skillInstallResult',
+                agent: agent,
+                success: false,
+                message: localize('settings.installFailed') + ': ' + error.message
+            });
+        }
+    }
+
+    /**
+     * Uninstall skill from specified agent
+     * @param {string} agent - Agent name ('claude-code' or 'cline')
+     */
+    async uninstallSkill(agent) {
+        const userHome = process.env.USERPROFILE || process.env.HOME;
+        const extensionPath = this.context.extensionPath;
+        const packageJson = require(path.join(extensionPath, 'package.json'));
+        const extensionVersion = packageJson.version;
+        const extensionName = packageJson.name;
+
+        try {
+            const skillNames = ['firmware-action', 'firmware-tool'];
+
+            if (agent === 'claude-code') {
+                // Claude Code: remove from ~/.claude/skills/
+                const skillsBaseDir = path.join(userHome, '.claude', 'skills');
+                this.removeSkillDirectory(skillsBaseDir, skillNames);
+            } else if (agent === 'cline') {
+                // Cline: remove from both ~/.cline/skills/ and ~/.agents/skills/
+                const clineSkillsDir = path.join(userHome, '.cline', 'skills');
+                const agentsSkillsDir = path.join(userHome, '.agents', 'skills');
+                this.removeSkillDirectory(clineSkillsDir, skillNames);
+                this.removeSkillDirectory(agentsSkillsDir, skillNames);
+            } else {
+                this.settingsPanel.webview.postMessage({
+                    command: 'skillUninstallResult',
+                    agent: agent,
+                    success: false,
+                    message: localize('settings.uninstallFailed') + ': Unknown agent'
+                });
+                return;
+            }
+
+            // Clear global state
+            this.context.globalState.update(`quickFirmwarePlus.skillInstalledVersion.${agent}`, undefined);
+
+            this.settingsPanel.webview.postMessage({
+                command: 'skillUninstallResult',
+                agent: agent,
+                success: true,
+                message: localize('settings.uninstallSuccess')
+            });
+        } catch (error) {
+            this.settingsPanel.webview.postMessage({
+                command: 'skillUninstallResult',
+                agent: agent,
+                success: false,
+                message: localize('settings.uninstallFailed') + ': ' + error.message
+            });
+        }
+    }
+
+    /**
+     * Remove skill directories from a base path
+     * @param {string} skillsBaseDir - Base skills directory
+     * @param {string[]} skillNames - Names of skills to remove
+     */
+    removeSkillDirectory(skillsBaseDir, skillNames) {
+        for (const skillName of skillNames) {
+            const skillDir = path.join(skillsBaseDir, skillName);
+            if (fs.existsSync(skillDir)) {
+                // Remove all contents
+                const items = fs.readdirSync(skillDir);
+                for (const item of items) {
+                    const itemPath = path.join(skillDir, item);
+                    if (fs.statSync(itemPath).isDirectory()) {
+                        fs.rmSync(itemPath, { recursive: true, force: true });
+                    } else {
+                        fs.unlinkSync(itemPath);
+                    }
+                }
+                // Remove the skill directory if empty
+                if (fs.readdirSync(skillDir).length === 0) {
+                    fs.rmSync(skillDir, { recursive: true });
+                }
+            }
+        }
+    }
+
+    /**
+     * Check skill installation status for specified agent
+     * @param {string} agent - Agent name ('claude-code' or 'cline')
+     */
+    async checkSkillStatus(agent) {
+        const userHome = process.env.USERPROFILE || process.env.HOME;
+        const extensionPath = this.context.extensionPath;
+        const packageJson = require(path.join(extensionPath, 'package.json'));
+        const extensionVersion = packageJson.version;
+        const extensionName = packageJson.name;
+
+        const skillNames = ['firmware-action', 'firmware-tool'];
+        let installedCount = 0;
+        let installedPath = '';
+        const oldVersions = [];
+
+        if (agent === 'claude-code') {
+            const skillsBaseDir = path.join(userHome, '.claude', 'skills');
+            const result = this.checkSkillDirectory(skillsBaseDir, skillNames, extensionVersion);
+            installedCount = result.installedCount;
+            installedPath = result.installedPath;
+            oldVersions.push(...result.oldVersions);
+        } else if (agent === 'cline') {
+            // Check both directories for Cline
+            const clineSkillsDir = path.join(userHome, '.cline', 'skills');
+            const agentsSkillsDir = path.join(userHome, '.agents', 'skills');
+
+            const clineResult = this.checkSkillDirectory(clineSkillsDir, skillNames, extensionVersion);
+            const agentsResult = this.checkSkillDirectory(agentsSkillsDir, skillNames, extensionVersion);
+
+            // Combine results - installed if found in either location
+            installedCount = Math.max(clineResult.installedCount, agentsResult.installedCount);
+            installedPath = clineResult.installedPath || agentsResult.installedPath;
+            oldVersions.push(...clineResult.oldVersions, ...agentsResult.oldVersions);
+        }
+
+        // Get stored installation info
+        const installedInfo = this.context.globalState.get(`quickFirmwarePlus.skillInstalledVersion.${agent}`);
+
+        this.settingsPanel.webview.postMessage({
+            command: 'skillStatusResult',
+            agent: agent,
+            installed: installedCount >= 2, // Both skills need to be installed
+            skillsCount: installedCount,
+            path: installedPath || (agent === 'cline' ? '~/.cline/skills & ~/.agents/skills' : '~/.claude/skills'),
+            version: extensionVersion,
+            extensionName: `${extensionName} v${extensionVersion}`,
+            hasOldVersion: oldVersions.length > 0,
+            oldVersions: oldVersions
+        });
+    }
+
+    /**
+     * Check skill installation in a directory
+     * @param {string} skillsBaseDir - Base skills directory
+     * @param {string[]} skillNames - Names of skills to check
+     * @param {string} extensionVersion - Current extension version
+     * @returns {object} - { installedCount, installedPath, oldVersions }
+     */
+    checkSkillDirectory(skillsBaseDir, skillNames, extensionVersion) {
+        let installedCount = 0;
+        let installedPath = '';
+        const oldVersions = [];
+
+        for (const skillName of skillNames) {
+            const skillDir = path.join(skillsBaseDir, skillName);
+            if (fs.existsSync(skillDir)) {
+                const items = fs.readdirSync(skillDir);
+                for (const item of items) {
+                    const itemPath = path.join(skillDir, item);
+                    if (fs.statSync(itemPath).isDirectory()) {
+                        // Check if it contains SKILL.md (versioned structure for Claude Code)
+                        const skillMdPath = path.join(itemPath, 'SKILL.md');
+                        if (fs.existsSync(skillMdPath)) {
+                            installedCount++;
+                            if (item.includes(extensionVersion)) {
+                                installedPath = itemPath;
+                            } else {
+                                oldVersions.push(itemPath);
+                            }
+                        }
+                    } else if (item === 'SKILL.md') {
+                        // Direct SKILL.md without version subdirectory (flat structure for Cline)
+                        installedCount++;
+                        installedPath = skillDir;
+                    }
+                }
+            }
+        }
+
+        return { installedCount, installedPath, oldVersions };
     }
 
     /**
@@ -592,7 +1242,34 @@ class WebviewManager {
             'settings.themeDesc': localize('settings.themeDesc'),
             'settings.themeAuto': localize('settings.themeAuto'),
             'settings.themeDark': localize('settings.themeDark'),
-            'settings.themeLight': localize('settings.themeLight')
+            'settings.themeLight': localize('settings.themeLight'),
+            // Agent Integration settings
+            'settings.agentIntegration': localize('settings.agentIntegration'),
+            'settings.envSetup': localize('settings.envSetup'),
+            'settings.envSetupDesc': localize('settings.envSetupDesc'),
+            'settings.runEnvSetup': localize('settings.runEnvSetup'),
+            'settings.skillIntegration': localize('settings.skillIntegration'),
+            'settings.skillIntegrationDesc': localize('settings.skillIntegrationDesc'),
+            'settings.installToClaudeCode': localize('settings.installToClaudeCode'),
+            'settings.installToCline': localize('settings.installToCline'),
+            'settings.installing': localize('settings.installing'),
+            'settings.installSuccess': localize('settings.installSuccess'),
+            'settings.installFailed': localize('settings.installFailed'),
+            'settings.envSetupSuccess': localize('settings.envSetupSuccess'),
+            'settings.envSetupFailed': localize('settings.envSetupFailed'),
+            // Installation status strings
+            'settings.installStatus': localize('settings.installStatus'),
+            'settings.checkStatus': localize('settings.checkStatus'),
+            'settings.checkingStatus': localize('settings.checkingStatus'),
+            'settings.installed': localize('settings.installed'),
+            'settings.notInstalled': localize('settings.notInstalled'),
+            'settings.install': localize('settings.install'),
+            'settings.uninstall': localize('settings.uninstall'),
+            'settings.uninstallSuccess': localize('settings.uninstallSuccess'),
+            'settings.uninstallFailed': localize('settings.uninstallFailed'),
+            'settings.oldVersionFound': localize('settings.oldVersionFound'),
+            'settings.version': localize('settings.version'),
+            'settings.extensionName': localize('settings.extensionName')
         });
         
         // Replace CSS and JS placeholders with webview URIs
@@ -603,7 +1280,8 @@ class WebviewManager {
         
         // Apply effective theme to HTML
         // Note: {{locale}} was already replaced by loadTemplate(), so use actual locale value
-        html = html.replace(`<html lang="${locale}">`, `<html lang="${locale}" data-theme="${effectiveTheme}">`);
+        const accentColor = currentConfig.accentColor || 'blue';
+        html = html.replace(`<html lang="${locale}">`, `<html lang="${locale}" data-theme="${effectiveTheme}" data-accent="${accentColor}">`);
         
         return html;
     }

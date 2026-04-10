@@ -13,8 +13,12 @@ let currentConfig = {
     buildGitBashPath: '',
     defaultComPort: '',
     language: 'auto',
-    theme: 'auto'
+    theme: 'auto',
+    accentColor: 'blue'
 };
+
+// Localized strings for button text
+let localizedStrings = {};
 
 // Command being edited
 let editingCommandIndex = -1;
@@ -30,6 +34,7 @@ const sectionTitles = {
     'comport': { icon: 'fa-plug', text: '' },
     'language': { icon: 'fa-language', text: '' },
     'theme': { icon: 'fa-palette', text: '' },
+    'agent': { icon: 'fa-robot', text: '' },
     'config': { icon: 'fa-file-code', text: '' }
 };
 
@@ -113,6 +118,8 @@ function getSectionTitleKey(sectionId) {
         'gitbash': 'settings.gitBashPath',
         'comport': 'settings.comPort',
         'language': 'settings.language',
+        'theme': 'settings.theme',
+        'agent': 'settings.agentIntegration',
         'config': 'settings.configFile'
     };
     return keys[sectionId] || sectionId;
@@ -196,11 +203,15 @@ function handleBeforeUnload(e) {
  */
 window.addEventListener('message', event => {
     const message = event.data;
-    
+
     switch (message.command) {
         case 'configData':
             currentConfig = message.config;
             currentConfig.configFilePath = message.configFilePath;
+            // Store localized strings for button text
+            if (message.localizedStrings) {
+                localizedStrings = message.localizedStrings;
+            }
             populateForm();
             clearModifiedIndicators();
             // Apply effective theme from server
@@ -210,6 +221,9 @@ window.addEventListener('message', event => {
             break;
         case 'themeChanged':
             applyTheme(message.theme);
+            break;
+        case 'accentColorChanged':
+            applyAccentColor(message.accentColor);
             break;
         case 'configSaved':
             showStatusMessage('success', message.message);
@@ -236,6 +250,24 @@ window.addEventListener('message', event => {
             // Apply effective theme from extension (for auto mode)
             applyEffectiveTheme(message.theme);
             break;
+        case 'envSetupResult':
+            handleEnvSetupResult(message);
+            break;
+        case 'skillInstallResult':
+            handleSkillInstallResult(message);
+            break;
+        case 'skillUninstallResult':
+            handleSkillUninstallResult(message);
+            break;
+        case 'envUninstallResult':
+            handleEnvUninstallResult(message);
+            break;
+        case 'envStatusResult':
+            handleEnvStatusResult(message);
+            break;
+        case 'skillStatusResult':
+            handleSkillStatusResult(message);
+            break;
     }
 });
 
@@ -245,25 +277,31 @@ window.addEventListener('message', event => {
 function populateForm() {
     // Firmware Path
     document.getElementById('firmwarePath').value = currentConfig.firmwarePath || '';
-    
+
     // Build Commands
     renderCommandTable();
-    
+
     // Git Bash Path
     document.getElementById('gitBashPath').value = currentConfig.buildGitBashPath || '';
-    
+
     // COM Port
     document.getElementById('comPort').value = currentConfig.defaultComPort || '';
-    
+
     // Language
     document.getElementById('languageSelect').value = currentConfig.language || 'auto';
-    
+
     // Theme
     document.getElementById('themeSelect').value = currentConfig.theme || 'auto';
-    
+
+    // Accent Color
+    document.getElementById('accentColorSelect').value = currentConfig.accentColor || 'blue';
+
     // Apply theme preview
     applyTheme(currentConfig.theme || 'auto');
-    
+
+    // Apply accent color
+    applyAccentColor(currentConfig.accentColor || 'blue');
+
     // Config File Path
     if (currentConfig.configFilePath) {
         document.getElementById('configFilePath').textContent = currentConfig.configFilePath;
@@ -539,8 +577,15 @@ function applyTheme(theme) {
         vscode.postMessage({ command: 'getEffectiveTheme' });
         return;
     }
-    
+
     document.documentElement.setAttribute('data-theme', theme);
+}
+
+/**
+ * Apply accent color to the document
+ */
+function applyAccentColor(accent) {
+    document.documentElement.setAttribute('data-accent', accent);
 }
 
 /**
@@ -572,10 +617,11 @@ function saveSettings() {
     currentConfig.defaultComPort = document.getElementById('comPort').value.trim();
     currentConfig.language = document.getElementById('languageSelect').value;
     currentConfig.theme = document.getElementById('themeSelect').value;
-    
+    currentConfig.accentColor = document.getElementById('accentColorSelect').value;
+
     // Debug: log the config being saved
-    console.log('[Settings] Saving config, theme:', currentConfig.theme);
-    
+    console.log('[Settings] Saving config, theme:', currentConfig.theme, 'accentColor:', currentConfig.accentColor);
+
     vscode.postMessage({
         command: 'saveConfig',
         config: currentConfig
@@ -598,6 +644,322 @@ function resetToDefaults() {
  */
 function openConfigFile() {
     vscode.postMessage({ command: 'openConfigFile' });
+}
+
+/**
+ * Run environment setup script
+ */
+function runEnvSetup() {
+    const btn = document.getElementById('btnRunEnvSetup');
+    btn.disabled = true;
+    const installingText = localizedStrings.installing || 'Installing...';
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ' + installingText;
+
+    vscode.postMessage({ command: 'runEnvSetup' });
+}
+
+/**
+ * Install skill to Claude Code
+ */
+function installToClaudeCode() {
+    const btn = document.getElementById('btnInstallClaudeCode');
+    btn.disabled = true;
+    const installingText = localizedStrings.installing || 'Installing...';
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ' + installingText;
+
+    vscode.postMessage({ command: 'installSkill', agent: 'claude-code' });
+}
+
+/**
+ * Install skill to Cline
+ */
+function installToCline() {
+    const btn = document.getElementById('btnInstallCline');
+    btn.disabled = true;
+    const installingText = localizedStrings.installing || 'Installing...';
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ' + installingText;
+
+    vscode.postMessage({ command: 'installSkill', agent: 'cline' });
+}
+
+/**
+ * Uninstall dove from system PATH
+ */
+function uninstallEnv() {
+    const btn = document.getElementById('btnUninstallEnv');
+    btn.disabled = true;
+    const uninstallingText = localizedStrings.uninstalling || 'Uninstalling...';
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ' + uninstallingText;
+
+    vscode.postMessage({ command: 'uninstallEnv' });
+}
+
+/**
+ * Uninstall skill from Claude Code
+ */
+function uninstallFromClaudeCode() {
+    const btn = document.getElementById('btnUninstallClaudeCode');
+    btn.disabled = true;
+    const uninstallingText = localizedStrings.uninstalling || 'Uninstalling...';
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ' + uninstallingText;
+
+    vscode.postMessage({ command: 'uninstallSkill', agent: 'claude-code' });
+}
+
+/**
+ * Uninstall skill from Cline
+ */
+function uninstallFromCline() {
+    const btn = document.getElementById('btnUninstallCline');
+    btn.disabled = true;
+    const uninstallingText = localizedStrings.uninstalling || 'Uninstalling...';
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ' + uninstallingText;
+
+    vscode.postMessage({ command: 'uninstallSkill', agent: 'cline' });
+}
+
+/**
+ * Check environment installation status
+ */
+function checkEnvStatus() {
+    const btn = document.getElementById('btnCheckEnvStatus');
+    btn.disabled = true;
+    const checkingText = localizedStrings.checkingStatus || 'Checking...';
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ' + checkingText;
+
+    vscode.postMessage({ command: 'checkEnvStatus' });
+}
+
+/**
+ * Handle environment setup result
+ */
+function handleEnvSetupResult(message) {
+    const btn = document.getElementById('btnRunEnvSetup');
+    btn.disabled = false;
+    const runEnvSetupText = localizedStrings.runEnvSetup || 'Run Environment Setup';
+    btn.innerHTML = '<i class="fa-solid fa-play"></i> ' + runEnvSetupText;
+
+    const uninstallBtn = document.getElementById('btnUninstallEnv');
+    uninstallBtn.disabled = false;
+    const uninstallText = localizedStrings.uninstall || 'Uninstall';
+    uninstallBtn.innerHTML = '<i class="fa-solid fa-trash"></i> ' + uninstallText;
+
+    if (message.success) {
+        showStatusMessage('success', message.message || 'Environment setup successful');
+        // Refresh status after successful install
+        vscode.postMessage({ command: 'checkEnvStatus' });
+    } else {
+        showStatusMessage('error', message.message || 'Environment setup failed');
+    }
+}
+
+/**
+ * Handle skill install result
+ */
+function handleSkillInstallResult(message) {
+    const agent = message.agent;
+    let installBtn, uninstallBtn;
+
+    if (agent === 'claude-code') {
+        installBtn = document.getElementById('btnInstallClaudeCode');
+        uninstallBtn = document.getElementById('btnUninstallClaudeCode');
+    } else if (agent === 'cline') {
+        installBtn = document.getElementById('btnInstallCline');
+        uninstallBtn = document.getElementById('btnUninstallCline');
+    }
+
+    const installText = localizedStrings.install || 'Install';
+    const uninstallText = localizedStrings.uninstall || 'Uninstall';
+
+    if (installBtn) {
+        installBtn.disabled = false;
+        installBtn.innerHTML = '<i class="fa-solid fa-download"></i> ' + installText;
+    }
+    if (uninstallBtn) {
+        uninstallBtn.disabled = false;
+        uninstallBtn.innerHTML = '<i class="fa-solid fa-trash"></i> ' + uninstallText;
+    }
+
+    if (message.success) {
+        showStatusMessage('success', message.message || 'Installation successful');
+        // Refresh skill status
+        vscode.postMessage({ command: 'checkSkillStatus', agent: agent });
+    } else {
+        showStatusMessage('error', message.message || 'Installation failed');
+    }
+}
+
+/**
+ * Handle skill uninstall result
+ */
+function handleSkillUninstallResult(message) {
+    const agent = message.agent;
+    let installBtn, uninstallBtn;
+
+    if (agent === 'claude-code') {
+        installBtn = document.getElementById('btnInstallClaudeCode');
+        uninstallBtn = document.getElementById('btnUninstallClaudeCode');
+    } else if (agent === 'cline') {
+        installBtn = document.getElementById('btnInstallCline');
+        uninstallBtn = document.getElementById('btnUninstallCline');
+    }
+
+    const installText = localizedStrings.install || 'Install';
+    const uninstallText = localizedStrings.uninstall || 'Uninstall';
+
+    if (installBtn) {
+        installBtn.disabled = false;
+        installBtn.innerHTML = '<i class="fa-solid fa-download"></i> ' + installText;
+    }
+    if (uninstallBtn) {
+        uninstallBtn.disabled = false;
+        uninstallBtn.innerHTML = '<i class="fa-solid fa-trash"></i> ' + uninstallText;
+    }
+
+    if (message.success) {
+        showStatusMessage('success', message.message || 'Uninstallation successful');
+        // Refresh skill status
+        vscode.postMessage({ command: 'checkSkillStatus', agent: agent });
+    } else {
+        showStatusMessage('error', message.message || 'Uninstallation failed');
+    }
+}
+
+/**
+ * Handle environment uninstall result
+ */
+function handleEnvUninstallResult(message) {
+    const btn = document.getElementById('btnUninstallEnv');
+    btn.disabled = false;
+    const uninstallText = localizedStrings.uninstall || 'Uninstall';
+    btn.innerHTML = '<i class="fa-solid fa-trash"></i> ' + uninstallText;
+
+    const installBtn = document.getElementById('btnRunEnvSetup');
+    installBtn.disabled = false;
+    const runEnvSetupText = localizedStrings.runEnvSetup || 'Run Environment Setup';
+    installBtn.innerHTML = '<i class="fa-solid fa-play"></i> ' + runEnvSetupText;
+
+    if (message.success) {
+        showStatusMessage('success', message.message || 'Environment uninstalled successfully');
+        // Refresh status
+        vscode.postMessage({ command: 'checkEnvStatus' });
+    } else {
+        showStatusMessage('error', message.message || 'Environment uninstall failed');
+    }
+}
+
+/**
+ * Handle environment status check result
+ */
+function handleEnvStatusResult(message) {
+    const btn = document.getElementById('btnCheckEnvStatus');
+    btn.disabled = false;
+    const checkStatusText = localizedStrings.checkStatus || 'Check Status';
+    btn.innerHTML = '<i class="fa-solid fa-sync-alt"></i> ' + checkStatusText;
+
+    const statusContainer = document.getElementById('envInstallStatus');
+
+    if (message.installed) {
+        statusContainer.innerHTML = `
+            <div class="status-item">
+                <div class="status-icon installed">
+                    <i class="fa-solid fa-check"></i>
+                </div>
+                <div class="status-info">
+                    <div class="status-title">Installed</div>
+                    <div class="status-path">${escapeHtml(message.path)}</div>
+                    ${message.version ? `<div class="status-version">Version: ${escapeHtml(message.version)}</div>` : ''}
+                    ${message.extensionName ? `<div class="status-version">Extension: ${escapeHtml(message.extensionName)}</div>` : ''}
+                </div>
+            </div>
+        `;
+    } else {
+        statusContainer.innerHTML = `
+            <div class="status-item">
+                <div class="status-icon not-installed">
+                    <i class="fa-solid fa-times"></i>
+                </div>
+                <div class="status-info">
+                    <div class="status-title">Not Installed</div>
+                    <div class="status-path">Run "Environment Setup" to add dove to PATH</div>
+                </div>
+            </div>
+        `;
+    }
+
+    // Handle old version warning
+    if (message.hasOldVersion && message.oldVersions && message.oldVersions.length > 0) {
+        statusContainer.innerHTML += `
+            <div class="status-item">
+                <div class="status-icon warning">
+                    <i class="fa-solid fa-exclamation-triangle"></i>
+                </div>
+                <div class="status-info">
+                    <div class="status-title">Old Versions Found</div>
+                    <div class="status-path">${message.oldVersions.map(v => escapeHtml(v)).join('<br>')}</div>
+                </div>
+            </div>
+        `;
+    }
+}
+
+/**
+ * Handle skill status check result
+ */
+function handleSkillStatusResult(message) {
+    const agent = message.agent;
+    let statusContainer;
+
+    if (agent === 'claude-code') {
+        statusContainer = document.getElementById('claudeCodeStatus');
+    } else if (agent === 'cline') {
+        statusContainer = document.getElementById('clineStatus');
+    }
+
+    if (!statusContainer) return;
+
+    if (message.installed) {
+        statusContainer.innerHTML = `
+            <div class="status-item">
+                <div class="status-icon installed">
+                    <i class="fa-solid fa-check"></i>
+                </div>
+                <div class="status-info">
+                    <div class="status-title">Installed (${message.skillsCount} skills)</div>
+                    <div class="status-path">${escapeHtml(message.path)}</div>
+                    ${message.version ? `<div class="status-version">Version: ${escapeHtml(message.version)}</div>` : ''}
+                    ${message.extensionName ? `<div class="status-version">Extension: ${escapeHtml(message.extensionName)}</div>` : ''}
+                </div>
+            </div>
+        `;
+    } else {
+        statusContainer.innerHTML = `
+            <div class="status-item">
+                <div class="status-icon not-installed">
+                    <i class="fa-solid fa-times"></i>
+                </div>
+                <div class="status-info">
+                    <div class="status-title">Not Installed</div>
+                    <div class="status-path">Click "Install" to add skills</div>
+                </div>
+            </div>
+        `;
+    }
+
+    // Handle old version warning
+    if (message.hasOldVersion && message.oldVersions && message.oldVersions.length > 0) {
+        statusContainer.innerHTML += `
+            <div class="status-item">
+                <div class="status-icon warning">
+                    <i class="fa-solid fa-exclamation-triangle"></i>
+                </div>
+                <div class="status-info">
+                    <div class="status-title">Old Versions Found</div>
+                    <div class="status-path">${message.oldVersions.map(v => escapeHtml(v)).join('<br>')}</div>
+                </div>
+            </div>
+        `;
+    }
 }
 
 /**

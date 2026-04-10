@@ -1,5 +1,55 @@
 /* ==================== CSS Variables - Theme Support ==================== */
 
+/* ==================== Accent Color Variants ==================== */
+
+/* Blue Accent (Default) - applies when data-accent="blue" or not set */
+:root[data-accent="blue"],
+:root:not([data-accent]) {
+    --accent-color: #58a6ff;
+    --accent-color-light: #79c0ff;
+    --accent-color-dark: #1f6feb;
+    --accent-gradient-start: #60a5fa;
+    --accent-gradient-end: #3b82f6;
+}
+
+/* Green Accent */
+:root[data-accent="green"] {
+    --accent-color: #3fb950;
+    --accent-color-light: #56d364;
+    --accent-color-dark: #238636;
+    --accent-gradient-start: #3fb950;
+    --accent-gradient-end: #238636;
+}
+
+/* Purple Accent */
+:root[data-accent="purple"] {
+    --accent-color: #a371f7;
+    --accent-color-light: #bc8cff;
+    --accent-color-dark: #8957e5;
+    --accent-gradient-start: #a371f7;
+    --accent-gradient-end: #8957e5;
+}
+
+/* Orange Accent */
+:root[data-accent="orange"] {
+    --accent-color: #f78166;
+    --accent-color-light: #ffa657;
+    --accent-color-dark: #da3633;
+    --accent-gradient-start: #f78166;
+    --accent-gradient-end: #da3633;
+}
+
+/* Pink Accent */
+:root[data-accent="pink"] {
+    --accent-color: #f778ba;
+    --accent-color-light: #ff9bce;
+    --accent-color-dark: #db61a2;
+    --accent-gradient-start: #f778ba;
+    --accent-gradient-end: #db61a2;
+}
+
+/* ==================== Dark Theme (Default) ==================== */
+
 /* Dark Theme (Default) */
 :root[data-theme="dark"],
 :root:not([data-theme]) {

@@ -250,6 +250,11 @@ class LogViewerManager {
         html = html.replace('{{isFilterView}}', 'false');
         html = html.replace('{{locale}}', this.getLocale());
 
+        // Apply theme and accent color to HTML
+        const effectiveTheme = this.getConfigEffectiveTheme();
+        const accentColor = this.getAccentColor();
+        html = html.replace(`<html lang="${this.getLocale()}">`, `<html lang="${this.getLocale()}" data-theme="${effectiveTheme}" data-accent="${accentColor}">`);
+
         // Replace localization strings
         html = this.replaceLocalizationStrings(html);
 
@@ -311,6 +316,11 @@ class LogViewerManager {
         html = html.replace('{{filterKeyword}}', filterInfo.filterKeyword);
         html = html.replace('{{locale}}', this.getLocale());
 
+        // Apply theme and accent color to HTML
+        const effectiveTheme = this.getConfigEffectiveTheme();
+        const accentColor = this.getAccentColor();
+        html = html.replace(`<html lang="${this.getLocale()}">`, `<html lang="${this.getLocale()}" data-theme="${effectiveTheme}" data-accent="${accentColor}">`);
+
         // Replace localization strings
         html = this.replaceLocalizationStrings(html);
 
@@ -343,6 +353,40 @@ class LogViewerManager {
             return vscode.env.language.toLowerCase();
         }
         return language.toLowerCase();
+    }
+
+    /**
+     * Get effective theme for webview
+     * @param {string} theme - Theme setting (dark/light/auto)
+     * @returns {string} Effective theme to use
+     */
+    getEffectiveTheme(theme) {
+        if (theme === 'auto') {
+            // Follow VS Code theme
+            const colorTheme = vscode.workspace.getConfiguration('workbench').get('colorTheme', '');
+            const isDarkTheme = !colorTheme.toLowerCase().includes('light');
+            return isDarkTheme ? 'dark' : 'light';
+        }
+        return theme;
+    }
+
+    /**
+     * Get accent color from config
+     * @returns {string} Accent color (blue/green/purple/orange/pink)
+     */
+    getAccentColor() {
+        const { configManager } = require('../../config/configManager');
+        return configManager.getAccentColor() || 'blue';
+    }
+
+    /**
+     * Get effective theme from config
+     * @returns {string} Effective theme (dark/light)
+     */
+    getConfigEffectiveTheme() {
+        const { configManager } = require('../../config/configManager');
+        const theme = configManager.getTheme() || 'auto';
+        return this.getEffectiveTheme(theme);
     }
 
     /**
@@ -847,6 +891,11 @@ class LogViewerManager {
         html = html.replace('{{originalPanelId}}', '');
         html = html.replace('{{filterKeyword}}', '');
         html = html.replace('{{locale}}', this.getLocale());
+
+        // Apply theme and accent color to HTML
+        const effectiveTheme = this.getConfigEffectiveTheme();
+        const accentColor = this.getAccentColor();
+        html = html.replace(`<html lang="${this.getLocale()}">`, `<html lang="${this.getLocale()}" data-theme="${effectiveTheme}" data-accent="${accentColor}">`);
 
         // Replace localization strings
         html = this.replaceLocalizationStrings(html);

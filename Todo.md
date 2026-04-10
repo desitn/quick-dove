@@ -1,4 +1,4 @@
-# Quick Firmware +
+# Quick Dove
 
 ## worklist
 

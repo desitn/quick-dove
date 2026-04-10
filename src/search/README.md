@@ -1,6 +1,6 @@
 # File Search Feature
 
-This module provides Everything-based file search functionality for Quick Firmware + extension.
+This module provides Everything-based file search functionality for Quick Dove extension.
 
 ## Overview
 
@@ -55,7 +55,7 @@ src/webview/
 
 ## Configuration
 
-Search settings are stored in firmware-cli.json configuration file:
+Search settings are stored in dove.json configuration file:
 - `search.port`: Everything HTTP server port (default: 8080)
 - `search.scope`: Search scope - "global" or "workspace" (default: "global")
 - `search.maxResults`: Maximum number of results (default: 50)

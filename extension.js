@@ -1,5 +1,5 @@
 /**
-* @description: Quick Firmware + 
+* @description: Quick Dove 
 *  A tool for building and syncing firmware in a developer-friendly way.
 * @author: destin.zhang@quectel.com
 */
@@ -14,10 +14,10 @@ const { WebviewManager } = require('./src/webview/webviewManager');
 const { LogViewerManager } = require('./src/webview/logViewer/logViewerManager');
 const { configManager } = require('./src/config/configManager');
 
-/** @note firmware-cli executable path */
-const FIRMWARE_CLI = 'firmware-cli.exe';
+/** @note dove executable path */
+const FIRMWARE_CLI = 'dove.exe';
 
-const output_chan = vscode.window.createOutputChannel('Quick Firmware +');
+const output_chan = vscode.window.createOutputChannel('Quick Dove');
 const alert = localize('noFirmware');
 
 /**
@@ -29,8 +29,8 @@ function get_configuration() {
 }
 
 /**
- * Write firmware-cli.json configuration file to workspace root
- * This file is used by the independent firmware-cli tool
+ * Write dove.json configuration file to workspace root
+ * This file is used by the independent dove tool
  * Note: This function now preserves existing config and only updates necessary fields
  */
 function writeFirmwareCliConfig(config) {
@@ -38,9 +38,9 @@ function writeFirmwareCliConfig(config) {
     if (!workspace || workspace.length === 0) {
         return;
     }
-    
+
     const workspacePath = workspace[0].uri.fsPath;
-    const configPath = path.join(workspacePath, 'firmware-cli.json');
+    const configPath = path.join(workspacePath, 'dove.json');
     
     // Read existing config to preserve all fields
     let configData = {};
@@ -85,15 +85,38 @@ function not_support_disp() {
 }
 
 /**
- * Get firmware-cli executable path
+ * Setup environment variables for VSCode terminals
+ * This uses VSCode's environmentVariableCollection API to make dove
+ * immediately available in all new terminals without restarting VSCode
  * @param {vscode.ExtensionContext} context - Extension context
- * @returns {string|null} Path to firmware-cli.exe or null if not found
+ */
+function setupTerminalEnvironment(context) {
+    const doveDir = path.join(context.extensionPath, 'dove');
+
+    // Check if dove.exe exists
+    if (fs.existsSync(path.join(doveDir, 'dove.exe'))) {
+        // Prepend dove to PATH (highest priority) - affects all new terminals
+        context.environmentVariableCollection.prepend('PATH', doveDir + ';');
+
+        // Set DOVE_PATH for skill integration
+        context.environmentVariableCollection.replace('DOVE_PATH', doveDir);
+
+        output_chan.appendLine(`[Terminal Environment] dove path added: ${doveDir}`);
+    } else {
+        output_chan.appendLine('[Terminal Environment] dove.exe not found, skipping PATH setup');
+    }
+}
+
+/**
+ * Get dove executable path
+ * @param {vscode.ExtensionContext} context - Extension context
+ * @returns {string|null} Path to dove.exe or null if not found
  */
 function getFirmwareCliPath(context) {
     if (!context || !context.extensionPath) {
         return null;
     }
-    const firmwareCliPath = path.join(context.extensionPath, 'firmware-cli', 'firmware-cli.exe');
+    const firmwareCliPath = path.join(context.extensionPath, 'dove', 'dove.exe');
     if (fs.existsSync(firmwareCliPath)) {
         return firmwareCliPath;
     }
@@ -129,13 +152,13 @@ class FirmwareTreeDataProvider {
         const config = get_configuration();
         const firmwarePath = config.firmwarePath;
         
-        // Try to use firmware-cli to list firmware
+        // Try to use dove to list firmware
         try {
             const firmwareCliPath = getFirmwareCliPath(this.context);
             if (firmwareCliPath) {
                 const workspace = vscode.workspace.workspaceFolders;
                 const workspacePath = workspace && workspace.length > 0 ? workspace[0].uri.fsPath : '';
-                const configPath = path.join(workspacePath, 'firmware-cli.json');
+                const configPath = path.join(workspacePath, 'dove.json');
                 const result = spawnSync(firmwareCliPath, ['list', '--json'], { 
                     shell: true,
                     encoding: 'utf8',
@@ -180,7 +203,7 @@ class FirmwareTreeDataProvider {
                 }
             }
         } catch (e) {
-            console.error('firmware-cli list error:', e);
+            console.error('dove list error:', e);
         }
         
         output_chan.appendLine("fall_back firmware list!");
@@ -345,16 +368,16 @@ class DeviceTreeDataProvider {
             const items = [];
             
             if (is_windows()) {
-                // Get firmware-cli path
+                // Get dove path
                 const firmwareCliPath = getFirmwareCliPath(this.context);
                 if (!firmwareCliPath) {
-                    return [new InfoItem(localize('noDeviceFound'), 'firmware-cli not found', vscode.TreeItemCollapsibleState.None)];
+                    return [new InfoItem(localize('noDeviceFound'), 'dove not found', vscode.TreeItemCollapsibleState.None)];
                 }
-                
+
                 return new Promise((resolve) => {
                     const workspace = vscode.workspace.workspaceFolders;
                     const workspacePath = workspace && workspace.length > 0 ? workspace[0].uri.fsPath : '';
-                    const configPath = path.join(workspacePath, 'firmware-cli.json');
+                    const configPath = path.join(workspacePath, 'dove.json');
                     const child = spawn(firmwareCliPath, ['devices', '--json'], { 
                         env: {
                             ...process.env,
@@ -397,8 +420,8 @@ class DeviceTreeDataProvider {
                                 resolve([new InfoItem(localize('noDeviceFound'), localize('checkDeviceConnection'), vscode.TreeItemCollapsibleState.None)]);
                             }
                         } else {
-                            // If firmware-cli fails
-                            console.error('firmware-cli devices failed:', errorOutput);
+                            // If dove fails
+                            console.error('dove devices failed:', errorOutput);
                             resolve([new InfoItem(localize('noDeviceFound'), localize('checkDeviceConnection'), vscode.TreeItemCollapsibleState.None)]);
                         }
                     });
@@ -626,12 +649,16 @@ function kill_process_tree(child_process, signal = 'SIGKILL') {
     });
 }
 
-function activate(context) 
+function activate(context)
 {
+    // Add dove to VSCode terminal PATH for immediate effect
+    // This makes dove command available in all new VSCode terminals
+    setupTerminalEnvironment(context);
+
     // Initialize config manager
     configManager.initialize(context);
     
-    // Initialize firmware-cli.json config file on activation
+    // Initialize dove.json config file on activation
     const config = get_configuration();
     writeFirmwareCliConfig(config);
     
@@ -1183,7 +1210,7 @@ function activate(context)
                 const file_path = selected_uri.fsPath;
                 const file_name = file_path;
                 
-                // Use firmware-cli.exe for flashing
+                // Use dove.exe for flashing
                 const firmware_cli_path = getFirmwareCliPath(context);
                 
                 if (!firmware_cli_path) {
@@ -1212,7 +1239,7 @@ function activate(context)
                 last_dl_info.dlState = 'waiting';
                 last_dl_info.dlChild = null;
 
-                // firmware-cli command
+                // dove command
                 let command;
                 let args;
                 if (process.platform === 'win32') {
@@ -1222,12 +1249,12 @@ function activate(context)
                     command = firmware_cli_path;
                     args = ['flash', file_name, '--progress', 'json'];
                 }
-                
+
                 output_chan.appendLine(`show: ${FIRMWARE_CLI} ${command} ${args.join(' ')}`);
-                
+
                 const workspace = vscode.workspace.workspaceFolders;
                 const workspacePath = workspace && workspace.length > 0 ? workspace[0].uri.fsPath : '';
-                const configPath = path.join(workspacePath, 'firmware-cli.json');
+                const configPath = path.join(workspacePath, 'dove.json');
                 const child = spawn(command, args, { 
                     shell: true,
                     env: {

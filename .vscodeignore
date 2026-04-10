@@ -3,10 +3,9 @@
 .agents/
 quectel_build/
 *.vsix
-firmware-cli/dist
-firmware-cli/node_modules
-firmware-cli/src
-firmware-cli/package.json
-firmware-cli/package-lock.json
-firmware-cli/tsconfig.json
-everything-sidebar-7ree
+dove/dist
+dove/node_modules
+dove/src
+dove/package.json
+dove/package-lock.json
+dove/tsconfig.json
