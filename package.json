@@ -141,6 +141,16 @@
         "command": "firmwareDownloader.openLogViewer",
         "title": "%command.openLogViewer%",
         "icon": "$(file-text)"
+      },
+      {
+        "command": "firmwareDownloader.toggleCppDefine",
+        "title": "%command.toggleCppDefine%",
+        "icon": "$(symbol-constant)"
+      },
+      {
+        "command": "firmwareDownloader.openCppDefineSettings",
+        "title": "%command.openCppDefineSettings%",
+        "icon": "$(settings-gear)"
       }
     ],
     "menus": {
@@ -187,6 +197,11 @@
           "command": "firmwareDownloader.searchWithEverything",
           "group": "4_search@1",
           "when": "editorHasSelection"
+        },
+        {
+          "command": "firmwareDownloader.toggleCppDefine",
+          "group": "5_cpp@1",
+          "when": "editorTextFocus && editorHasSelection"
         }
       ],
       "explorer/context": [
@@ -197,6 +212,14 @@
         }
       ]
     },
+    "keybindings": [
+      {
+        "command": "firmwareDownloader.toggleCppDefine",
+        "key": "ctrl+d",
+        "mac": "cmd+d",
+        "when": "editorTextFocus && editorHasSelection"
+      }
+    ],
     "configuration": {
       "title": "Quick Dove",
       "properties": {

@@ -9,12 +9,13 @@ const vscode = acquireVsCodeApi();
 let currentConfig = {
     firmwarePath: '',
     buildCommands: [],
-    lastBuildCommand: '',
     buildGitBashPath: '',
     defaultComPort: '',
     language: 'auto',
-    theme: 'auto',
-    accentColor: 'blue'
+    theme: {
+        mode: 'auto',
+        accent: 'blue'
+    }
 };
 
 // Localized strings for button text
@@ -32,11 +33,15 @@ const sectionTitles = {
     'commands': { icon: 'fa-terminal', text: '' },
     'gitbash': { icon: 'fa-git-alt', text: '' },
     'comport': { icon: 'fa-plug', text: '' },
+    'cppdefine': { icon: 'fa-code', text: '' },
     'language': { icon: 'fa-language', text: '' },
     'theme': { icon: 'fa-palette', text: '' },
     'agent': { icon: 'fa-robot', text: '' },
     'config': { icon: 'fa-file-code', text: '' }
 };
+
+// Current C/C++ defines state
+let currentDefines = [];
 
 /**
  * Initialize settings page
@@ -44,16 +49,19 @@ const sectionTitles = {
 function init() {
     // Setup navigation click handlers
     setupNavigation();
-    
+
     // Setup input change listeners for modified indicator
     setupChangeTracking();
-    
+
     // Request current configuration from extension
     vscode.postMessage({ command: 'getConfig' });
-    
+
+    // Request C/C++ defines data
+    vscode.postMessage({ command: 'getCppDefines' });
+
     // Handle keyboard shortcuts
     document.addEventListener('keydown', handleKeyboardShortcuts);
-    
+
     // Handle browser back/forward
     window.addEventListener('beforeunload', handleBeforeUnload);
 }
@@ -117,6 +125,7 @@ function getSectionTitleKey(sectionId) {
         'commands': 'settings.buildCommands',
         'gitbash': 'settings.gitBashPath',
         'comport': 'settings.comPort',
+        'cppdefine': 'settings.cppDefine',
         'language': 'settings.language',
         'theme': 'settings.theme',
         'agent': 'settings.agentIntegration',
@@ -250,23 +259,27 @@ window.addEventListener('message', event => {
             // Apply effective theme from extension (for auto mode)
             applyEffectiveTheme(message.theme);
             break;
-        case 'envSetupResult':
-            handleEnvSetupResult(message);
-            break;
         case 'skillInstallResult':
             handleSkillInstallResult(message);
             break;
         case 'skillUninstallResult':
             handleSkillUninstallResult(message);
             break;
-        case 'envUninstallResult':
-            handleEnvUninstallResult(message);
-            break;
-        case 'envStatusResult':
-            handleEnvStatusResult(message);
-            break;
         case 'skillStatusResult':
             handleSkillStatusResult(message);
+            break;
+        case 'cppDefineData':
+            currentDefines = message.defines;
+            renderDefineTable();
+            break;
+        case 'cppDefineAdded':
+            showStatusMessage('success', message.defineName + ' added');
+            break;
+        case 'cppDefineRemoved':
+            showStatusMessage('success', message.defineName + ' removed');
+            break;
+        case 'cppDefineError':
+            showStatusMessage('error', message.message);
             break;
     }
 });
@@ -290,17 +303,16 @@ function populateForm() {
     // Language
     document.getElementById('languageSelect').value = currentConfig.language || 'auto';
 
-    // Theme
-    document.getElementById('themeSelect').value = currentConfig.theme || 'auto';
-
-    // Accent Color
-    document.getElementById('accentColorSelect').value = currentConfig.accentColor || 'blue';
+    // Theme - handle both old (string) and new (object) structure
+    const themeConfig = typeof currentConfig.theme === 'object' ? currentConfig.theme : { mode: currentConfig.theme || 'auto', accent: currentConfig.accentColor || 'blue' };
+    document.getElementById('themeSelect').value = themeConfig.mode || 'auto';
+    document.getElementById('accentColorSelect').value = themeConfig.accent || 'blue';
 
     // Apply theme preview
-    applyTheme(currentConfig.theme || 'auto');
+    applyTheme(themeConfig.mode || 'auto');
 
     // Apply accent color
-    applyAccentColor(currentConfig.accentColor || 'blue');
+    applyAccentColor(themeConfig.accent || 'blue');
 
     // Config File Path
     if (currentConfig.configFilePath) {
@@ -315,27 +327,28 @@ function renderCommandTable() {
     const tbody = document.getElementById('commandTableBody');
     const noCommandsMsg = document.getElementById('noCommandsMsg');
     const table = document.getElementById('commandTable');
-    
+
     if (!currentConfig.buildCommands || currentConfig.buildCommands.length === 0) {
         tbody.innerHTML = '';
         table.style.display = 'none';
         noCommandsMsg.style.display = 'block';
         return;
     }
-    
+
     table.style.display = 'table';
     noCommandsMsg.style.display = 'none';
-    
+
     tbody.innerHTML = currentConfig.buildCommands.map((cmd, index) => {
-        const isActive = cmd.name === currentConfig.lastBuildCommand;
+        const isActive = cmd.isActive;
         return `
             <tr class="${isActive ? 'active' : ''}">
                 <td>${escapeHtml(cmd.name)}</td>
+                <td>${escapeHtml(cmd.description || '')}</td>
                 <td>${escapeHtml(cmd.command)}</td>
                 <td>
                     <div class="cmd-actions">
-                        <button class="btn-icon btn-set-active" 
-                                onclick="setActiveCommand(${index})" 
+                        <button class="btn-icon btn-set-active"
+                                onclick="setActiveCommand(${index})"
                                 ${isActive ? 'disabled' : ''}
                                 title="${isActive ? 'Current Active' : 'Set as Active'}">
                             <i class="fa-solid ${isActive ? 'fa-check' : 'fa-play'}"></i>
@@ -407,40 +420,41 @@ function addCommandFromScript(name, commandValue) {
  */
 function addCommand() {
     const nameInput = document.getElementById('newCommandName');
+    const descInput = document.getElementById('newCommandDesc');
     const valueInput = document.getElementById('newCommandValue');
-    
+
     const name = nameInput.value.trim();
+    const description = descInput.value.trim();
     const command = valueInput.value.trim();
-    
+
     if (!name) {
         showStatusMessage('error', 'Please enter a command name');
         return;
     }
-    
+
     if (!command) {
         showStatusMessage('error', 'Please enter a command');
         return;
     }
-    
+
     // Check for duplicate names
     if (currentConfig.buildCommands.some(cmd => cmd.name === name)) {
         showStatusMessage('error', 'Command name already exists');
         return;
     }
-    
-    currentConfig.buildCommands.push({ name, command });
-    
-    // If this is the first command, set it as active
-    if (currentConfig.buildCommands.length === 1) {
-        currentConfig.lastBuildCommand = name;
-    }
-    
+
+    // Set isActive to true if this is the first command
+    const isActive = currentConfig.buildCommands.length === 0;
+
+    currentConfig.buildCommands.push({ name, description, command, isActive });
+
     renderCommandTable();
-    
+
     // Clear inputs
     nameInput.value = '';
+    descInput.value = '';
     valueInput.value = '';
-    
+
     showStatusMessage('success', 'Command added');
 }
 
@@ -448,7 +462,10 @@ function addCommand() {
  * Set active command
  */
 function setActiveCommand(index) {
-    currentConfig.lastBuildCommand = currentConfig.buildCommands[index].name;
+    // Clear all isActive flags and set the specified one
+    currentConfig.buildCommands.forEach((cmd, idx) => {
+        cmd.isActive = idx === index;
+    });
     renderCommandTable();
     showStatusMessage('success', 'Active command updated');
 }
@@ -459,18 +476,20 @@ function setActiveCommand(index) {
 function editCommand(index) {
     const cmd = currentConfig.buildCommands[index];
     const nameInput = document.getElementById('newCommandName');
+    const descInput = document.getElementById('newCommandDesc');
     const valueInput = document.getElementById('newCommandValue');
-    
+
     nameInput.value = cmd.name;
+    descInput.value = cmd.description || '';
     valueInput.value = cmd.command;
-    
+
     editingCommandIndex = index;
-    
+
     // Change add button to update
     const addBtn = document.querySelector('.add-command-form .btn-primary');
     addBtn.innerHTML = '<i class="fa-solid fa-check"></i>';
     addBtn.onclick = updateCommand;
-    
+
     // Add cancel button
     const formRow = document.querySelector('.add-command-form .form-row:last-child');
     if (!document.getElementById('cancelEditBtn')) {
@@ -481,7 +500,7 @@ function editCommand(index) {
         cancelBtn.onclick = cancelEdit;
         formRow.appendChild(cancelBtn);
     }
-    
+
     nameInput.focus();
 }
 
@@ -490,16 +509,18 @@ function editCommand(index) {
  */
 function updateCommand() {
     const nameInput = document.getElementById('newCommandName');
+    const descInput = document.getElementById('newCommandDesc');
     const valueInput = document.getElementById('newCommandValue');
-    
+
     const name = nameInput.value.trim();
+    const description = descInput.value.trim();
     const command = valueInput.value.trim();
-    
+
     if (!name || !command) {
         showStatusMessage('error', 'Please enter both name and command');
         return;
     }
-    
+
     // Check for duplicate names (excluding current editing index)
     const duplicateIndex = currentConfig.buildCommands.findIndex(
         (cmd, idx) => cmd.name === name && idx !== editingCommandIndex
@@ -508,15 +529,11 @@ function updateCommand() {
         showStatusMessage('error', 'Command name already exists');
         return;
     }
-    
-    const oldName = currentConfig.buildCommands[editingCommandIndex].name;
-    currentConfig.buildCommands[editingCommandIndex] = { name, command };
-    
-    // Update lastBuildCommand if the renamed command was active
-    if (currentConfig.lastBuildCommand === oldName) {
-        currentConfig.lastBuildCommand = name;
-    }
-    
+
+    // Preserve isActive status
+    const wasActive = currentConfig.buildCommands[editingCommandIndex].isActive;
+    currentConfig.buildCommands[editingCommandIndex] = { name, description, command, isActive: wasActive };
+
     renderCommandTable();
     cancelEdit();
     showStatusMessage('success', 'Command updated');
@@ -527,18 +544,20 @@ function updateCommand() {
  */
 function cancelEdit() {
     const nameInput = document.getElementById('newCommandName');
+    const descInput = document.getElementById('newCommandDesc');
     const valueInput = document.getElementById('newCommandValue');
-    
+
     nameInput.value = '';
+    descInput.value = '';
     valueInput.value = '';
-    
+
     editingCommandIndex = -1;
-    
+
     // Restore add button
     const addBtn = document.querySelector('.add-command-form .btn-primary');
     addBtn.innerHTML = '<i class="fa-solid fa-plus"></i> Add';
     addBtn.onclick = addCommand;
-    
+
     // Remove cancel button
     const cancelBtn = document.getElementById('cancelEditBtn');
     if (cancelBtn) {
@@ -551,19 +570,18 @@ function cancelEdit() {
  */
 function deleteCommand(index) {
     const cmd = currentConfig.buildCommands[index];
-    
-    // If deleting the active command, clear lastBuildCommand
-    if (cmd.name === currentConfig.lastBuildCommand) {
-        currentConfig.lastBuildCommand = '';
+
+    // If deleting the active command, transfer active status to another command
+    if (cmd.isActive) {
+        currentConfig.buildCommands.splice(index, 1);
+        // Set first command as active if available
+        if (currentConfig.buildCommands.length > 0) {
+            currentConfig.buildCommands[0].isActive = true;
+        }
+    } else {
+        currentConfig.buildCommands.splice(index, 1);
     }
-    
-    currentConfig.buildCommands.splice(index, 1);
-    
-    // If there's still commands and no active one, set the first as active
-    if (currentConfig.buildCommands.length > 0 && !currentConfig.lastBuildCommand) {
-        currentConfig.lastBuildCommand = currentConfig.buildCommands[0].name;
-    }
-    
+
     renderCommandTable();
     showStatusMessage('success', 'Command deleted');
 }
@@ -616,11 +634,13 @@ function saveSettings() {
     currentConfig.buildGitBashPath = document.getElementById('gitBashPath').value.trim();
     currentConfig.defaultComPort = document.getElementById('comPort').value.trim();
     currentConfig.language = document.getElementById('languageSelect').value;
-    currentConfig.theme = document.getElementById('themeSelect').value;
-    currentConfig.accentColor = document.getElementById('accentColorSelect').value;
+    currentConfig.theme = {
+        mode: document.getElementById('themeSelect').value,
+        accent: document.getElementById('accentColorSelect').value
+    };
 
     // Debug: log the config being saved
-    console.log('[Settings] Saving config, theme:', currentConfig.theme, 'accentColor:', currentConfig.accentColor);
+    console.log('[Settings] Saving config, theme:', currentConfig.theme);
 
     vscode.postMessage({
         command: 'saveConfig',
@@ -644,18 +664,6 @@ function resetToDefaults() {
  */
 function openConfigFile() {
     vscode.postMessage({ command: 'openConfigFile' });
-}
-
-/**
- * Run environment setup script
- */
-function runEnvSetup() {
-    const btn = document.getElementById('btnRunEnvSetup');
-    btn.disabled = true;
-    const installingText = localizedStrings.installing || 'Installing...';
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ' + installingText;
-
-    vscode.postMessage({ command: 'runEnvSetup' });
 }
 
 /**
@@ -683,18 +691,6 @@ function installToCline() {
 }
 
 /**
- * Uninstall dove from system PATH
- */
-function uninstallEnv() {
-    const btn = document.getElementById('btnUninstallEnv');
-    btn.disabled = true;
-    const uninstallingText = localizedStrings.uninstalling || 'Uninstalling...';
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ' + uninstallingText;
-
-    vscode.postMessage({ command: 'uninstallEnv' });
-}
-
-/**
  * Uninstall skill from Claude Code
  */
 function uninstallFromClaudeCode() {
@@ -716,41 +712,6 @@ function uninstallFromCline() {
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ' + uninstallingText;
 
     vscode.postMessage({ command: 'uninstallSkill', agent: 'cline' });
-}
-
-/**
- * Check environment installation status
- */
-function checkEnvStatus() {
-    const btn = document.getElementById('btnCheckEnvStatus');
-    btn.disabled = true;
-    const checkingText = localizedStrings.checkingStatus || 'Checking...';
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ' + checkingText;
-
-    vscode.postMessage({ command: 'checkEnvStatus' });
-}
-
-/**
- * Handle environment setup result
- */
-function handleEnvSetupResult(message) {
-    const btn = document.getElementById('btnRunEnvSetup');
-    btn.disabled = false;
-    const runEnvSetupText = localizedStrings.runEnvSetup || 'Run Environment Setup';
-    btn.innerHTML = '<i class="fa-solid fa-play"></i> ' + runEnvSetupText;
-
-    const uninstallBtn = document.getElementById('btnUninstallEnv');
-    uninstallBtn.disabled = false;
-    const uninstallText = localizedStrings.uninstall || 'Uninstall';
-    uninstallBtn.innerHTML = '<i class="fa-solid fa-trash"></i> ' + uninstallText;
-
-    if (message.success) {
-        showStatusMessage('success', message.message || 'Environment setup successful');
-        // Refresh status after successful install
-        vscode.postMessage({ command: 'checkEnvStatus' });
-    } else {
-        showStatusMessage('error', message.message || 'Environment setup failed');
-    }
 }
 
 /**
@@ -822,84 +783,6 @@ function handleSkillUninstallResult(message) {
         vscode.postMessage({ command: 'checkSkillStatus', agent: agent });
     } else {
         showStatusMessage('error', message.message || 'Uninstallation failed');
-    }
-}
-
-/**
- * Handle environment uninstall result
- */
-function handleEnvUninstallResult(message) {
-    const btn = document.getElementById('btnUninstallEnv');
-    btn.disabled = false;
-    const uninstallText = localizedStrings.uninstall || 'Uninstall';
-    btn.innerHTML = '<i class="fa-solid fa-trash"></i> ' + uninstallText;
-
-    const installBtn = document.getElementById('btnRunEnvSetup');
-    installBtn.disabled = false;
-    const runEnvSetupText = localizedStrings.runEnvSetup || 'Run Environment Setup';
-    installBtn.innerHTML = '<i class="fa-solid fa-play"></i> ' + runEnvSetupText;
-
-    if (message.success) {
-        showStatusMessage('success', message.message || 'Environment uninstalled successfully');
-        // Refresh status
-        vscode.postMessage({ command: 'checkEnvStatus' });
-    } else {
-        showStatusMessage('error', message.message || 'Environment uninstall failed');
-    }
-}
-
-/**
- * Handle environment status check result
- */
-function handleEnvStatusResult(message) {
-    const btn = document.getElementById('btnCheckEnvStatus');
-    btn.disabled = false;
-    const checkStatusText = localizedStrings.checkStatus || 'Check Status';
-    btn.innerHTML = '<i class="fa-solid fa-sync-alt"></i> ' + checkStatusText;
-
-    const statusContainer = document.getElementById('envInstallStatus');
-
-    if (message.installed) {
-        statusContainer.innerHTML = `
-            <div class="status-item">
-                <div class="status-icon installed">
-                    <i class="fa-solid fa-check"></i>
-                </div>
-                <div class="status-info">
-                    <div class="status-title">Installed</div>
-                    <div class="status-path">${escapeHtml(message.path)}</div>
-                    ${message.version ? `<div class="status-version">Version: ${escapeHtml(message.version)}</div>` : ''}
-                    ${message.extensionName ? `<div class="status-version">Extension: ${escapeHtml(message.extensionName)}</div>` : ''}
-                </div>
-            </div>
-        `;
-    } else {
-        statusContainer.innerHTML = `
-            <div class="status-item">
-                <div class="status-icon not-installed">
-                    <i class="fa-solid fa-times"></i>
-                </div>
-                <div class="status-info">
-                    <div class="status-title">Not Installed</div>
-                    <div class="status-path">Run "Environment Setup" to add dove to PATH</div>
-                </div>
-            </div>
-        `;
-    }
-
-    // Handle old version warning
-    if (message.hasOldVersion && message.oldVersions && message.oldVersions.length > 0) {
-        statusContainer.innerHTML += `
-            <div class="status-item">
-                <div class="status-icon warning">
-                    <i class="fa-solid fa-exclamation-triangle"></i>
-                </div>
-                <div class="status-info">
-                    <div class="status-title">Old Versions Found</div>
-                    <div class="status-path">${message.oldVersions.map(v => escapeHtml(v)).join('<br>')}</div>
-                </div>
-            </div>
-        `;
     }
 }
 
@@ -984,6 +867,80 @@ function showStatusMessage(type, message) {
         msgDiv.style.transition = 'all 0.3s ease';
         setTimeout(() => msgDiv.remove(), 300);
     }, 3000);
+}
+
+/**
+ * Render define table
+ */
+function renderDefineTable() {
+    const tbody = document.getElementById('defineTableBody');
+    const table = document.getElementById('defineTable');
+    const noDefinesMsg = document.getElementById('noDefinesMsg');
+
+    if (!currentDefines || currentDefines.length === 0) {
+        tbody.innerHTML = '';
+        table.style.display = 'none';
+        noDefinesMsg.style.display = 'block';
+        return;
+    }
+
+    table.style.display = 'table';
+    noDefinesMsg.style.display = 'none';
+
+    tbody.innerHTML = currentDefines.map(define => `
+        <tr>
+            <td>${escapeHtml(define)}</td>
+            <td>
+                <button class="btn-icon" onclick="deleteDefine('${escapeHtml(define)}')">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+/**
+ * Add new define
+ */
+function addDefine() {
+    const input = document.getElementById('newDefineName');
+    const defineName = input.value.trim();
+
+    if (!defineName) {
+        showStatusMessage('error', 'Please enter a define name');
+        return;
+    }
+
+    // Validate define name (must be uppercase letters, numbers, underscores)
+    const validPattern = /^[A-Z_][A-Z0-9_]*$/;
+    if (!validPattern.test(defineName)) {
+        showStatusMessage('error', 'Invalid define name (must be uppercase letters, numbers, underscores)');
+        return;
+    }
+
+    vscode.postMessage({
+        command: 'addCppDefine',
+        defineName: defineName
+    });
+
+    input.value = '';
+}
+
+/**
+ * Delete define
+ */
+function deleteDefine(defineName) {
+    vscode.postMessage({
+        command: 'deleteCppDefine',
+        defineName: defineName
+    });
+}
+
+/**
+ * Open keybinding settings
+ */
+function openKeybindingSettings() {
+    vscode.postMessage({ command: 'openKeybindingSettings' });
 }
 
 // Initialize on load

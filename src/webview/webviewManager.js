@@ -137,12 +137,12 @@ class WebviewManager {
         const fontAwesomeUri = this.panel.webview.asWebviewUri(
             vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'assets', 'fontawesome', 'all.min.css'))
         );
-        
+
         // Get effective theme
         const currentConfig = configManager.getConfig();
-        const themeConfig = currentConfig.theme || 'auto';
-        const effectiveTheme = this.getEffectiveTheme(themeConfig);
-        
+        const themeSettings = typeof currentConfig.theme === 'object' ? currentConfig.theme : { mode: currentConfig.theme || 'auto', accent: currentConfig.accentColor || 'blue' };
+        const effectiveTheme = this.getEffectiveTheme(themeSettings.mode || 'auto');
+
         let html = this.loadTemplate('welcome/welcome', {
             'locale': locale,
             'welcome.title': localize('welcome.title'),
@@ -167,12 +167,11 @@ class WebviewManager {
         html = html.replace('href="{{style.css}}"', `href="${styleUri}"`);
         html = html.replace('href="{{welcome.css}}"', `href="${welcomeCssUri}"`);
         html = html.replace('href="{{fontawesome.css}}"', `href="${fontAwesomeUri}"`);
-        
+
         // Apply effective theme to HTML
         // Note: {{locale}} was already replaced by loadTemplate(), so use actual locale value
-        const accentColor = currentConfig.accentColor || 'blue';
-        html = html.replace(`<html lang="${locale}">`, `<html lang="${locale}" data-theme="${effectiveTheme}" data-accent="${accentColor}">`);
-        
+        html = html.replace(`<html lang="${locale}">`, `<html lang="${locale}" data-theme="${effectiveTheme}" data-accent="${themeSettings.accent || 'blue'}">`);
+
         return html;
     }
 
@@ -226,12 +225,13 @@ class WebviewManager {
         );
 
         this.settingsPanel.webview.html = this.getSettingsHtml();
-        
+
         // Listen for VS Code theme changes
         vscode.workspace.onDidChangeConfiguration(e => {
             if (e.affectsConfiguration('workbench.colorTheme')) {
                 const config = configManager.getConfig();
-                if (config.theme === 'auto') {
+                const themeSettings = typeof config.theme === 'object' ? config.theme : { mode: config.theme || 'auto', accent: config.accentColor || 'blue' };
+                if (themeSettings.mode === 'auto') {
                     this.settingsPanel.webview.postMessage({
                         command: 'themeChanged',
                         theme: this.getEffectiveTheme('auto')
@@ -247,15 +247,14 @@ class WebviewManager {
                     case 'getConfig':
                         // Send current configuration to webview
                         const config = configManager.getConfig();
-                        const themeConfig = config.theme || 'auto';
-                        const effectiveTheme = this.getEffectiveTheme(themeConfig);
+                        const themeSettings = typeof config.theme === 'object' ? config.theme : { mode: config.theme || 'auto', accent: config.accentColor || 'blue' };
+                        const effectiveTheme = this.getEffectiveTheme(themeSettings.mode || 'auto');
                         this.settingsPanel.webview.postMessage({
                             command: 'configData',
                             config: config,
                             configFilePath: configManager.getConfigPath(),
                             effectiveTheme: effectiveTheme,
                             localizedStrings: {
-                                runEnvSetup: localize('settings.runEnvSetup'),
                                 uninstall: localize('settings.uninstall'),
                                 installing: localize('settings.installing'),
                                 uninstalling: localize('settings.uninstalling'),
@@ -264,15 +263,15 @@ class WebviewManager {
                                 install: localize('settings.install')
                             }
                         });
-                        // Also check initial installation status
-                        this.checkEnvStatus();
+                        // Also check initial skill installation status
                         this.checkSkillStatus('claude-code');
                         this.checkSkillStatus('cline');
                         return;
                     case 'getEffectiveTheme':
                         // Send effective theme for auto mode
-                        const currentThemeConfig = configManager.getConfig().theme || 'auto';
-                        const currentEffectiveTheme = this.getEffectiveTheme(currentThemeConfig);
+                        const currentThemeConfig = configManager.getConfig();
+                        const currentThemeSettings = typeof currentThemeConfig.theme === 'object' ? currentThemeConfig.theme : { mode: currentThemeConfig.theme || 'auto' };
+                        const currentEffectiveTheme = this.getEffectiveTheme(currentThemeSettings.mode || 'auto');
                         this.settingsPanel.webview.postMessage({
                             command: 'effectiveTheme',
                             theme: currentEffectiveTheme
@@ -314,30 +313,29 @@ class WebviewManager {
                         const updates = {
                             firmwarePath: message.config.firmwarePath,
                             buildCommands: message.config.buildCommands,
-                            lastBuildCommand: message.config.lastBuildCommand,
                             buildGitBashPath: message.config.buildGitBashPath,
                             defaultComPort: message.config.defaultComPort,
                             language: message.config.language,
-                            theme: message.config.theme,
-                            accentColor: message.config.accentColor
+                            theme: message.config.theme
                         };
 
                         const success = configManager.setMultiple(updates);
                         if (success) {
                             // Apply theme if changed
                             if (updates.theme) {
-                                const effectiveTheme = this.getEffectiveTheme(updates.theme);
+                                const themeSettings = typeof updates.theme === 'object' ? updates.theme : { mode: updates.theme };
+                                const effectiveTheme = this.getEffectiveTheme(themeSettings.mode || 'auto');
                                 this.settingsPanel.webview.postMessage({
                                     command: 'themeChanged',
                                     theme: effectiveTheme
                                 });
-                            }
-                            // Apply accent color if changed
-                            if (updates.accentColor) {
-                                this.settingsPanel.webview.postMessage({
-                                    command: 'accentColorChanged',
-                                    accentColor: updates.accentColor
-                                });
+                                // Apply accent color if changed
+                                if (themeSettings.accent) {
+                                    this.settingsPanel.webview.postMessage({
+                                        command: 'accentColorChanged',
+                                        accentColor: themeSettings.accent
+                                    });
+                                }
                             }
                             this.settingsPanel.webview.postMessage({
                                 command: 'configSaved',
@@ -383,18 +381,6 @@ class WebviewManager {
                             vscode.window.showErrorMessage(localize('settings.configFileNotFound'));
                         }
                         return;
-                    case 'runEnvSetup':
-                        // Run environment setup script
-                        await this.runEnvSetup();
-                        return;
-                    case 'uninstallEnv':
-                        // Uninstall dove from PATH
-                        await this.uninstallEnv();
-                        return;
-                    case 'checkEnvStatus':
-                        // Check environment installation status
-                        await this.checkEnvStatus();
-                        return;
                     case 'installSkill':
                         // Install skill to specified agent
                         await this.installSkill(message.agent);
@@ -406,6 +392,70 @@ class WebviewManager {
                     case 'checkSkillStatus':
                         // Check skill installation status for specified agent
                         await this.checkSkillStatus(message.agent);
+                        return;
+                    case 'getCppDefines':
+                        // Get C/C++ defines list
+                        const defines = this.getCppDefines();
+                        this.settingsPanel.webview.postMessage({
+                            command: 'cppDefineData',
+                            defines: defines
+                        });
+                        return;
+                    case 'addCppDefine':
+                        // Add a new C/C++ define
+                        if (message.defineName) {
+                            const defineName = message.defineName.trim();
+                            if (this.isValidCppDefineName(defineName)) {
+                                const defines = this.getCppDefines();
+                                if (!defines.includes(defineName)) {
+                                    defines.push(defineName);
+                                    this.saveCppDefines(defines);
+                                    this.settingsPanel.webview.postMessage({
+                                        command: 'cppDefineAdded',
+                                        defineName: defineName
+                                    });
+                                    // Refresh list
+                                    this.settingsPanel.webview.postMessage({
+                                        command: 'cppDefineData',
+                                        defines: defines
+                                    });
+                                } else {
+                                    this.settingsPanel.webview.postMessage({
+                                        command: 'cppDefineError',
+                                        message: localize('cppDefineExists') || 'Define already exists'
+                                    });
+                                }
+                            } else {
+                                this.settingsPanel.webview.postMessage({
+                                    command: 'cppDefineError',
+                                    message: localize('cppDefineInvalid')
+                                });
+                            }
+                        }
+                        return;
+                    case 'deleteCppDefine':
+                        // Delete a C/C++ define
+                        if (message.defineName) {
+                            const defines = this.getCppDefines();
+                            const index = defines.indexOf(message.defineName);
+                            if (index > -1) {
+                                defines.splice(index, 1);
+                                this.saveCppDefines(defines);
+                                this.settingsPanel.webview.postMessage({
+                                    command: 'cppDefineRemoved',
+                                    defineName: message.defineName
+                                });
+                                // Refresh list
+                                this.settingsPanel.webview.postMessage({
+                                    command: 'cppDefineData',
+                                    defines: defines
+                                });
+                            }
+                        }
+                        return;
+                    case 'openKeybindingSettings':
+                        // Open VS Code keybinding settings
+                        vscode.commands.executeCommand('workbench.action.openGlobalKeybindings');
                         return;
                     case 'selectScriptFile':
                         // Select script file for build command
@@ -517,8 +567,8 @@ class WebviewManager {
         
         // Get effective theme
         const currentConfig = configManager.getConfig();
-        const themeConfig = currentConfig.theme || 'auto';
-        const effectiveTheme = this.getEffectiveTheme(themeConfig);
+        const themeSettings = typeof currentConfig.theme === 'object' ? currentConfig.theme : { mode: currentConfig.theme || 'auto', accent: currentConfig.accentColor || 'blue' };
+        const effectiveTheme = this.getEffectiveTheme(themeSettings.mode || 'auto');
 
         let html = this.loadTemplate('searchPanel/searchPanel', {
             'locale': locale,
@@ -543,12 +593,11 @@ class WebviewManager {
         html = html.replace('href="{{searchPanel.css}}"', `href="${searchPanelCssUri}"`);
         html = html.replace('href="{{fontawesome.css}}"', `href="${fontAwesomeUri}"`);
         html = html.replace('src="{{search.js}}"', `src="${searchJsUri}"`);
-        
+
         // Apply effective theme to HTML
         // Note: {{locale}} was already replaced by loadTemplate(), so use actual locale value
-        const accentColor = currentConfig.accentColor || 'blue';
-        html = html.replace(`<html lang="${locale}">`, `<html lang="${locale}" data-theme="${effectiveTheme}" data-accent="${accentColor}">`);
-        
+        html = html.replace(`<html lang="${locale}">`, `<html lang="${locale}" data-theme="${effectiveTheme}" data-accent="${themeSettings.accent || 'blue'}">`);
+
         return html;
     }
 
@@ -569,320 +618,6 @@ class WebviewManager {
     }
 
     /**
-     * Run environment setup script
-     */
-    async runEnvSetup() {
-        const extensionPath = this.context.extensionPath;
-        const packageJson = require(path.join(extensionPath, 'package.json'));
-        const extensionVersion = packageJson.version;
-        const extensionName = packageJson.name;
-
-        // Get extension info for versioned path tracking
-        const versionedDirName = `${extensionName}-${extensionVersion}`;
-
-        // Check for old versions first
-        const oldVersions = await this.findOldEnvVersions(extensionName, extensionVersion);
-
-        if (oldVersions.length > 0) {
-            // Uninstall old versions before installing new one
-            for (const oldVersion of oldVersions) {
-                await this.uninstallEnvVersion(oldVersion.path);
-            }
-        }
-
-        const initScript = path.join(extensionPath, 'dove', 'env', 'init.ps1');
-
-        if (!fs.existsSync(initScript)) {
-            this.settingsPanel.webview.postMessage({
-                command: 'envSetupResult',
-                success: false,
-                message: localize('settings.envSetupFailed') + ': Environment setup script not found'
-            });
-            return;
-        }
-
-        try {
-            // Run PowerShell script
-            const { exec } = require('child_process');
-            const command = `powershell -ExecutionPolicy Bypass -File "${initScript}"`;
-
-            exec(command, { cwd: path.join(extensionPath, 'dove', 'env') }, (error, stdout, stderr) => {
-                if (error) {
-                    this.settingsPanel.webview.postMessage({
-                        command: 'envSetupResult',
-                        success: false,
-                        message: localize('settings.envSetupFailed') + ': ' + error.message
-                    });
-                    return;
-                }
-
-                // Store installed version info in global state
-                this.context.globalState.update('quickFirmwarePlus.envInstalledVersion', {
-                    version: extensionVersion,
-                    extensionName: extensionName,
-                    path: path.join(extensionPath, 'dove'),
-                    installedAt: new Date().toISOString()
-                });
-
-                // Note: VSCode terminal environment is auto-configured by extension
-                // via environmentVariableCollection API - no terminal restart needed
-                const vscodeNote = '\n\n(' + localize('settings.vscodeTerminalNote') + ')';
-                this.settingsPanel.webview.postMessage({
-                    command: 'envSetupResult',
-                    success: true,
-                    message: localize('settings.envSetupSuccess') + (oldVersions.length > 0 ? ' (' + localize('settings.oldVersionFound') + ')' : '') + vscodeNote
-                });
-            });
-        } catch (error) {
-            this.settingsPanel.webview.postMessage({
-                command: 'envSetupResult',
-                success: false,
-                message: localize('settings.envSetupFailed') + ': ' + error.message
-            });
-        }
-    }
-
-    /**
-     * Find old environment versions installed
-     * Uses same cleaning logic as fix_path.ps1
-     */
-    async findOldEnvVersions(currentExtensionName, currentVersion) {
-        const oldVersions = [];
-        const userHome = process.env.USERPROFILE || process.env.HOME;
-
-        // Use PowerShell to get User PATH from registry (like fix_path.ps1)
-        const { exec } = require('child_process');
-        const command = `powershell -Command "[Environment]::GetEnvironmentVariable('PATH', 'User')"`;
-
-        try {
-            const userPath = await new Promise((resolve) => {
-                exec(command, (error, stdout) => {
-                    if (error) {
-                        // Fallback to process PATH
-                        resolve(process.env.PATH || '');
-                    } else {
-                        resolve(stdout.trim());
-                    }
-                });
-            });
-
-            // Clean PATH entries (remove quotes, empty entries)
-            const cleanedPaths = this.cleanPathString(userPath);
-
-            for (const pathPart of cleanedPaths) {
-                // Check if this is a dove path from our extension
-                if (pathPart.includes('dove') && pathPart.includes('quick-dove')) {
-                    // Extract version info from path if possible
-                    const versionMatch = pathPart.match(/quick-dove-(\d+\.\d+\.\d+)/);
-                    if (versionMatch) {
-                        const foundVersion = versionMatch[1];
-                        if (foundVersion !== currentVersion) {
-                            oldVersions.push({
-                                version: foundVersion,
-                                path: pathPart
-                            });
-                        }
-                    }
-                }
-            }
-        } catch (error) {
-            // Fallback to process PATH with cleaning
-            const currentPath = process.env.PATH || '';
-            const cleanedPaths = this.cleanPathString(currentPath);
-
-            for (const pathPart of cleanedPaths) {
-                if (pathPart.includes('dove') && pathPart.includes('quick-dove')) {
-                    const versionMatch = pathPart.match(/quick-dove-(\d+\.\d+\.\d+)/);
-                    if (versionMatch) {
-                        const foundVersion = versionMatch[1];
-                        if (foundVersion !== currentVersion) {
-                            oldVersions.push({
-                                version: foundVersion,
-                                path: pathPart
-                            });
-                        }
-                    }
-                }
-            }
-        }
-
-        // Also check global state for previous installations
-        const installedInfo = this.context.globalState.get('quickFirmwarePlus.envInstalledVersion');
-        if (installedInfo && installedInfo.version !== currentVersion) {
-            if (!oldVersions.find(v => v.version === installedInfo.version)) {
-                oldVersions.push({
-                    version: installedInfo.version,
-                    path: installedInfo.path
-                });
-            }
-        }
-
-        return oldVersions;
-    }
-
-    /**
-     * Uninstall a specific environment version from PATH
-     * Uses same cleaning logic as fix_path.ps1
-     */
-    async uninstallEnvVersion(firmwareCliPath) {
-        try {
-            // Use PowerShell to remove from PATH with proper cleaning
-            const { exec } = require('child_process');
-            // Only escape single quotes for PowerShell
-            const escapedPath = firmwareCliPath.replace(/'/g, "''");
-            // PowerShell's -ne is case-insensitive by default
-            const command = `powershell -Command "$currPath = [Environment]::GetEnvironmentVariable('PATH', 'User'); $removePath = '${escapedPath}'; $cleanedParts = @($currPath -split ';' | ForEach-Object { $p = $_.Trim().Trim('"'); if (-not [string]::IsNullOrWhiteSpace($p) -and $p -ne $removePath) { $p } }); $newPath = $cleanedParts -join ';'; [Environment]::SetEnvironmentVariable('PATH', $newPath, 'User')"`;
-
-            return new Promise((resolve) => {
-                exec(command, (error) => {
-                    if (error) {
-                        console.error('Failed to uninstall old version:', error);
-                    }
-                    resolve();
-                });
-            });
-        } catch (error) {
-            console.error('Failed to uninstall old version:', error);
-        }
-    }
-
-    /**
-     * Uninstall dove from system PATH
-     * Uses same cleaning logic as fix_path.ps1 to properly match and remove paths
-     */
-    async uninstallEnv() {
-        const extensionPath = this.context.extensionPath;
-        const firmwareCliDir = path.join(extensionPath, 'dove');
-
-        try {
-            // Run PowerShell to clean PATH and remove entry
-            const { exec } = require('child_process');
-            // Only escape single quotes for PowerShell
-            const escapedPath = firmwareCliDir.replace(/'/g, "''");
-            // PowerShell's -ne is case-insensitive by default, so no need for .ToLower()
-            const command = `powershell -Command "$currPath = [Environment]::GetEnvironmentVariable('PATH', 'User'); $removePath = '${escapedPath}'; $cleanedParts = @($currPath -split ';' | ForEach-Object { $p = $_.Trim().Trim('"'); if (-not [string]::IsNullOrWhiteSpace($p) -and $p -ne $removePath) { $p } }); $newPath = $cleanedParts -join ';'; [Environment]::SetEnvironmentVariable('PATH', $newPath, 'User'); Write-Output 'Done'"`;
-
-            exec(command, (error, stdout, stderr) => {
-                if (error) {
-                    this.settingsPanel.webview.postMessage({
-                        command: 'envUninstallResult',
-                        success: false,
-                        message: localize('settings.uninstallFailed') + ': ' + error.message
-                    });
-                    return;
-                }
-
-                // Clear global state
-                this.context.globalState.update('quickFirmwarePlus.envInstalledVersion', undefined);
-
-                this.settingsPanel.webview.postMessage({
-                    command: 'envUninstallResult',
-                    success: true,
-                    message: localize('settings.uninstallSuccess')
-                });
-            });
-        } catch (error) {
-            this.settingsPanel.webview.postMessage({
-                command: 'envUninstallResult',
-                success: false,
-                message: localize('settings.uninstallFailed') + ': ' + error.message
-            });
-        }
-    }
-
-    /**
-     * Clean PATH string by removing quotes and empty entries
-     * Similar to fix_path.ps1 logic
-     * @param {string} pathString - PATH string to clean
-     * @returns {string[]} - Array of cleaned paths
-     */
-    cleanPathString(pathString) {
-        if (!pathString) return [];
-        return pathString.split(';')
-            .map(p => p.trim().replace(/^"|"$/g, '')) // Remove quotes from both ends
-            .filter(p => p.length > 0); // Remove empty entries
-    }
-
-    /**
-     * Normalize path for comparison (handle case sensitivity and slashes)
-     * @param {string} path - Path to normalize
-     * @returns {string} - Normalized path
-     */
-    normalizePath(path) {
-        if (!path) return '';
-        return path.trim().replace(/^"|"$/g, '').toLowerCase().replace(/\\/g, '/');
-    }
-
-    /**
-     * Check environment installation status
-     */
-    async checkEnvStatus() {
-        const extensionPath = this.context.extensionPath;
-        const packageJson = require(path.join(extensionPath, 'package.json'));
-        const extensionVersion = packageJson.version;
-        const extensionName = packageJson.name;
-        const firmwareCliDir = path.join(extensionPath, 'dove');
-
-        // Use PowerShell to get User PATH from registry (like fix_path.ps1)
-        // This ensures we get the actual stored PATH, not the process PATH
-        const { exec } = require('child_process');
-        const command = `powershell -Command "[Environment]::GetEnvironmentVariable('PATH', 'User')"`;
-
-        try {
-            const userPath = await new Promise((resolve) => {
-                exec(command, (error, stdout) => {
-                    if (error) {
-                        // Fallback to process PATH if PowerShell fails
-                        resolve(process.env.PATH || '');
-                    } else {
-                        resolve(stdout.trim());
-                    }
-                });
-            });
-
-            // Clean and normalize paths for comparison (like fix_path.ps1)
-            const cleanedPaths = this.cleanPathString(userPath);
-            const normalizedFirmwareCliDir = this.normalizePath(firmwareCliDir);
-            const isInPath = cleanedPaths.some(p => this.normalizePath(p) === normalizedFirmwareCliDir);
-
-            // Check for old versions
-            const oldVersions = await this.findOldEnvVersions(extensionName, extensionVersion);
-
-            // Get stored installation info
-            const installedInfo = this.context.globalState.get('quickFirmwarePlus.envInstalledVersion');
-
-            this.settingsPanel.webview.postMessage({
-                command: 'envStatusResult',
-                installed: isInPath,
-                path: firmwareCliDir,
-                version: extensionVersion,
-                extensionName: `${extensionName} v${extensionVersion}`,
-                hasOldVersion: oldVersions.length > 0,
-                oldVersions: oldVersions.map(v => `${v.path} (v${v.version})`)
-            });
-        } catch (error) {
-            // Fallback: use process PATH with cleaning
-            const currentPath = process.env.PATH || '';
-            const cleanedPaths = this.cleanPathString(currentPath);
-            const normalizedFirmwareCliDir = this.normalizePath(firmwareCliDir);
-            const isInPath = cleanedPaths.some(p => this.normalizePath(p) === normalizedFirmwareCliDir);
-
-            const oldVersions = await this.findOldEnvVersions(extensionName, extensionVersion);
-            const installedInfo = this.context.globalState.get('quickFirmwarePlus.envInstalledVersion');
-
-            this.settingsPanel.webview.postMessage({
-                command: 'envStatusResult',
-                installed: isInPath,
-                path: firmwareCliDir,
-                version: extensionVersion,
-                extensionName: `${extensionName} v${extensionVersion}`,
-                hasOldVersion: oldVersions.length > 0,
-                oldVersions: oldVersions.map(v => `${v.path} (v${v.version})`)
-            });
-        }
-    }
-
-    /**
      * Install skill to specified agent
      * @param {string} agent - Agent name ('claude-code' or 'cline')
      */
@@ -894,11 +629,11 @@ class WebviewManager {
         const userHome = process.env.USERPROFILE || process.env.HOME;
 
         // Source skill files
-        const firmwareActionSrc = path.join(extensionPath, 'dove', 'skill', 'firmware-action', 'SKILL.md');
-        const firmwareToolSrc = path.join(extensionPath, 'dove', 'skill', 'firmware-tool', 'SKILL.md');
+        const doveActionSrc = path.join(extensionPath, 'dove', 'skill', 'dove-action', 'SKILL.md');
+        const doveQuerySrc = path.join(extensionPath, 'dove', 'skill', 'dove-query', 'SKILL.md');
 
         // Check source files exist
-        if (!fs.existsSync(firmwareActionSrc) || !fs.existsSync(firmwareToolSrc)) {
+        if (!fs.existsSync(doveActionSrc) || !fs.existsSync(doveQuerySrc)) {
             this.settingsPanel.webview.postMessage({
                 command: 'skillInstallResult',
                 agent: agent,
@@ -917,7 +652,7 @@ class WebviewManager {
                 const versionedDirName = `${extensionName}-${extensionVersion}`;
 
                 // Check for old versions and remove them
-                const skillDirNames = ['firmware-action', 'firmware-tool'];
+                const skillDirNames = ['dove-action', 'dove-query'];
                 for (const skillName of skillDirNames) {
                     const skillDir = path.join(skillsBaseDir, skillName);
                     if (fs.existsSync(skillDir)) {
@@ -934,36 +669,35 @@ class WebviewManager {
                 }
 
                 // Create versioned skill directories
-                const firmwareActionDir = path.join(skillsBaseDir, 'firmware-action', versionedDirName);
-                const firmwareToolDir = path.join(skillsBaseDir, 'firmware-tool', versionedDirName);
+                const doveActionDir = path.join(skillsBaseDir, 'dove-action', versionedDirName);
+                const doveQueryDir = path.join(skillsBaseDir, 'dove-query', versionedDirName);
 
-                fs.mkdirSync(firmwareActionDir, { recursive: true });
-                fs.mkdirSync(firmwareToolDir, { recursive: true });
+                fs.mkdirSync(doveActionDir, { recursive: true });
+                fs.mkdirSync(doveQueryDir, { recursive: true });
 
                 // Copy skill files
-                fs.copyFileSync(firmwareActionSrc, path.join(firmwareActionDir, 'SKILL.md'));
-                fs.copyFileSync(firmwareToolSrc, path.join(firmwareToolDir, 'SKILL.md'));
+                fs.copyFileSync(doveActionSrc, path.join(doveActionDir, 'SKILL.md'));
+                fs.copyFileSync(doveQuerySrc, path.join(doveQueryDir, 'SKILL.md'));
 
                 installedPath = skillsBaseDir;
             } else if (agent === 'cline') {
                 // Cline: flat structure in TWO locations:
                 // 1. ~/.cline/skills/<skill-name>/SKILL.md
                 // 2. ~/.agents/skills/<skill-name>/SKILL.md
-                const clineSkillsDir = path.join(userHome, '.cline', 'skills');
+                //const clineSkillsDir = path.join(userHome, '.cline', 'skills');
                 const agentsSkillsDir = path.join(userHome, '.agents', 'skills');
+                const skillDirNames = ['dove-action', 'dove-query'];
 
-                const skillDirNames = ['firmware-action', 'firmware-tool'];
-
-                for (const skillsDir of [clineSkillsDir, agentsSkillsDir]) {
+                for (const skillsDir of [agentsSkillsDir]) {
                     for (const skillName of skillDirNames) {
                         const skillDir = path.join(skillsDir, skillName);
                         fs.mkdirSync(skillDir, { recursive: true });
-                        const skillSrc = skillName === 'firmware-action' ? firmwareActionSrc : firmwareToolSrc;
+                        const skillSrc = skillName === 'dove-action' ? doveActionSrc : doveQuerySrc;
                         fs.copyFileSync(skillSrc, path.join(skillDir, 'SKILL.md'));
                     }
                 }
 
-                installedPath = `${clineSkillsDir} & ${agentsSkillsDir}`;
+                installedPath = `${agentsSkillsDir}`;
             } else {
                 this.settingsPanel.webview.postMessage({
                     command: 'skillInstallResult',
@@ -1010,7 +744,7 @@ class WebviewManager {
         const extensionName = packageJson.name;
 
         try {
-            const skillNames = ['firmware-action', 'firmware-tool'];
+            const skillNames = ['dove-action', 'dove-query'];
 
             if (agent === 'claude-code') {
                 // Claude Code: remove from ~/.claude/skills/
@@ -1089,7 +823,7 @@ class WebviewManager {
         const extensionVersion = packageJson.version;
         const extensionName = packageJson.name;
 
-        const skillNames = ['firmware-action', 'firmware-tool'];
+        const skillNames = ['dove-action', 'dove-query'];
         let installedCount = 0;
         let installedPath = '';
         const oldVersions = [];
@@ -1191,8 +925,8 @@ class WebviewManager {
         
         // Get current config and effective theme
         const currentConfig = configManager.getConfig();
-        const themeConfig = currentConfig.theme || 'auto';
-        const effectiveTheme = this.getEffectiveTheme(themeConfig);
+        const themeSettings = typeof currentConfig.theme === 'object' ? currentConfig.theme : { mode: currentConfig.theme || 'auto', accent: currentConfig.accentColor || 'blue' };
+        const effectiveTheme = this.getEffectiveTheme(themeSettings.mode || 'auto');
 
         let html = this.loadTemplate('settings/settings', {
             'locale': locale,
@@ -1207,11 +941,13 @@ class WebviewManager {
             'settings.buildCommandsLabel': localize('settings.buildCommandsLabel'),
             'settings.buildCommandsDesc': localize('settings.buildCommandsDesc'),
             'settings.commandName': localize('settings.commandName'),
+            'settings.commandDesc': localize('settings.commandDesc'),
             'settings.commandValue': localize('settings.commandValue'),
             'settings.commandActions': localize('settings.commandActions'),
             'settings.noCommands': localize('settings.noCommands'),
             'settings.addCommand': localize('settings.addCommand'),
             'settings.commandNamePlaceholder': localize('settings.commandNamePlaceholder'),
+            'settings.commandDescPlaceholder': localize('settings.commandDescPlaceholder'),
             'settings.commandValuePlaceholder': localize('settings.commandValuePlaceholder'),
             'settings.add': localize('settings.add'),
             'settings.gitBashPath': localize('settings.gitBashPath'),
@@ -1234,7 +970,9 @@ class WebviewManager {
             'settings.configFileLoading': localize('settings.configFileLoading'),
             'settings.openConfigFile': localize('settings.openConfigFile'),
             'settings.reset': localize('settings.reset'),
+            'settings.resetShort': localize('settings.resetShort'),
             'settings.save': localize('settings.save'),
+            'settings.saveShort': localize('settings.saveShort'),
             'settings.selectScriptFile': localize('selectScriptFile'),
             // Theme settings - add missing theme localization strings
             'settings.theme': localize('settings.theme'),
@@ -1243,11 +981,15 @@ class WebviewManager {
             'settings.themeAuto': localize('settings.themeAuto'),
             'settings.themeDark': localize('settings.themeDark'),
             'settings.themeLight': localize('settings.themeLight'),
+            'settings.accentColorLabel': localize('settings.accentColorLabel'),
+            'settings.accentColorDesc': localize('settings.accentColorDesc'),
+            'settings.accentBlue': localize('settings.accentBlue'),
+            'settings.accentGreen': localize('settings.accentGreen'),
+            'settings.accentPurple': localize('settings.accentPurple'),
+            'settings.accentOrange': localize('settings.accentOrange'),
+            'settings.accentPink': localize('settings.accentPink'),
             // Agent Integration settings
             'settings.agentIntegration': localize('settings.agentIntegration'),
-            'settings.envSetup': localize('settings.envSetup'),
-            'settings.envSetupDesc': localize('settings.envSetupDesc'),
-            'settings.runEnvSetup': localize('settings.runEnvSetup'),
             'settings.skillIntegration': localize('settings.skillIntegration'),
             'settings.skillIntegrationDesc': localize('settings.skillIntegrationDesc'),
             'settings.installToClaudeCode': localize('settings.installToClaudeCode'),
@@ -1255,8 +997,6 @@ class WebviewManager {
             'settings.installing': localize('settings.installing'),
             'settings.installSuccess': localize('settings.installSuccess'),
             'settings.installFailed': localize('settings.installFailed'),
-            'settings.envSetupSuccess': localize('settings.envSetupSuccess'),
-            'settings.envSetupFailed': localize('settings.envSetupFailed'),
             // Installation status strings
             'settings.installStatus': localize('settings.installStatus'),
             'settings.checkStatus': localize('settings.checkStatus'),
@@ -1269,7 +1009,19 @@ class WebviewManager {
             'settings.uninstallFailed': localize('settings.uninstallFailed'),
             'settings.oldVersionFound': localize('settings.oldVersionFound'),
             'settings.version': localize('settings.version'),
-            'settings.extensionName': localize('settings.extensionName')
+            'settings.extensionName': localize('settings.extensionName'),
+            // C/C++ Define Helper
+            'settings.cppDefine': localize('settings.cppDefine'),
+            'settings.cppDefineLabel': localize('settings.cppDefineLabel'),
+            'settings.cppDefineDesc': localize('settings.cppDefineDesc'),
+            'settings.cppDefineList': localize('settings.cppDefineList'),
+            'settings.cppDefineAdd': localize('settings.cppDefineAdd'),
+            'settings.cppDefineDelete': localize('settings.cppDefineDelete'),
+            'settings.cppDefineEmpty': localize('settings.cppDefineEmpty'),
+            'settings.cppDefinePlaceholder': localize('settings.cppDefinePlaceholder'),
+            'settings.cppDefineKeybinding': localize('settings.cppDefineKeybinding'),
+            'settings.cppDefineKeybindingDesc': localize('settings.cppDefineKeybindingDesc'),
+            'settings.cppDefineOpenKeybinding': localize('settings.cppDefineOpenKeybinding')
         });
         
         // Replace CSS and JS placeholders with webview URIs
@@ -1277,13 +1029,95 @@ class WebviewManager {
         html = html.replace('href="{{settings.css}}"', `href="${settingsCssUri}"`);
         html = html.replace('href="{{fontawesome.css}}"', `href="${fontAwesomeUri}"`);
         html = html.replace('src="{{settings.js}}"', `src="${settingsJsUri}"`);
-        
+
         // Apply effective theme to HTML
         // Note: {{locale}} was already replaced by loadTemplate(), so use actual locale value
-        const accentColor = currentConfig.accentColor || 'blue';
-        html = html.replace(`<html lang="${locale}">`, `<html lang="${locale}" data-theme="${effectiveTheme}" data-accent="${accentColor}">`);
-        
+        html = html.replace(`<html lang="${locale}">`, `<html lang="${locale}" data-theme="${effectiveTheme}" data-accent="${themeSettings.accent || 'blue'}">`);
+
         return html;
+    }
+
+    // ========== C/C++ Define Helper Methods ==========
+
+    /**
+     * Check if a define name is valid
+     * @param {string} text
+     * @returns {boolean}
+     */
+    isValidCppDefineName(text) {
+        const definePattern = /^[A-Z_][A-Z0-9_]*$/;
+        return definePattern.test(text);
+    }
+
+    /**
+     * Get C/C++ defines from workspace settings
+     * @returns {Array<string>}
+     */
+    getCppDefines() {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders || workspaceFolders.length === 0) {
+            return [];
+        }
+
+        const settingsPath = path.join(workspaceFolders[0].uri.fsPath, '.vscode', 'settings.json');
+
+        if (!fs.existsSync(settingsPath)) {
+            return [];
+        }
+
+        try {
+            const content = fs.readFileSync(settingsPath, 'utf8');
+            if (!content.trim()) {
+                return [];
+            }
+            const settings = JSON.parse(content);
+            return settings['C_Cpp.default.defines'] || [];
+        } catch (error) {
+            return [];
+        }
+    }
+
+    /**
+     * Save C/C++ defines to workspace settings
+     * @param {Array<string>} defines
+     */
+    saveCppDefines(defines) {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders || workspaceFolders.length === 0) {
+            return false;
+        }
+
+        const settingsPath = path.join(workspaceFolders[0].uri.fsPath, '.vscode', 'settings.json');
+        const vscodeDir = path.dirname(settingsPath);
+
+        // Ensure .vscode directory exists
+        if (!fs.existsSync(vscodeDir)) {
+            fs.mkdirSync(vscodeDir, { recursive: true });
+        }
+
+        let settings = {};
+
+        // Read existing settings
+        if (fs.existsSync(settingsPath)) {
+            try {
+                const content = fs.readFileSync(settingsPath, 'utf8');
+                if (content.trim()) {
+                    settings = JSON.parse(content);
+                }
+            } catch (error) {
+                // If parse fails, start fresh
+                settings = {};
+            }
+        }
+
+        settings['C_Cpp.default.defines'] = defines;
+
+        try {
+            fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 4));
+            return true;
+        } catch (error) {
+            return false;
+        }
     }
 }
 

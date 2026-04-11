@@ -404,17 +404,22 @@ select:focus {
     box-shadow: 0 0 0 3px var(--input-focus-shadow);
 }
 
-/* Actions - Fixed at bottom */
-.settings-actions {
-    padding: 16px 32px;
+/* Sidebar Footer */
+.sidebar-footer {
+    padding: 16px 12px;
     border-top: 1px solid var(--border-color);
     background: var(--bg-secondary);
     display: flex;
-    justify-content: flex-end;
-    gap: 12px;
+    gap: 8px;
 }
 
-.settings-actions .btn-secondary {
+.sidebar-footer .btn {
+    flex: 1;
+    padding: 10px 8px;
+    font-size: 13px;
+}
+
+.sidebar-footer .btn-secondary {
     background: var(--bg-tertiary);
     border: 1px solid var(--border-color);
     color: var(--text-primary);
@@ -695,8 +700,8 @@ select:focus {
         padding: 16px 20px;
     }
 
-    .settings-actions {
-        padding: 12px 20px;
+    .sidebar-footer {
+        padding: 12px 10px;
     }
 
     .action-buttons-row {
@@ -706,4 +711,96 @@ select:focus {
     .skill-status-actions {
         flex-direction: column;
     }
+}
+
+/* ==================== C/C++ Define Helper Styles ==================== */
+
+/* Define Table */
+.define-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+}
+
+.define-table th,
+.define-table td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.define-table th {
+    font-weight: 600;
+    color: var(--text-muted);
+    font-size: 0.85em;
+}
+
+.define-table td:first-child {
+    font-family: 'Monaco', 'Menlo', monospace;
+    color: var(--accent-color);
+}
+
+.define-table .btn-icon {
+    padding: 6px 10px;
+    font-size: 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    border: none;
+    background: var(--btn-icon-delete-bg);
+    color: var(--error-color);
+    transition: all 0.2s ease;
+}
+
+.define-table .btn-icon:hover {
+    background: var(--btn-icon-delete-hover);
+}
+
+.no-defines {
+    text-align: center;
+    padding: 20px;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.add-define-form .form-row {
+    display: flex;
+    gap: 12px;
+}
+
+.add-define-form input {
+    flex: 1;
+    background: var(--input-bg);
+    border: 1px solid var(--input-border);
+    color: var(--text-primary);
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+.add-define-form input:focus {
+    outline: none;
+    border-color: var(--input-focus-border);
+    box-shadow: 0 0 0 3px var(--input-focus-shadow);
+}
+
+/* Keybinding Info */
+.keybinding-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 12px 0;
+}
+
+.keybinding-key {
+    background: var(--bg-tertiary);
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-family: 'Monaco', 'Menlo', monospace;
+    font-weight: 600;
+    color: var(--accent-color);
+}
+
+.keybinding-mac {
+    color: var(--text-muted);
+    font-size: 0.9em;
 }

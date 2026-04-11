@@ -260,6 +260,9 @@ class LogViewerManager {
 
         // Replace resource URIs
         const styleUri = panelInfo.panel.webview.asWebviewUri(
+            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'style.css'))
+        );
+        const logViewerCssUri = panelInfo.panel.webview.asWebviewUri(
             vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'logViewer', 'logViewer.css'))
         );
         const scriptUri = panelInfo.panel.webview.asWebviewUri(
@@ -270,6 +273,7 @@ class LogViewerManager {
         );
 
         html = html.replace('{{style.css}}', styleUri.toString());
+        html = html.replace('{{logViewer.css}}', logViewerCssUri.toString());
         html = html.replace('{{logViewer.js}}', scriptUri.toString());
         html = html.replace('{{fontawesome.css}}', fontAwesomeUri.toString());
 
@@ -326,6 +330,9 @@ class LogViewerManager {
 
         // Replace resource URIs
         const styleUri = filterInfo.panel.webview.asWebviewUri(
+            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'style.css'))
+        );
+        const logViewerCssUri = filterInfo.panel.webview.asWebviewUri(
             vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'logViewer', 'logViewer.css'))
         );
         const scriptUri = filterInfo.panel.webview.asWebviewUri(
@@ -336,6 +343,7 @@ class LogViewerManager {
         );
 
         html = html.replace('{{style.css}}', styleUri.toString());
+        html = html.replace('{{logViewer.css}}', logViewerCssUri.toString());
         html = html.replace('{{logViewer.js}}', scriptUri.toString());
         html = html.replace('{{fontawesome.css}}', fontAwesomeUri.toString());
 
@@ -908,6 +916,9 @@ class LogViewerManager {
 
         // Replace resource URIs
         const styleUri = panelInfo.panel.webview.asWebviewUri(
+            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'style.css'))
+        );
+        const logViewerCssUri = panelInfo.panel.webview.asWebviewUri(
             vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'logViewer', 'logViewer.css'))
         );
         const scriptUri = panelInfo.panel.webview.asWebviewUri(
@@ -918,6 +929,7 @@ class LogViewerManager {
         );
 
         html = html.replace('{{style.css}}', styleUri.toString());
+        html = html.replace('{{logViewer.css}}', logViewerCssUri.toString());
         html = html.replace('{{logViewer.js}}', scriptUri.toString());
         html = html.replace('{{fontawesome.css}}', fontAwesomeUri.toString());
 

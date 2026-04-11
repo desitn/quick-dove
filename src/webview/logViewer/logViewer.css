@@ -1,22 +1,11 @@
 /* ==================== Log Viewer Styles ==================== */
 
-/* CSS Variables - VS Code Theme Integration */
+/* Log Viewer specific CSS Variables */
 :root {
-    --bg-primary: var(--vscode-editor-background, #0d1117);
-    --bg-secondary: var(--vscode-sideBar-background, #161b22);
-    --bg-tertiary: var(--vscode-list-hoverBackground, #21262d);
-    
-    --text-primary: var(--vscode-editor-foreground, #e2e8f0);
-    --text-secondary: var(--vscode-descriptionForeground, #94a3b8);
-    --text-muted: var(--vscode-disabledForeground, #8b949e);
-    
-    --border-color: var(--vscode-panel-border, #30363d);
-    --accent-color: var(--vscode-focusBorder, #58a6ff);
-    
     --line-number-color: var(--vscode-editorLineNumber-foreground, #6e7681);
     --line-number-active: var(--vscode-editorLineNumber-activeForeground, #e2e8f0);
     --line-highlight: var(--vscode-editor-lineHighlightBackground, #1e3a5f);
-    
+
     --highlight-red: #ff6b6b;
     --highlight-teal: #4ecdc4;
     --highlight-blue: #45b7d1;

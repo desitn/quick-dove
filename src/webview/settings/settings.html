@@ -16,14 +16,14 @@
                 <h1><i class="fa-solid fa-gear"></i> {{settings.title}}</h1>
             </div>
             <nav class="sidebar-nav">
-                <a class="nav-item active" data-section="firmware">
-                    <i class="fa-solid fa-folder-open"></i>
-                    <span class="nav-text">{{settings.firmwarePath}}</span>
-                    <span class="nav-indicator"></span>
-                </a>
                 <a class="nav-item" data-section="commands">
                     <i class="fa-solid fa-terminal"></i>
                     <span class="nav-text">{{settings.buildCommands}}</span>
+                    <span class="nav-indicator"></span>
+                </a>
+                <a class="nav-item active" data-section="firmware">
+                    <i class="fa-solid fa-folder-open"></i>
+                    <span class="nav-text">{{settings.firmwarePath}}</span>
                     <span class="nav-indicator"></span>
                 </a>
                 <a class="nav-item" data-section="gitbash">
@@ -39,6 +39,11 @@
                 <a class="nav-item" data-section="agent">
                     <i class="fa-solid fa-robot"></i>
                     <span class="nav-text">{{settings.agentIntegration}}</span>
+                    <span class="nav-indicator"></span>
+                </a>
+                <a class="nav-item" data-section="cppdefine">
+                    <i class="fa-solid fa-code"></i>
+                    <span class="nav-text">{{settings.cppDefine}}</span>
                     <span class="nav-indicator"></span>
                 </a>
                 <a class="nav-item" data-section="language">
@@ -57,6 +62,14 @@
                     <span class="nav-indicator"></span>
                 </a>
             </nav>
+            <div class="sidebar-footer">
+                <button class="btn btn-secondary" onclick="resetToDefaults()">
+                    <i class="fa-solid fa-rotate-left"></i> {{settings.resetShort}}
+                </button>
+                <button class="btn btn-primary" onclick="saveSettings()">
+                    <i class="fa-solid fa-save"></i> {{settings.saveShort}}
+                </button>
+            </div>
         </aside>
 
         <!-- Right Content Area -->
@@ -96,6 +109,7 @@
                                     <thead>
                                         <tr>
                                             <th>{{settings.commandName}}</th>
+                                            <th>{{settings.commandDesc}}</th>
                                             <th>{{settings.commandValue}}</th>
                                             <th>{{settings.commandActions}}</th>
                                         </tr>
@@ -114,6 +128,7 @@
                                 <h3><i class="fa-solid fa-plus"></i> {{settings.addCommand}}</h3>
                                 <div class="form-row">
                                     <input type="text" id="newCommandName" placeholder="{{settings.commandNamePlaceholder}}" data-modified="false">
+                                    <input type="text" id="newCommandDesc" placeholder="{{settings.commandDescPlaceholder}}" data-modified="false">
                                     <input type="text" id="newCommandValue" placeholder="{{settings.commandValuePlaceholder}}" data-modified="false">
                                 </div>
                                 <div class="form-row">
@@ -203,39 +218,6 @@
 
                 <!-- Agent Integration Section -->
                 <section id="agent" class="content-section">
-                    <!-- Environment Setup -->
-                    <div class="settings-section">
-                        <h3><i class="fa-solid fa-terminal"></i> {{settings.envSetup}}</h3>
-                        <div class="config-item">
-                            <div class="description">{{settings.envSetupDesc}}</div>
-
-                            <!-- Installation Status -->
-                            <div class="install-status-container">
-                                <div class="install-status-header">
-                                    <span class="status-label">{{settings.installStatus}}</span>
-                                    <button class="btn btn-sm btn-secondary" id="btnCheckEnvStatus" onclick="checkEnvStatus()">
-                                        <i class="fa-solid fa-sync-alt"></i> {{settings.checkStatus}}
-                                    </button>
-                                </div>
-                                <div class="install-status-content" id="envInstallStatus">
-                                    <div class="status-loading">
-                                        <i class="fa-solid fa-spinner fa-spin"></i> {{settings.checkingStatus}}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Install/Uninstall Buttons -->
-                            <div class="action-buttons-row">
-                                <button class="btn btn-primary" id="btnRunEnvSetup" onclick="runEnvSetup()">
-                                    <i class="fa-solid fa-play"></i> {{settings.runEnvSetup}}
-                                </button>
-                                <button class="btn btn-danger" id="btnUninstallEnv" onclick="uninstallEnv()">
-                                    <i class="fa-solid fa-trash"></i> {{settings.uninstall}}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
                     <!-- Skill Integration -->
                     <div class="settings-section">
                         <h3><i class="fa-solid fa-robot"></i> {{settings.skillIntegration}}</h3>
@@ -295,6 +277,59 @@
                     </div>
                 </section>
 
+                <!-- C/C++ Define Helper Section -->
+                <section id="cppdefine" class="content-section">
+                    <div class="settings-section">
+                        <h3><i class="fa-solid fa-code"></i> {{settings.cppDefineLabel}}</h3>
+                        <div class="config-item">
+                            <div class="description">{{settings.cppDefineDesc}}</div>
+
+                            <!-- Define List -->
+                            <div id="defineListContainer">
+                                <table class="define-table" id="defineTable">
+                                    <thead>
+                                        <tr>
+                                            <th>{{settings.cppDefineList}}</th>
+                                            <th>{{settings.cppDefineDelete}}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="defineTableBody">
+                                        <!-- Defines will be populated here -->
+                                    </tbody>
+                                </table>
+                                <div class="no-defines" id="noDefinesMsg" style="display: none;">
+                                    {{settings.cppDefineEmpty}}
+                                </div>
+                            </div>
+
+                            <!-- Add Define Form -->
+                            <div class="add-define-form" style="margin-top: 16px;">
+                                <div class="form-row">
+                                    <input type="text" id="newDefineName" placeholder="{{settings.cppDefinePlaceholder}}">
+                                    <button class="btn btn-primary" onclick="addDefine()">
+                                        <i class="fa-solid fa-plus"></i> {{settings.cppDefineAdd}}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Keybinding Info Section -->
+                    <div class="settings-section">
+                        <h3><i class="fa-solid fa-keyboard"></i> {{settings.cppDefineKeybinding}}</h3>
+                        <div class="config-item">
+                            <div class="description">{{settings.cppDefineKeybindingDesc}}</div>
+                            <div class="keybinding-info">
+                                <span class="keybinding-key">Ctrl+D</span>
+                                <span class="keybinding-mac">(Mac: Cmd+D)</span>
+                            </div>
+                            <button class="btn btn-secondary" onclick="openKeybindingSettings()">
+                                <i class="fa-solid fa-external-link-alt"></i> {{settings.cppDefineOpenKeybinding}}
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
                 <!-- Config File Info Section -->
                 <section id="config" class="content-section">
                     <div class="settings-section">
@@ -309,16 +344,6 @@
                         </div>
                     </div>
                 </section>
-            </div>
-
-            <!-- Fixed Actions Bar -->
-            <div class="settings-actions">
-                <button class="btn btn-secondary" onclick="resetToDefaults()">
-                    <i class="fa-solid fa-rotate-left"></i> {{settings.reset}}
-                </button>
-                <button class="btn btn-primary" onclick="saveSettings()">
-                    <i class="fa-solid fa-save"></i> {{settings.save}}
-                </button>
             </div>
         </main>
     </div>

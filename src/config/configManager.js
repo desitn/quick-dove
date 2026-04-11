@@ -16,16 +16,17 @@ const { localize } = require('../localization');
 const DEFAULT_CONFIG = {
     firmwarePath: '',
     buildCommands: [],
-    lastBuildCommand: '',
     buildGitBashPath: '',
     defaultComPort: '',
     language: 'auto',
-    theme: 'auto',
-    accentColor: 'blue',
+    theme: {
+        mode: 'auto',
+        accent: 'blue'
+    },
     search: {
         port: 8080,
         scope: 'global',
-        maxResults: 50,
+        maxResults: 500,
         favorites: []
     }
 };
@@ -248,29 +249,14 @@ class ConfigManager {
      * Add build command
      * @param {string} name - Command name
      * @param {string} command - Command value
+     * @param {string} description - Command description (optional)
      * @returns {boolean} Success status
      */
-    addBuildCommand(name, command) {
+    addBuildCommand(name, command, description = '') {
         const commands = this.getBuildCommands();
-        commands.push({ name, command });
+        const isActive = commands.length === 0; // First command is active by default
+        commands.push({ name, command, description, isActive });
         return this.setBuildCommands(commands);
-    }
-
-    /**
-     * Get last used build command name
-     * @returns {string} Last build command name
-     */
-    getLastBuildCommand() {
-        return this.get('lastBuildCommand', '');
-    }
-
-    /**
-     * Set last used build command name
-     * @param {string} name - Command name
-     * @returns {boolean} Success status
-     */
-    setLastBuildCommand(name) {
-        return this.set('lastBuildCommand', name);
     }
 
     /**
@@ -279,20 +265,50 @@ class ConfigManager {
      */
     getActiveBuildCommand() {
         const buildCommands = this.getBuildCommands();
-        const lastBuildCommand = this.getLastBuildCommand();
-
-        if (lastBuildCommand && buildCommands.length > 0) {
-            const found = buildCommands.find(cmd => cmd.name === lastBuildCommand);
-            if (found) {
-                return found.command;
-            }
-        }
 
         if (buildCommands.length > 0) {
+            const activeCmd = buildCommands.find(cmd => cmd.isActive);
+            if (activeCmd) {
+                return activeCmd.command;
+            }
             return buildCommands[0].command;
         }
 
         return '';
+    }
+
+    /**
+     * Get active build command item
+     * @returns {Object|null} Active build command item or null
+     */
+    getActiveBuildCommandItem() {
+        const buildCommands = this.getBuildCommands();
+
+        if (buildCommands.length > 0) {
+            const activeCmd = buildCommands.find(cmd => cmd.isActive);
+            if (activeCmd) {
+                return activeCmd;
+            }
+            return buildCommands[0];
+        }
+
+        return null;
+    }
+
+    /**
+     * Set active build command by name
+     * @param {string} name - Command name
+     * @returns {boolean} Success status
+     */
+    setActiveBuildCommand(name) {
+        const commands = this.getBuildCommands();
+
+        // Clear all isActive flags and set the specified one
+        commands.forEach(cmd => {
+            cmd.isActive = cmd.name === name;
+        });
+
+        return this.setBuildCommands(commands);
     }
 
     /**
@@ -347,37 +363,66 @@ class ConfigManager {
     }
 
     /**
-     * Get theme setting
-     * @returns {string} Theme setting (dark/light/auto)
+     * Get theme configuration
+     * @returns {Object} Theme configuration object with mode and accent
      */
-    getTheme() {
-        return this.get('theme', 'auto');
+    getThemeConfig() {
+        const config = this.getConfig();
+        // Handle migration from old flat structure
+        if (typeof config.theme === 'string') {
+            return {
+                mode: config.theme,
+                accent: config.accentColor || 'blue'
+            };
+        }
+        return config.theme || DEFAULT_CONFIG.theme;
     }
 
     /**
-     * Set theme
-     * @param {string} theme - Theme setting (dark/light/auto)
+     * Set theme configuration
+     * @param {Object} themeConfig - Theme configuration object
      * @returns {boolean} Success status
      */
-    setTheme(theme) {
-        return this.set('theme', theme);
+    setThemeConfig(themeConfig) {
+        const config = this.getConfig();
+        config.theme = { ...config.theme, ...themeConfig };
+        return this._writeConfig(config);
+    }
+
+    /**
+     * Get theme mode setting
+     * @returns {string} Theme mode (dark/light/auto)
+     */
+    getTheme() {
+        const themeConfig = this.getThemeConfig();
+        return themeConfig.mode || 'auto';
+    }
+
+    /**
+     * Set theme mode
+     * @param {string} mode - Theme mode (dark/light/auto)
+     * @returns {boolean} Success status
+     */
+    setTheme(mode) {
+        return this.setThemeConfig({ mode });
     }
 
     /**
      * Get accent color setting
-     * @returns {string} Accent color setting (blue/green/purple/orange/pink)
+     * @returns {string} Accent color (blue/green/purple/orange/pink)
      */
     getAccentColor() {
-        return this.get('accentColor', 'blue');
+        const themeConfig = this.getThemeConfig();
+        return themeConfig.accent || 'blue';
     }
 
     /**
      * Set accent color
-     * @param {string} accentColor - Accent color setting (blue/green/purple/orange/pink)
+     * @param {string} accent - Accent color (blue/green/purple/orange/pink)
      * @returns {boolean} Success status
      */
-    setAccentColor(accentColor) {
-        return this.set('accentColor', accentColor);
+    setAccentColor(accent) {
+        return this.setThemeConfig({ accent });
     }
 
     /**

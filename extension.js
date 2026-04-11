@@ -58,7 +58,7 @@ function writeFirmwareCliConfig(config) {
     const mergedConfig = {
         ...configData,
         firmwarePath: config.firmwarePath || configData.firmwarePath || '',
-        buildCommand: configManager.getActiveBuildCommand() || configData.buildCommand || '',
+        buildCommands: config.buildCommands || configData.buildCommands || [],
         buildGitBashPath: config.buildGitBashPath || configData.buildGitBashPath || '',
         defaultComPort: config.defaultComPort || configData.defaultComPort || '',
         workspacePath: workspacePath
@@ -764,11 +764,17 @@ function activate(context)
                 return null;
             }
         });
-        
+
         if (!name) {
             return;
         }
-        
+
+        // Get description (optional)
+        const description = await vscode.window.showInputBox({
+            prompt: localize('enterCommandDesc') || 'Enter command description',
+            placeHolder: 'e.g., Build for production release'
+        });
+
         // Get command
         const command = await vscode.window.showInputBox({
             prompt: localize('enterBuildCommand'),
@@ -780,21 +786,14 @@ function activate(context)
                 return null;
             }
         });
-        
+
         if (!command) {
             return;
         }
-        
-        // Save to configuration
-        const buildCommands = configManager.getBuildCommands();
-        buildCommands.push({ name: name.trim(), command: command.trim() });
-        configManager.setBuildCommands(buildCommands);
-        
-        // Set as last used if it's the first command
-        if (buildCommands.length === 1) {
-            configManager.setLastBuildCommand(name.trim());
-        }
-        
+
+        // Save to configuration using addBuildCommand method (handles isActive)
+        configManager.addBuildCommand(name.trim(), command.trim(), description ? description.trim() : '');
+
         writeFirmwareCliConfig(configManager.getConfig());
         vscode.commands.executeCommand('firmwareDownloader.refresh');
         vscode.window.showInformationMessage(localize('commandAdded', name));
@@ -805,24 +804,24 @@ function activate(context)
         if (!cmdData) {
             return;
         }
-        
-        configManager.setLastBuildCommand(cmdData.name);
+
+        configManager.setActiveBuildCommand(cmdData.name);
         writeFirmwareCliConfig(configManager.getConfig());
         vscode.commands.executeCommand('firmwareDownloader.refresh');
         vscode.window.showInformationMessage(localize('selectActiveCommand', cmdData.name));
     });
-    
+
 
     const configBuildCommand = vscode.commands.registerCommand('firmwareDownloader.configBuildCommand', async () => {
         const buildCommands = configManager.getBuildCommands();
-        const lastBuildCommand = configManager.getLastBuildCommand();
+        const activeCmd = configManager.getActiveBuildCommandItem();
         let quickPickItems = [];
 
         if (buildCommands.length > 0) {
             // Show quick pick to select command
             quickPickItems = buildCommands.map(cmd => ({
-                label: cmd.name === lastBuildCommand ? `$(check) ${cmd.name}` : cmd.name,
-                description: cmd.command,
+                label: cmd.isActive ? `$(check) ${cmd.name}` : cmd.name,
+                description: cmd.description ? `${cmd.description} - ${cmd.command}` : cmd.command,
                 command: cmd
             }));
         }
@@ -883,22 +882,20 @@ function activate(context)
                     counter++;
                 }
                 
-                // Add to configuration
-                existingCommands.push({ name: finalName, command: scriptCommand });
-                configManager.setBuildCommands(existingCommands);
-                configManager.setLastBuildCommand(finalName);
+                // Add to configuration using addBuildCommand method
+                configManager.addBuildCommand(finalName, scriptCommand, '');
                 writeFirmwareCliConfig(configManager.getConfig());
                 vscode.commands.executeCommand('firmwareDownloader.refresh');
                 vscode.window.showInformationMessage(localize('scriptFileAdded', finalName));
-                
+
                 // Trigger build after adding script
                 vscode.commands.executeCommand('firmwareDownloader.build');
             }
             return;
         }
-        
-        // Update lastBuildCommand
-        configManager.setLastBuildCommand(selected.command.name);
+
+        // Set active command
+        configManager.setActiveBuildCommand(selected.command.name);
         writeFirmwareCliConfig(configManager.getConfig());
         vscode.commands.executeCommand('firmwareDownloader.refresh');
         //vscode.window.showInformationMessage(localize('switchedTo', selected.command.name));
@@ -918,6 +915,149 @@ function activate(context)
     
     const openSettingsCommand = vscode.commands.registerCommand('firmwareDownloader.settings', () => {
         webviewManager.showSettings();
+    });
+
+    // ========== C/C++ Define Helper Commands ==========
+
+    /**
+     * Check if a define name is valid
+     * @param {string} text
+     * @returns {boolean}
+     */
+    function isValidCppDefineName(text) {
+        const definePattern = /^[A-Z_][A-Z0-9_]*$/;
+        return definePattern.test(text);
+    }
+
+    /**
+     * Get C/C++ defines from workspace settings
+     * @returns {Array<string>}
+     */
+    function getCppDefines() {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders || workspaceFolders.length === 0) {
+            return [];
+        }
+
+        const settingsPath = path.join(workspaceFolders[0].uri.fsPath, '.vscode', 'settings.json');
+
+        if (!fs.existsSync(settingsPath)) {
+            return [];
+        }
+
+        try {
+            const content = fs.readFileSync(settingsPath, 'utf8');
+            if (!content.trim()) {
+                return [];
+            }
+            const settings = JSON.parse(content);
+            return settings['C_Cpp.default.defines'] || [];
+        } catch (error) {
+            return [];
+        }
+    }
+
+    /**
+     * Save C/C++ defines to workspace settings
+     * @param {Array<string>} defines
+     */
+    function saveCppDefines(defines) {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders || workspaceFolders.length === 0) {
+            return false;
+        }
+
+        const settingsPath = path.join(workspaceFolders[0].uri.fsPath, '.vscode', 'settings.json');
+        const vscodeDir = path.dirname(settingsPath);
+
+        // Ensure .vscode directory exists
+        if (!fs.existsSync(vscodeDir)) {
+            fs.mkdirSync(vscodeDir, { recursive: true });
+        }
+
+        let settings = {};
+
+        // Read existing settings
+        if (fs.existsSync(settingsPath)) {
+            try {
+                const content = fs.readFileSync(settingsPath, 'utf8');
+                if (content.trim()) {
+                    settings = JSON.parse(content);
+                }
+            } catch (error) {
+                // If parse fails, start fresh
+                settings = {};
+            }
+        }
+
+        settings['C_Cpp.default.defines'] = defines;
+
+        try {
+            fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 4));
+            return true;
+        } catch (error) {
+            return false;
+        }
+    }
+
+    /**
+     * Toggle C/C++ define in settings
+     * @param {string} defineName
+     * @returns {boolean} true if added, false if removed
+     */
+    function toggleCppDefine(defineName) {
+        const defines = getCppDefines();
+        const index = defines.indexOf(defineName);
+
+        if (index > -1) {
+            // Remove define
+            defines.splice(index, 1);
+            saveCppDefines(defines);
+            return false; // removed
+        } else {
+            // Add define
+            defines.push(defineName);
+            saveCppDefines(defines);
+            return true; // added
+        }
+    }
+
+    // Toggle C/C++ Define command (with shortcut)
+    const toggleCppDefineCommand = vscode.commands.registerCommand('firmwareDownloader.toggleCppDefine', async function () {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) {
+            vscode.window.showErrorMessage(localize('cppDefineNoSelection'));
+            return;
+        }
+
+        // Get selected text
+        const selectedText = editor.document.getText(editor.selection);
+        if (!selectedText) {
+            vscode.window.showErrorMessage(localize('cppDefineNoSelection'));
+            return;
+        }
+
+        // Validate define name
+        if (!isValidCppDefineName(selectedText)) {
+            vscode.window.showErrorMessage(localize('cppDefineInvalid'));
+            return;
+        }
+
+        try {
+            const added = toggleCppDefine(selectedText);
+            if (added) {
+                vscode.window.showInformationMessage(localize('cppDefineAdded', selectedText));
+            } else {
+                vscode.window.showInformationMessage(localize('cppDefineRemoved', selectedText));
+            }
+        } catch (error) {
+            vscode.window.showErrorMessage(`Error: ${error.message}`);
+        }
+    });
+
+    // Open C/C++ Define Settings command
+    const openCppDefineSettingsCommand = vscode.commands.registerCommand('firmwareDownloader.openCppDefineSettings', () => {
+        webviewManager.showSettings('cppdefine');
     });
 
     // Register show search panel command
@@ -974,36 +1114,32 @@ function activate(context)
     let build_disposable = vscode.commands.registerCommand('firmwareDownloader.build', async function () {
 
         const buildCommands = configManager.getBuildCommands();
-        const lastBuildCommand = configManager.getLastBuildCommand();
+        const activeCmd = configManager.getActiveBuildCommandItem();
         let build_args = '';
         let is_bash = false;
         let bash_run = configManager.getBuildGitBashPath();
-        
-        // If there are configured build commands, use the last used one or first one
+
+        // If there are configured build commands, use the active one or first one
         if (buildCommands.length > 0) {
-            let selectedCmd = null;
-            
-            if (lastBuildCommand) {
-                selectedCmd = buildCommands.find(cmd => cmd.name === lastBuildCommand);
-            }
-            
+            let selectedCmd = activeCmd;
+
             if (!selectedCmd) {
                 selectedCmd = buildCommands[0];
+                // Set first command as active if no active command
+                if (!buildCommands.some(cmd => cmd.isActive)) {
+                    configManager.setActiveBuildCommand(selectedCmd.name);
+                    writeFirmwareCliConfig(configManager.getConfig());
+                }
             }
-            
+
             build_args = selectedCmd.command;
-            
-            // Update lastBuildCommand if it was not set
-            if (selectedCmd.name !== lastBuildCommand) {
-                configManager.setLastBuildCommand(selectedCmd.name);
-                writeFirmwareCliConfig(configManager.getConfig());
-            }
+
             // Check if the command is a bash script (.sh file)
             // Match .sh followed by space or end of string to handle cases like "build.sh -app"
             if (/\.sh(\s|$)/i.test(selectedCmd.command)) {
                 is_bash = true;
             }
-            
+
         } else {
             // No configured commands, use auto-detection
             // Default to build OPT.bat
@@ -1049,9 +1185,14 @@ function activate(context)
                     // Check if already exists
                     const exists = currentBuildCommands.some(cmd => cmd.name === detectedName);
                     if (!exists) {
-                        currentBuildCommands.push({ name: detectedName, command: detectedCommand });
+                        currentBuildCommands.push({ name: detectedName, command: detectedCommand, isActive: true });
+                        // Clear isActive on other commands
+                        currentBuildCommands.forEach(cmd => {
+                            if (cmd.name !== detectedName) {
+                                cmd.isActive = false;
+                            }
+                        });
                         configManager.setBuildCommands(currentBuildCommands);
-                        configManager.setLastBuildCommand(detectedName);
                         writeFirmwareCliConfig(configManager.getConfig());
                         vscode.commands.executeCommand('firmwareDownloader.refresh');
                         output_chan.appendLine(localize('autoDetectedSaved', detectedName));
@@ -1122,7 +1263,7 @@ function activate(context)
         };
         // Create task object
         const execution = new vscode.ShellExecution(task_definition.command, task_definition.args, task_definition.options);
-        const task = new vscode.Task(task_definition, vscode.TaskScope.Workspace, task_definition.label, "firmware-tool", execution);
+        const task = new vscode.Task(task_definition, vscode.TaskScope.Workspace, task_definition.label, "dove-query", execution);
         // Execute task
         try {
             if (last_dl_info.terminal) {
@@ -1411,6 +1552,16 @@ function activate(context)
     context.subscriptions.push(build_disposable);
     context.subscriptions.push(download_disposable);
     context.subscriptions.push(showWelcomeCommand);
+    context.subscriptions.push(toggleCppDefineCommand);
+    context.subscriptions.push(openCppDefineSettingsCommand);
+
+    // Export helper functions for webviewManager
+    module.exports._helpers = {
+        getCppDefines,
+        saveCppDefines,
+        toggleCppDefine,
+        isValidCppDefineName
+    };
 
 
 }

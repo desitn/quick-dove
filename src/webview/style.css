@@ -10,6 +10,8 @@
     --accent-color-dark: #1f6feb;
     --accent-gradient-start: #60a5fa;
     --accent-gradient-end: #3b82f6;
+    --input-focus-border: #58a6ff;
+    --input-focus-shadow: rgba(88, 166, 255, 0.3);
 }
 
 /* Green Accent */
@@ -19,6 +21,8 @@
     --accent-color-dark: #238636;
     --accent-gradient-start: #3fb950;
     --accent-gradient-end: #238636;
+    --input-focus-border: #3fb950;
+    --input-focus-shadow: rgba(63, 185, 80, 0.3);
 }
 
 /* Purple Accent */
@@ -28,6 +32,8 @@
     --accent-color-dark: #8957e5;
     --accent-gradient-start: #a371f7;
     --accent-gradient-end: #8957e5;
+    --input-focus-border: #a371f7;
+    --input-focus-shadow: rgba(163, 113, 247, 0.3);
 }
 
 /* Orange Accent */
@@ -37,6 +43,8 @@
     --accent-color-dark: #da3633;
     --accent-gradient-start: #f78166;
     --accent-gradient-end: #da3633;
+    --input-focus-border: #f78166;
+    --input-focus-shadow: rgba(247, 129, 102, 0.3);
 }
 
 /* Pink Accent */
@@ -46,6 +54,8 @@
     --accent-color-dark: #db61a2;
     --accent-gradient-start: #f778ba;
     --accent-gradient-end: #db61a2;
+    --input-focus-border: #f778ba;
+    --input-focus-shadow: rgba(247, 120, 186, 0.3);
 }
 
 /* ==================== Dark Theme (Default) ==================== */
@@ -66,13 +76,7 @@
     
     --border-color: #30363d;
     --border-color-light: #484f58;
-    
-    --accent-color: #58a6ff;
-    --accent-color-light: #79c0ff;
-    --accent-color-dark: #1f6feb;
-    --accent-gradient-start: #60a5fa;
-    --accent-gradient-end: #3b82f6;
-    
+
     --success-color: #3fb950;
     --success-bg: #10b981;
     --success-bg-light: #0d2e1a;
@@ -101,9 +105,7 @@
     
     --input-bg: #0d1117;
     --input-border: #30363d;
-    --input-focus-border: #58a6ff;
-    --input-focus-shadow: rgba(88, 166, 255, 0.3);
-    
+
     --card-border: #30363d;
     --table-row-hover: #1e3a5f;
     --table-row-active: #1e3a5f;
@@ -136,13 +138,7 @@
     
     --border-color: #d0d7de;
     --border-color-light: #afb8c1;
-    
-    --accent-color: #0969da;
-    --accent-color-light: #0969da;
-    --accent-color-dark: #0550ae;
-    --accent-gradient-start: #2f81f7;
-    --accent-gradient-end: #0969da;
-    
+
     --success-color: #1a7f37;
     --success-bg: #1a7f37;
     --success-bg-light: #dafbe1;
@@ -171,9 +167,7 @@
     
     --input-bg: #ffffff;
     --input-border: #d0d7de;
-    --input-focus-border: #0969da;
-    --input-focus-shadow: rgba(9, 105, 218, 0.3);
-    
+
     --card-border: #d0d7de;
     --table-row-hover: #f6f8fa;
     --table-row-active: #ddf4ff;
@@ -240,6 +234,7 @@ body {
     transition: all 0.3s ease;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
 }
 
