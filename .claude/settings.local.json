@@ -6,7 +6,11 @@
       "WebFetch(domain:docs.cline.bot)",
       "WebSearch",
       "Bash(npm run:*)",
-      "Bash(F:/vscode-extension/quick-dove/dove/dove.exe help:*)"
+      "Bash(F:/vscode-extension/quick-dove/dove/dove.exe help:*)",
+      "Bash(git rebase:*)",
+      "Bash(git reset:*)",
+      "Bash(git commit:*)",
+      "Bash(git stash:*)"
     ]
   }
 }
