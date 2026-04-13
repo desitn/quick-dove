@@ -331,6 +331,212 @@
     font-style: italic;
 }
 
+/* Port Table */
+.port-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+}
+
+.port-table th,
+.port-table td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-primary);
+}
+
+.port-table th {
+    font-weight: 600;
+    color: var(--text-muted);
+    font-size: 0.85em;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.port-table tr:hover {
+    background: var(--table-row-hover);
+}
+
+.port-table tr.active {
+    background: var(--table-row-active);
+}
+
+.port-table tr.active td {
+    color: var(--accent-color);
+}
+
+.port-table .port-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.port-table .btn-icon {
+    padding: 6px 10px;
+    font-size: 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s ease;
+}
+
+.port-table .btn-icon.btn-edit {
+    background: var(--btn-icon-edit-bg);
+    color: var(--accent-color);
+}
+
+.port-table .btn-icon.btn-edit:hover {
+    background: var(--btn-icon-edit-hover);
+}
+
+.port-table .btn-icon.btn-delete {
+    background: var(--btn-icon-delete-bg);
+    color: var(--error-color);
+}
+
+.port-table .btn-icon.btn-delete:hover {
+    background: var(--btn-icon-delete-hover);
+}
+
+.port-table .btn-icon.btn-set-active {
+    background: var(--btn-icon-active-bg);
+    color: var(--success-color);
+}
+
+.port-table .btn-icon.btn-set-active:hover {
+    background: var(--btn-icon-active-hover);
+}
+
+.port-table .btn-icon.btn-set-active:disabled {
+    background: var(--bg-tertiary);
+    color: var(--text-muted);
+    cursor: not-allowed;
+}
+
+.no-ports {
+    text-align: center;
+    padding: 40px;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+/* Tag Badges */
+.tag-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.85em;
+    font-weight: 500;
+    margin-right: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.tag-badge.tag-at {
+    background: rgba(52, 152, 219, 0.2);
+    color: #3498db;
+    border: 1px solid rgba(52, 152, 219, 0.3);
+}
+
+.tag-badge.tag-download {
+    background: rgba(46, 204, 113, 0.2);
+    color: #2ecc71;
+    border: 1px solid rgba(46, 204, 113, 0.3);
+}
+
+.tag-badge.tag-log {
+    background: rgba(155, 89, 182, 0.2);
+    color: #9b59b6;
+    border: 1px solid rgba(155, 89, 182, 0.3);
+}
+
+.tag-badge.tag-debug {
+    background: rgba(241, 196, 15, 0.2);
+    color: #f1c40f;
+    border: 1px solid rgba(241, 196, 15, 0.3);
+}
+
+.tag-badge.tag-uart {
+    background: rgba(26, 188, 156, 0.2);
+    color: #1abc9c;
+    border: 1px solid rgba(26, 188, 156, 0.3);
+}
+
+.tag-badge.tag-main {
+    background: rgba(230, 126, 34, 0.2);
+    color: #e67e22;
+    border: 1px solid rgba(230, 126, 34, 0.3);
+}
+
+.tag-badge.tag-aux {
+    background: rgba(149, 165, 166, 0.2);
+    color: #95a5a6;
+    border: 1px solid rgba(149, 165, 166, 0.3);
+}
+
+/* Tag Selector */
+.tag-selector {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 0;
+}
+
+.tag-checkbox {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+}
+
+.tag-checkbox input[type="checkbox"] {
+    display: none;
+}
+
+.tag-checkbox input[type="checkbox"]:checked + .tag-badge {
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Add Port Form */
+.add-port-form {
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    padding: 20px;
+    margin-top: 20px;
+    border: 1px solid var(--card-border);
+}
+
+.add-port-form h3 {
+    font-size: 1em;
+    color: var(--text-primary);
+    margin-bottom: 16px;
+}
+
+.port-input-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.port-input-row input {
+    flex: 1;
+}
+
+.tag-selector-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.tag-selector-row .tag-selector {
+    flex: 1;
+}
+
+.tag-selector-row .btn {
+    flex-shrink: 0;
+}
+
 /* Add Command Form */
 .add-command-form {
     background: var(--bg-secondary);

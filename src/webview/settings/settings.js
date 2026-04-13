@@ -11,6 +11,7 @@ let currentConfig = {
     buildCommands: [],
     buildGitBashPath: '',
     defaultComPort: '',
+    comPorts: [],
     language: 'auto',
     theme: {
         mode: 'auto',
@@ -23,6 +24,9 @@ let localizedStrings = {};
 
 // Command being edited
 let editingCommandIndex = -1;
+
+// Port being edited
+let editingPortIndex = -1;
 
 // Track if settings have been modified
 let hasUnsavedChanges = false;
@@ -297,8 +301,8 @@ function populateForm() {
     // Git Bash Path
     document.getElementById('gitBashPath').value = currentConfig.buildGitBashPath || '';
 
-    // COM Port
-    document.getElementById('comPort').value = currentConfig.defaultComPort || '';
+    // COM Ports (new multi-port with tags)
+    renderPortTable();
 
     // Language
     document.getElementById('languageSelect').value = currentConfig.language || 'auto';
@@ -373,6 +377,211 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+/**
+ * Render port table
+ */
+function renderPortTable() {
+    const tbody = document.getElementById('portTableBody');
+    const noPortsMsg = document.getElementById('noPortsMsg');
+    const table = document.getElementById('portTable');
+
+    if (!currentConfig.comPorts || currentConfig.comPorts.length === 0) {
+        tbody.innerHTML = '';
+        table.style.display = 'none';
+        noPortsMsg.style.display = 'block';
+        return;
+    }
+
+    table.style.display = 'table';
+    noPortsMsg.style.display = 'none';
+
+    tbody.innerHTML = currentConfig.comPorts.map((p, index) => {
+        const isActive = p.isActive;
+        const tagsHtml = p.tags.map(t => `<span class="tag-badge tag-${t.toLowerCase()}">${t}</span>`).join('');
+        return `
+            <tr class="${isActive ? 'active' : ''}">
+                <td>${escapeHtml(p.port)}</td>
+                <td>${tagsHtml}</td>
+                <td>${escapeHtml(p.description || '')}</td>
+                <td>
+                    <div class="port-actions">
+                        <button class="btn-icon btn-set-active"
+                                onclick="setActivePort(${index})"
+                                ${isActive ? 'disabled' : ''}
+                                title="${isActive ? 'Current Active' : 'Set as Active'}">
+                            <i class="fa-solid ${isActive ? 'fa-check' : 'fa-play'}"></i>
+                        </button>
+                        <button class="btn-icon btn-edit" onclick="editPort(${index})" title="Edit">
+                            <i class="fa-solid fa-pen"></i>
+                        </button>
+                        <button class="btn-icon btn-delete" onclick="deletePort(${index})" title="Delete">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+/**
+ * Add new port
+ */
+function addPort() {
+    const portInput = document.getElementById('newPortName');
+    const descInput = document.getElementById('newPortDesc');
+    const port = portInput.value.trim();
+    const description = descInput.value.trim();
+
+    // Collect selected tags
+    const tags = [];
+    document.querySelectorAll('.tag-checkbox input:checked').forEach(cb => {
+        tags.push(cb.value);
+    });
+
+    if (!port) {
+        showStatusMessage('error', localizedStrings.portNameEmpty || 'Please enter port name');
+        return;
+    }
+
+    if (tags.length === 0) {
+        showStatusMessage('error', localizedStrings.portTagsEmpty || 'Please select at least one tag');
+        return;
+    }
+
+    // Check for duplicate ports
+    if (currentConfig.comPorts && currentConfig.comPorts.some(p => p.port === port)) {
+        showStatusMessage('error', localizedStrings.portExists || 'Port already exists');
+        return;
+    }
+
+    vscode.postMessage({
+        command: 'addComPort',
+        port: port,
+        tags: tags,
+        description: description
+    });
+
+    // Clear form
+    portInput.value = '';
+    descInput.value = '';
+    document.querySelectorAll('.tag-checkbox input').forEach(cb => cb.checked = false);
+}
+
+/**
+ * Delete port
+ */
+function deletePort(index) {
+    if (!currentConfig.comPorts || index >= currentConfig.comPorts.length) {
+        return;
+    }
+
+    const portName = currentConfig.comPorts[index].port;
+    if (!confirm(`Delete port "${portName}"?`)) {
+        return;
+    }
+
+    vscode.postMessage({
+        command: 'deleteComPort',
+        index: index
+    });
+}
+
+/**
+ * Set active port
+ */
+function setActivePort(index) {
+    if (!currentConfig.comPorts || index >= currentConfig.comPorts.length) {
+        return;
+    }
+
+    vscode.postMessage({
+        command: 'setActiveComPort',
+        portName: currentConfig.comPorts[index].port
+    });
+}
+
+/**
+ * Edit port - populate form with existing values
+ */
+function editPort(index) {
+    if (!currentConfig.comPorts || index >= currentConfig.comPorts.length) {
+        return;
+    }
+
+    editingPortIndex = index;
+    const port = currentConfig.comPorts[index];
+
+    // Populate form
+    document.getElementById('newPortName').value = port.port;
+    document.getElementById('newPortDesc').value = port.description || '';
+
+    // Clear all checkboxes first
+    document.querySelectorAll('.tag-checkbox input').forEach(cb => cb.checked = false);
+
+    // Set checkboxes based on existing tags
+    port.tags.forEach(tag => {
+        const checkbox = document.querySelector(`.tag-checkbox input[value="${tag}"]`);
+        if (checkbox) checkbox.checked = true;
+    });
+
+    // Change add button to update button
+    const addBtn = document.querySelector('.add-port-form .btn-primary');
+    addBtn.innerHTML = '<i class="fa-solid fa-save"></i> Update';
+    addBtn.onclick = () => updatePort(index);
+
+    // Focus on port name input
+    document.getElementById('newPortName').focus();
+}
+
+/**
+ * Update port after editing
+ */
+function updatePort(index) {
+    if (index < 0) {
+        return;
+    }
+
+    const port = document.getElementById('newPortName').value.trim();
+    const description = document.getElementById('newPortDesc').value.trim();
+
+    const tags = [];
+    document.querySelectorAll('.tag-checkbox input:checked').forEach(cb => {
+        tags.push(cb.value);
+    });
+
+    if (!port) {
+        showStatusMessage('error', localizedStrings.portNameEmpty || 'Please enter port name');
+        return;
+    }
+
+    if (tags.length === 0) {
+        showStatusMessage('error', localizedStrings.portTagsEmpty || 'Please select at least one tag');
+        return;
+    }
+
+    vscode.postMessage({
+        command: 'updateComPort',
+        index: index,
+        updates: {
+            port: port,
+            tags: tags,
+            description: description
+        }
+    });
+
+    // Reset form
+    editingPortIndex = -1;
+    document.getElementById('newPortName').value = '';
+    document.getElementById('newPortDesc').value = '';
+    document.querySelectorAll('.tag-checkbox input').forEach(cb => cb.checked = false);
+
+    // Reset button
+    const addBtn = document.querySelector('.add-port-form .btn-primary');
+    addBtn.innerHTML = '<i class="fa-solid fa-plus"></i> Add';
+    addBtn.onclick = addPort;
 }
 
 /**
@@ -632,7 +841,8 @@ function saveSettings() {
     // Update config from form
     currentConfig.firmwarePath = document.getElementById('firmwarePath').value.trim();
     currentConfig.buildGitBashPath = document.getElementById('gitBashPath').value.trim();
-    currentConfig.defaultComPort = document.getElementById('comPort').value.trim();
+    // comPorts is managed separately through add/update/delete messages
+    // defaultComPort is auto-synced with active port in configManager
     currentConfig.language = document.getElementById('languageSelect').value;
     currentConfig.theme = {
         mode: document.getElementById('themeSelect').value,

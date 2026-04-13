@@ -179,8 +179,8 @@ class WebviewManager {
      * Get current locale
      */
     getLocale() {
-        const config = vscode.workspace.getConfiguration('quickFirmwarePlus');
-        const language = config.get('language', 'auto');
+        // Read language from dove.json (configManager) instead of VS Code settings
+        const language = configManager.getLanguage();
         if (language === 'auto') {
             return vscode.env.language.toLowerCase();
         }
@@ -260,7 +260,10 @@ class WebviewManager {
                                 uninstalling: localize('settings.uninstalling'),
                                 checkingStatus: localize('settings.checkingStatus'),
                                 checkStatus: localize('settings.checkStatus'),
-                                install: localize('settings.install')
+                                install: localize('settings.install'),
+                                portExists: localize('settings.portExists'),
+                                portNameEmpty: localize('settings.portNameEmpty'),
+                                portTagsEmpty: localize('settings.portTagsEmpty')
                             }
                         });
                         // Also check initial skill installation status
@@ -308,16 +311,56 @@ class WebviewManager {
                             });
                         }
                         return;
+                    // COM Port operations
+                    case 'addComPort':
+                        const addSuccess = configManager.addComPort(message.port, message.tags, message.description);
+                        if (addSuccess) {
+                            this.settingsPanel.webview.postMessage({
+                                command: 'configData',
+                                config: configManager.getConfig(),
+                                configFilePath: configManager.getConfigPath()
+                            });
+                        } else {
+                            this.settingsPanel.webview.postMessage({
+                                command: 'configError',
+                                message: localize('settings.portExists') || 'Port already exists'
+                            });
+                        }
+                        return;
+                    case 'deleteComPort':
+                        configManager.deleteComPort(message.index);
+                        this.settingsPanel.webview.postMessage({
+                            command: 'configData',
+                            config: configManager.getConfig(),
+                            configFilePath: configManager.getConfigPath()
+                        });
+                        return;
+                    case 'setActiveComPort':
+                        configManager.setActiveComPort(message.portName);
+                        this.settingsPanel.webview.postMessage({
+                            command: 'configData',
+                            config: configManager.getConfig(),
+                            configFilePath: configManager.getConfigPath()
+                        });
+                        return;
+                    case 'updateComPort':
+                        configManager.updateComPort(message.index, message.updates);
+                        this.settingsPanel.webview.postMessage({
+                            command: 'configData',
+                            config: configManager.getConfig(),
+                            configFilePath: configManager.getConfigPath()
+                        });
+                        return;
                     case 'saveConfig':
                         // Save configuration
                         const updates = {
                             firmwarePath: message.config.firmwarePath,
                             buildCommands: message.config.buildCommands,
                             buildGitBashPath: message.config.buildGitBashPath,
-                            defaultComPort: message.config.defaultComPort,
                             language: message.config.language,
                             theme: message.config.theme
                         };
+                        // comPorts is managed separately through add/update/delete messages
 
                         const success = configManager.setMultiple(updates);
                         if (success) {
@@ -958,6 +1001,36 @@ class WebviewManager {
             'settings.comPortLabel': localize('settings.comPortLabel'),
             'settings.comPortDesc': localize('settings.comPortDesc'),
             'settings.comPortPlaceholder': localize('settings.comPortPlaceholder'),
+            // COM Ports (multi-port with tags)
+            'settings.comPorts': localize('settings.comPorts'),
+            'settings.comPortsLabel': localize('settings.comPortsLabel'),
+            'settings.comPortsDesc': localize('settings.comPortsDesc'),
+            'settings.portName': localize('settings.portName'),
+            'settings.portTags': localize('settings.portTags'),
+            'settings.portDescription': localize('settings.portDescription'),
+            'settings.portActions': localize('settings.portActions'),
+            'settings.noPorts': localize('settings.noPorts'),
+            'settings.addPort': localize('settings.addPort'),
+            'settings.editPort': localize('settings.editPort'),
+            'settings.portNamePlaceholder': localize('settings.portNamePlaceholder'),
+            'settings.portDescPlaceholder': localize('settings.portDescPlaceholder'),
+            'settings.portExists': localize('settings.portExists'),
+            'settings.portNameEmpty': localize('settings.portNameEmpty'),
+            'settings.portTagsEmpty': localize('settings.portTagsEmpty'),
+            'settings.tagAT': localize('settings.tagAT'),
+            'settings.tagDownload': localize('settings.tagDownload'),
+            'settings.tagLog': localize('settings.tagLog'),
+            'settings.tagDebug': localize('settings.tagDebug'),
+            'settings.tagUART': localize('settings.tagUART'),
+            'settings.tagMain': localize('settings.tagMain'),
+            'settings.tagAux': localize('settings.tagAux'),
+            'settings.tagATDesc': localize('settings.tagATDesc'),
+            'settings.tagDownloadDesc': localize('settings.tagDownloadDesc'),
+            'settings.tagLogDesc': localize('settings.tagLogDesc'),
+            'settings.tagDebugDesc': localize('settings.tagDebugDesc'),
+            'settings.tagUARTDesc': localize('settings.tagUARTDesc'),
+            'settings.tagMainDesc': localize('settings.tagMainDesc'),
+            'settings.tagAuxDesc': localize('settings.tagAuxDesc'),
             'settings.language': localize('settings.language'),
             'settings.languageLabel': localize('settings.languageLabel'),
             'settings.languageDesc': localize('settings.languageDesc'),

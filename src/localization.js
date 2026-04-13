@@ -1,4 +1,5 @@
 const vscode = require('vscode');
+const { configManager } = require('./config/configManager');
 
 const messages = {
   'en': {
@@ -155,6 +156,36 @@ const messages = {
     'settings.comPortLabel': 'Default COM Port',
     'settings.comPortDesc': 'Default serial port for device communication (optional)',
     'settings.comPortPlaceholder': 'e.g., COM3',
+    // COM Ports (multi-port with tags)
+    'settings.comPorts': 'COM Ports',
+    'settings.comPortsLabel': 'Serial Port Configuration',
+    'settings.comPortsDesc': 'Configure serial ports with tags for AI automation. AI can use --tag parameter to auto-select the appropriate port.',
+    'settings.portName': 'Port',
+    'settings.portTags': 'Tags',
+    'settings.portDescription': 'Description',
+    'settings.portActions': 'Actions',
+    'settings.noPorts': 'No ports configured',
+    'settings.addPort': 'Add Port',
+    'settings.editPort': 'Edit Port',
+    'settings.portNamePlaceholder': 'e.g., COM3',
+    'settings.portDescPlaceholder': 'e.g., Module AT command port',
+    'settings.portExists': 'Port already exists',
+    'settings.portNameEmpty': 'Please enter port name',
+    'settings.portTagsEmpty': 'Please select at least one tag',
+    'settings.tagAT': 'AT',
+    'settings.tagDownload': 'Download',
+    'settings.tagLog': 'Log',
+    'settings.tagDebug': 'Debug',
+    'settings.tagUART': 'UART',
+    'settings.tagMain': 'Main',
+    'settings.tagAux': 'Aux',
+    'settings.tagATDesc': 'AT command port for sending AT commands',
+    'settings.tagDownloadDesc': 'Firmware download port',
+    'settings.tagLogDesc': 'Log monitoring port',
+    'settings.tagDebugDesc': 'Debug output port',
+    'settings.tagUARTDesc': 'General UART communication',
+    'settings.tagMainDesc': 'Primary communication channel',
+    'settings.tagAuxDesc': 'Auxiliary/backup channel',
     'settings.language': 'Language',
     'settings.languageLabel': 'Display Language',
     'settings.languageDesc': 'Select your preferred language',
@@ -455,6 +486,36 @@ const messages = {
     'settings.comPortLabel': '默认串口',
     'settings.comPortDesc': '设备通信的默认串口（可选）',
     'settings.comPortPlaceholder': '例如: COM3',
+    // COM Ports (多端口标签配置)
+    'settings.comPorts': '串口配置',
+    'settings.comPortsLabel': '串口列表配置',
+    'settings.comPortsDesc': '为串口添加标签，帮助 AI 自动选择合适端口。AI 可使用 --tag 参数自动选择对应端口。',
+    'settings.portName': '端口',
+    'settings.portTags': '标签',
+    'settings.portDescription': '描述',
+    'settings.portActions': '操作',
+    'settings.noPorts': '未配置端口',
+    'settings.addPort': '添加端口',
+    'settings.editPort': '编辑端口',
+    'settings.portNamePlaceholder': '例如: COM3',
+    'settings.portDescPlaceholder': '例如: 模组AT命令端口',
+    'settings.portExists': '端口已存在',
+    'settings.portNameEmpty': '请输入端口名称',
+    'settings.portTagsEmpty': '请选择至少一个标签',
+    'settings.tagAT': 'AT',
+    'settings.tagDownload': '下载',
+    'settings.tagLog': '日志',
+    'settings.tagDebug': '调试',
+    'settings.tagUART': '串口',
+    'settings.tagMain': '主端口',
+    'settings.tagAux': '辅端口',
+    'settings.tagATDesc': 'AT命令端口，用于发送AT命令',
+    'settings.tagDownloadDesc': '固件下载端口',
+    'settings.tagLogDesc': '日志监控端口',
+    'settings.tagDebugDesc': '调试输出端口',
+    'settings.tagUARTDesc': '通用串口通信',
+    'settings.tagMainDesc': '主通信通道',
+    'settings.tagAuxDesc': '辅助/备用通道',
     'settings.language': '语言',
     'settings.languageLabel': '显示语言',
     'settings.languageDesc': '选择您偏好的语言',
@@ -604,9 +665,9 @@ const messages = {
 };
 
 function getLocale() {
-  const config = vscode.workspace.getConfiguration('quickFirmwarePlus');
-  const language = config.get('language', 'auto');
-  
+  // Read language from dove.json (configManager) instead of VS Code settings
+  const language = configManager.getLanguage();
+
   if (language === 'auto') {
     return vscode.env.language.toLowerCase();
   }

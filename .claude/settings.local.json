@@ -4,7 +4,9 @@
       "Bash(powershell ./install.ps1 -Force)",
       "Bash(vsce package:*)",
       "WebFetch(domain:docs.cline.bot)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(npm run:*)",
+      "Bash(F:/vscode-extension/quick-dove/dove/dove.exe help:*)"
     ]
   }
 }

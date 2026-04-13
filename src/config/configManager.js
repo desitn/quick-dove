@@ -18,6 +18,7 @@ const DEFAULT_CONFIG = {
     buildCommands: [],
     buildGitBashPath: '',
     defaultComPort: '',
+    comPorts: [],
     language: 'auto',
     theme: {
         mode: 'auto',
@@ -30,6 +31,9 @@ const DEFAULT_CONFIG = {
         favorites: []
     }
 };
+
+// Predefined tags for COM ports
+const COM_PORT_TAGS = ['AT', 'Download', 'Log', 'Debug', 'UART', 'Main', 'Aux'];
 
 /**
  * Configuration Manager Class
@@ -346,6 +350,137 @@ class ConfigManager {
     }
 
     /**
+     * Get all COM port configurations
+     * @returns {Array} Array of COM port configurations
+     */
+    getComPorts() {
+        return this.get('comPorts', []);
+    }
+
+    /**
+     * Set COM port configurations
+     * @param {Array} ports - Array of COM port configurations
+     * @returns {boolean} Success status
+     */
+    setComPorts(ports) {
+        return this.set('comPorts', ports);
+    }
+
+    /**
+     * Add a new COM port configuration
+     * @param {string} port - Port name (e.g., COM3)
+     * @param {Array} tags - Array of tags (e.g., ['AT', 'Log'])
+     * @param {string} description - Optional description
+     * @returns {boolean} Success status
+     */
+    addComPort(port, tags, description = '') {
+        const ports = this.getComPorts();
+        // Check if port already exists
+        if (ports.some(p => p.port === port)) {
+            return false;
+        }
+        const isActive = ports.length === 0;
+        ports.push({ port, tags, description, isActive });
+        const result = this.setComPorts(ports);
+        // Sync defaultComPort for backward compatibility
+        if (isActive) {
+            this.set('defaultComPort', port);
+        }
+        return result;
+    }
+
+    /**
+     * Delete a COM port configuration by index
+     * @param {number} index - Index of port to delete
+     * @returns {boolean} Success status
+     */
+    deleteComPort(index) {
+        const ports = this.getComPorts();
+        if (index < 0 || index >= ports.length) {
+            return false;
+        }
+        const wasActive = ports[index].isActive;
+        ports.splice(index, 1);
+        // If deleted port was active, make first port active
+        if (wasActive && ports.length > 0) {
+            ports[0].isActive = true;
+            this.set('defaultComPort', ports[0].port);
+        } else if (ports.length === 0) {
+            this.set('defaultComPort', '');
+        }
+        return this.setComPorts(ports);
+    }
+
+    /**
+     * Find COM port by tag
+     * @param {string} tag - Tag to search for
+     * @returns {Object|null} Port configuration or null
+     */
+    getComPortByTag(tag) {
+        const ports = this.getComPorts();
+        return ports.find(p => p.tags.includes(tag)) || null;
+    }
+
+    /**
+     * Get active COM port (for backward compatibility)
+     * @returns {string} Active port name or defaultComPort
+     */
+    getActiveComPort() {
+        const ports = this.getComPorts();
+        const active = ports.find(p => p.isActive);
+        if (active) return active.port;
+        // Fall back to defaultComPort for backward compatibility
+        return this.get('defaultComPort', '');
+    }
+
+    /**
+     * Set active COM port by port name
+     * @param {string} portName - Port name to set as active
+     * @returns {boolean} Success status
+     */
+    setActiveComPort(portName) {
+        const ports = this.getComPorts();
+        let found = false;
+        ports.forEach(p => {
+            if (p.port === portName) {
+                p.isActive = true;
+                found = true;
+            } else {
+                p.isActive = false;
+            }
+        });
+        if (found) {
+            this.setComPorts(ports);
+            this.set('defaultComPort', portName);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Update COM port configuration by index
+     * @param {number} index - Index of port to update
+     * @param {Object} updates - Updates to apply (port, tags, description)
+     * @returns {boolean} Success status
+     */
+    updateComPort(index, updates) {
+        const ports = this.getComPorts();
+        if (index < 0 || index >= ports.length) {
+            return false;
+        }
+        ports[index] = { ...ports[index], ...updates };
+        return this.setComPorts(ports);
+    }
+
+    /**
+     * Get predefined COM port tags
+     * @returns {Array} Array of predefined tags
+     */
+    getComPortTags() {
+        return COM_PORT_TAGS;
+    }
+
+    /**
      * Get language setting
      * @returns {string} Language code
      */
@@ -537,4 +672,4 @@ class ConfigManager {
 // Export singleton instance
 const configManager = new ConfigManager();
 
-module.exports = { configManager, ConfigManager };
+module.exports = { configManager, ConfigManager, COM_PORT_TAGS };

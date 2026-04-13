@@ -1116,12 +1116,11 @@ function activate(context)
         const buildCommands = configManager.getBuildCommands();
         const activeCmd = configManager.getActiveBuildCommandItem();
         let build_args = '';
-        let is_bash = false;
-        let bash_run = configManager.getBuildGitBashPath();
+        let selectedCmd = null;
 
         // If there are configured build commands, use the active one or first one
         if (buildCommands.length > 0) {
-            let selectedCmd = activeCmd;
+            selectedCmd = activeCmd;
 
             if (!selectedCmd) {
                 selectedCmd = buildCommands[0];
@@ -1133,12 +1132,6 @@ function activate(context)
             }
 
             build_args = selectedCmd.command;
-
-            // Check if the command is a bash script (.sh file)
-            // Match .sh followed by space or end of string to handle cases like "build.sh -app"
-            if (/\.sh(\s|$)/i.test(selectedCmd.command)) {
-                is_bash = true;
-            }
 
         } else {
             // No configured commands, use auto-detection
@@ -1160,22 +1153,14 @@ function activate(context)
                     output_chan.appendLine(localize('rootBuildFile', build_args));
                 }
                 // Default to build.sh
-                if (!build_args) { 
+                if (!build_args) {
                     file = await vscode.workspace.findFiles(re_sh, null, 1);
-                    if (file && file.length > 0) {  
+                    if (file && file.length > 0) {
                         const file_path = file[0].fsPath;
                         build_args = path.basename(file_path);
                         detectedCommand = build_args;
                         detectedName = path.basename(file_path, '.sh');
-                        output_chan.appendLine(localize('rootBuildFile', build_args) + ' git bash');
-                        is_bash = true;
-                        if (fs.existsSync(bash_run)) {
-                            output_chan.appendLine(localize('gitBashPath', bash_run));
-                        } else {
-                            vscode.window.showErrorMessage(localize('configGitBashPath'));
-                            vscode.commands.executeCommand('firmwareDownloader.settings');
-                            return;
-                        }
+                        output_chan.appendLine(localize('rootBuildFile', build_args) + ' (shell script)');
                     }
                 }
                 
@@ -1233,17 +1218,24 @@ function activate(context)
             return;
         }
 
-        // User confirmed, proceed with build
-        let task_cmd = null;
-        let args = null;
+        // User confirmed, proceed with build using dove.exe
+        const firmware_cli_path = getFirmwareCliPath(context);
 
-        if(is_windows()) {
-            task_cmd = !is_bash ? "cmd": bash_run;
-            args = !is_bash ? ["/c", `${build_args}`]:["-c", `./${build_args}`];
-        } else {
-            task_cmd = "/bin/bash";
-            args = ["-c", `${build_args}`];
+        if (!firmware_cli_path) {
+            vscode.window.showErrorMessage(localize('toolNotFound', FIRMWARE_CLI));
+            return;
         }
+
+        // Get active command name (optional) - use already declared activeCmd
+        const activeCmdName = activeCmd?.name || null;
+
+        // Build dove.exe arguments
+        let args = ['build'];
+        if (activeCmdName) {
+            args.push('-n', activeCmdName);
+        }
+
+        const task_cmd = firmware_cli_path;
 
         task_definition = {
             type: "shell",

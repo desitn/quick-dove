@@ -11,6 +11,7 @@ const { LogAnalyzer } = require('./logAnalyzer');
 const { KeywordHighlighter } = require('./keywordHighlighter');
 const { MarkbookManager } = require('./markbookManager');
 const { localize } = require('../../localization');
+const { configManager } = require('../../config/configManager');
 
 /**
  * Log Viewer Manager Class
@@ -355,8 +356,8 @@ class LogViewerManager {
      * @returns {string} Locale string
      */
     getLocale() {
-        const config = vscode.workspace.getConfiguration('quickFirmwarePlus');
-        const language = config.get('language', 'auto');
+        // Read language from dove.json (configManager) instead of VS Code settings
+        const language = configManager.getLanguage();
         if (language === 'auto') {
             return vscode.env.language.toLowerCase();
         }
