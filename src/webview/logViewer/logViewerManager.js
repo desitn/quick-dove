@@ -9,9 +9,16 @@ const path = require('path');
 const fs = require('fs');
 const { LogAnalyzer } = require('./logAnalyzer');
 const { KeywordHighlighter } = require('./keywordHighlighter');
+const { LineHighlighter } = require('./lineHighlighter');
 const { MarkbookManager } = require('./markbookManager');
 const { localize } = require('../../localization');
 const { configManager } = require('../../config/configManager');
+
+// Storage keys for persistence
+const STORAGE_KEYS = {
+    RECENT_FILES: 'quickDove.logViewer.recentFiles',
+    MARKBOOK_PREFIX: 'quickDove.logViewer.markbook.'
+};
 
 /**
  * Log Viewer Manager Class
@@ -24,8 +31,13 @@ class LogViewerManager {
         this.filterRelations = new Map();  // filterPanelId -> originalPanelId
         this.searchHistory = [];           // In-memory search history
         this.maxHistorySize = 10;
-        this.recentFiles = [];             // Recent opened files
         this.maxRecentFiles = 5;           // Max recent files to store
+
+        // Load persisted recent files list
+        this.recentFiles = this.context.globalState.get(STORAGE_KEYS.RECENT_FILES, []);
+
+        // Filter out files that no longer exist
+        this.recentFiles = this.recentFiles.filter(f => fs.existsSync(f));
     }
 
     /**
@@ -55,6 +67,7 @@ class LogViewerManager {
             filePath: null,
             analyzer: new LogAnalyzer(),
             highlighter: new KeywordHighlighter(),
+            lineHighlighter: new LineHighlighter(),
             markbook: new MarkbookManager(),
             isFilterView: false,
             originalPanelId: null,
@@ -105,6 +118,7 @@ class LogViewerManager {
             filePath: filePath,
             analyzer: new LogAnalyzer(),
             highlighter: new KeywordHighlighter(),
+            lineHighlighter: new LineHighlighter(),
             markbook: new MarkbookManager(),
             isFilterView: false,
             originalPanelId: null,
@@ -159,6 +173,7 @@ class LogViewerManager {
             filePath: originalInfo.filePath,
             analyzer: originalInfo.analyzer, // Share analyzer
             highlighter: originalInfo.highlighter, // Share highlighter
+            lineHighlighter: originalInfo.lineHighlighter, // Share line highlighter
             markbook: originalInfo.markbook, // Share markbook
             isFilterView: true,
             originalPanelId: originalPanelId,
@@ -187,13 +202,17 @@ class LogViewerManager {
      */
     async loadLogFile(panelInfo) {
         try {
-            // Load file
+            // Show loading state first for better UX on large files
+            const loadingHtml = this.generateLoadingHtml(panelInfo);
+            panelInfo.panel.webview.html = loadingHtml;
+
+            // Load file (this may take time for large files)
             const success = await panelInfo.analyzer.loadFile(panelInfo.filePath);
             if (!success) {
                 throw new Error('Failed to load file');
             }
 
-            // Generate HTML
+            // Generate HTML with actual content
             const html = this.generateLogViewerHtml(panelInfo);
             panelInfo.panel.webview.html = html;
 
@@ -226,8 +245,13 @@ class LogViewerManager {
             const highlightedText = panelInfo.highlighter.buildHighlightedHtml(line.text);
             const isBookmarked = panelInfo.markbook.isBookmarked(line.lineNumber);
             const bookmarkIcon = isBookmarked ? '<i class="fa-solid fa-bookmark"></i>' : '';
+
+            // Check for line highlight (background color)
+            const lineMatch = panelInfo.lineHighlighter.getLineMatch(line.text);
+            const lineBgStyle = lineMatch ? `style="background-color: ${lineMatch.color.bg};"` : '';
+
             return `
-                <div class="line" data-line="${line.lineNumber}">
+                <div class="line" data-line="${line.lineNumber}" ${lineBgStyle}>
                     <span class="line-number">${line.lineNumber}</span>
                     <span class="line-content">${highlightedText}</span>
                     <span class="bookmark-icon">${bookmarkIcon}</span>
@@ -240,6 +264,7 @@ class LogViewerManager {
 
         // Set display states for file loaded view
         html = html.replace('{{emptyStateClass}}', 'hidden');
+        html = html.replace('{{loadingStateClass}}', 'hidden');
         html = html.replace('{{headerDisplay}}', 'flex');
         html = html.replace('{{mainContentDisplay}}', 'flex');
 
@@ -294,8 +319,13 @@ class LogViewerManager {
             const highlightedText = filterInfo.highlighter.buildHighlightedHtml(line.text);
             const isBookmarked = filterInfo.markbook.isBookmarked(line.lineNumber);
             const bookmarkIcon = isBookmarked ? '<i class="fa-solid fa-bookmark"></i>' : '';
+
+            // Check for line highlight (background color)
+            const lineMatch = filterInfo.lineHighlighter.getLineMatch(line.text);
+            const lineBgStyle = lineMatch ? `style="background-color: ${lineMatch.color.bg};"` : '';
+
             return `
-                <div class="line filter-line" data-line="${line.lineNumber}" data-original-line="${line.lineNumber}">
+                <div class="line filter-line" data-line="${line.lineNumber}" data-original-line="${line.lineNumber}" ${lineBgStyle}>
                     <span class="line-number">${line.lineNumber}</span>
                     <span class="line-content">${highlightedText}</span>
                     <span class="bookmark-icon">${bookmarkIcon}</span>
@@ -308,6 +338,7 @@ class LogViewerManager {
 
         // Set display states for filter view (same as file loaded view)
         html = html.replace('{{emptyStateClass}}', 'hidden');
+        html = html.replace('{{loadingStateClass}}', 'hidden');
         html = html.replace('{{headerDisplay}}', 'flex');
         html = html.replace('{{mainContentDisplay}}', 'flex');
 
@@ -445,6 +476,9 @@ class LogViewerManager {
                     case 'getRecentFiles':
                         await this.handleGetRecentFiles(panelInfo);
                         break;
+                    case 'clearRecentFiles':
+                        await this.handleClearRecentFiles(panelInfo);
+                        break;
                     case 'search':
                         await this.handleSearch(panelInfo, message);
                         break;
@@ -459,6 +493,15 @@ class LogViewerManager {
                         break;
                     case 'clearAllHighlights':
                         await this.handleClearAllHighlights(panelInfo, message);
+                        break;
+                    case 'highlightLine':
+                        await this.handleHighlightLine(panelInfo, message);
+                        break;
+                    case 'removeLineHighlight':
+                        await this.handleRemoveLineHighlight(panelInfo, message);
+                        break;
+                    case 'clearAllLineHighlights':
+                        await this.handleClearAllLineHighlights(panelInfo, message);
                         break;
                     case 'addBookmark':
                         await this.handleAddBookmark(panelInfo, message);
@@ -537,6 +580,18 @@ class LogViewerManager {
     }
 
     /**
+     * Handle clear recent files command
+     * @param {Object} panelInfo - Panel info
+     */
+    async handleClearRecentFiles(panelInfo) {
+        this.clearRecentFiles();
+        panelInfo.panel.webview.postMessage({
+            command: 'recentFilesCleared',
+            files: []
+        });
+    }
+
+    /**
      * Handle search command
      * @param {Object} panelInfo - Panel info
      * @param {Object} message - Message data
@@ -606,11 +661,11 @@ class LogViewerManager {
      */
     async handleRemoveHighlight(panelInfo, message) {
         const { keyword } = message;
-        
+
         panelInfo.highlighter.removeHighlight(keyword);
-        
-        // Refresh display
-        await this.refreshPanel(panelInfo);
+
+        // Only update lines containing the removed keyword (no full refresh)
+        await this.updateAffectedLines(panelInfo, keyword);
     }
 
     /**
@@ -619,14 +674,88 @@ class LogViewerManager {
      * @param {Object} message - Message data
      */
     async handleClearAllHighlights(panelInfo, message) {
+        // Get all highlighted keywords before clearing
+        const highlightedKeywords = panelInfo.highlighter.getAllHighlights().map(h => h.keyword);
+
         panelInfo.highlighter.clearAll();
-        
-        // Refresh display
-        await this.refreshPanel(panelInfo);
+
+        // Send command to webview to clear highlights (no full page refresh)
+        panelInfo.panel.webview.postMessage({
+            command: 'clearHighlightsDisplay',
+            keywords: highlightedKeywords
+        });
 
         // Notify success
         panelInfo.panel.webview.postMessage({
             command: 'highlightResult',
+            result: { action: 'cleared', keyword: 'all' }
+        });
+
+        // Send next color for the menu icon
+        await this.sendNextHighlightColor(panelInfo);
+    }
+
+    /**
+     * Handle highlight line command
+     * @param {Object} panelInfo - Panel info
+     * @param {Object} message - Message data
+     */
+    async handleHighlightLine(panelInfo, message) {
+        const { keyword, useRegex } = message;
+
+        const result = panelInfo.lineHighlighter.toggleLineHighlight(keyword, useRegex);
+
+        // Send command to webview to update line backgrounds
+        const lines = panelInfo.isFilterView ? panelInfo.filteredLines : panelInfo.analyzer.lines;
+        const matchingKeywords = panelInfo.lineHighlighter.getAllLineHighlights();
+
+        panelInfo.panel.webview.postMessage({
+            command: 'updateLineHighlights',
+            keywords: matchingKeywords.map(h => ({ keyword: h.keyword, color: h.color }))
+        });
+
+        // Notify success
+        panelInfo.panel.webview.postMessage({
+            command: 'lineHighlightResult',
+            result: result
+        });
+    }
+
+    /**
+     * Handle remove line highlight command
+     * @param {Object} panelInfo - Panel info
+     * @param {Object} message - Message data
+     */
+    async handleRemoveLineHighlight(panelInfo, message) {
+        const { keyword } = message;
+
+        panelInfo.lineHighlighter.removeLineHighlight(keyword);
+
+        // Send command to webview to update line backgrounds
+        const matchingKeywords = panelInfo.lineHighlighter.getAllLineHighlights();
+
+        panelInfo.panel.webview.postMessage({
+            command: 'updateLineHighlights',
+            keywords: matchingKeywords.map(h => ({ keyword: h.keyword, color: h.color }))
+        });
+    }
+
+    /**
+     * Handle clear all line highlights command
+     * @param {Object} panelInfo - Panel info
+     * @param {Object} message - Message data
+     */
+    async handleClearAllLineHighlights(panelInfo, message) {
+        panelInfo.lineHighlighter.clearAll();
+
+        // Send command to webview to clear all line backgrounds
+        panelInfo.panel.webview.postMessage({
+            command: 'clearLineHighlightsDisplay'
+        });
+
+        // Notify success
+        panelInfo.panel.webview.postMessage({
+            command: 'lineHighlightResult',
             result: { action: 'cleared', keyword: 'all' }
         });
     }
@@ -638,17 +767,25 @@ class LogViewerManager {
      */
     async handleAddBookmark(panelInfo, message) {
         const { lineNumber, text, note } = message;
-        
+
         const result = panelInfo.markbook.toggleBookmark(lineNumber, text, note);
-        
-        // Refresh display
-        await this.refreshPanel(panelInfo);
+
+        // Only update the affected line's bookmark icon (no full refresh)
+        const isBookmarked = panelInfo.markbook.isBookmarked(lineNumber);
+        panelInfo.panel.webview.postMessage({
+            command: 'updateBookmarkIcon',
+            lineNumber: lineNumber,
+            isBookmarked: isBookmarked
+        });
 
         // Notify success
         panelInfo.panel.webview.postMessage({
             command: 'bookmarkResult',
             result: result
         });
+
+        // Persist markbook data
+        this.saveMarkbook(panelInfo);
     }
 
     /**
@@ -658,11 +795,18 @@ class LogViewerManager {
      */
     async handleRemoveBookmark(panelInfo, message) {
         const { lineNumber } = message;
-        
+
         panelInfo.markbook.removeBookmark(lineNumber);
-        
-        // Refresh display
-        await this.refreshPanel(panelInfo);
+
+        // Only update the affected line's bookmark icon (no full refresh)
+        panelInfo.panel.webview.postMessage({
+            command: 'updateBookmarkIcon',
+            lineNumber: lineNumber,
+            isBookmarked: false
+        });
+
+        // Persist markbook data
+        this.saveMarkbook(panelInfo);
     }
 
     /**
@@ -878,6 +1022,59 @@ class LogViewerManager {
     }
 
     /**
+     * Generate loading state HTML
+     * @param {Object} panelInfo - Panel info
+     * @returns {string} HTML content
+     */
+    generateLoadingHtml(panelInfo) {
+        const templatePath = path.join(this.context.extensionPath, 'src', 'webview', 'logViewer', 'logViewer.html');
+        let html = fs.readFileSync(templatePath, 'utf8');
+
+        // Set display states for loading view
+        html = html.replace('{{emptyStateClass}}', 'hidden');
+        html = html.replace('{{loadingStateClass}}', '');
+        html = html.replace('{{headerDisplay}}', 'none');
+        html = html.replace('{{mainContentDisplay}}', 'none');
+
+        // Replace placeholders
+        html = html.replace('{{fileName}}', path.basename(panelInfo.filePath));
+        html = html.replace('{{fileInfo}}', localize('logviewer.loading'));
+        html = html.replace('{{linesContent}}', '');
+        html = html.replace('{{panelId}}', panelInfo.id);
+        html = html.replace('{{isFilterView}}', 'false');
+        html = html.replace('{{locale}}', this.getLocale());
+
+        // Apply theme and accent color to HTML
+        const effectiveTheme = this.getConfigEffectiveTheme();
+        const accentColor = this.getAccentColor();
+        html = html.replace(`<html lang="${this.getLocale()}">`, `<html lang="${this.getLocale()}" data-theme="${effectiveTheme}" data-accent="${accentColor}">`);
+
+        // Replace localization strings
+        html = this.replaceLocalizationStrings(html);
+
+        // Replace resource URIs
+        const styleUri = panelInfo.panel.webview.asWebviewUri(
+            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'style.css'))
+        );
+        const logViewerCssUri = panelInfo.panel.webview.asWebviewUri(
+            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'logViewer', 'logViewer.css'))
+        );
+        const scriptUri = panelInfo.panel.webview.asWebviewUri(
+            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'logViewer', 'logViewer.js'))
+        );
+        const fontAwesomeUri = panelInfo.panel.webview.asWebviewUri(
+            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'assets', 'fontawesome', 'all.min.css'))
+        );
+
+        html = html.replace('{{style.css}}', styleUri.toString());
+        html = html.replace('{{logViewer.css}}', logViewerCssUri.toString());
+        html = html.replace('{{logViewer.js}}', scriptUri.toString());
+        html = html.replace('{{fontawesome.css}}', fontAwesomeUri.toString());
+
+        return html;
+    }
+
+    /**
      * Generate empty state HTML for first-time use
      * @param {Object} panelInfo - Panel info
      * @returns {string} HTML content
@@ -888,6 +1085,7 @@ class LogViewerManager {
 
         // Set display states for empty state view
         html = html.replace('{{emptyStateClass}}', '');
+        html = html.replace('{{loadingStateClass}}', 'hidden');
         html = html.replace('{{headerDisplay}}', 'none');
         html = html.replace('{{mainContentDisplay}}', 'none');
 
@@ -914,6 +1112,7 @@ class LogViewerManager {
         html = html.replace('{{logviewer.selectFile}}', localize('logviewer.selectFile'));
         html = html.replace('{{logviewer.supportedFormats}}', localize('logviewer.supportedFormats'));
         html = html.replace('{{logviewer.recentFiles}}', localize('logviewer.recentFiles'));
+        html = html.replace('{{logviewer.clearRecentFiles}}', localize('logviewer.clearRecentFiles'));
 
         // Replace resource URIs
         const styleUri = panelInfo.panel.webview.asWebviewUri(
@@ -947,14 +1146,17 @@ class LogViewerManager {
         if (index > -1) {
             this.recentFiles.splice(index, 1);
         }
-        
+
         // Add to front
         this.recentFiles.unshift(filePath);
-        
+
         // Limit size
         if (this.recentFiles.length > this.maxRecentFiles) {
             this.recentFiles.pop();
         }
+
+        // Persist to globalState
+        this.context.globalState.update(STORAGE_KEYS.RECENT_FILES, this.recentFiles);
     }
 
     /**
@@ -966,24 +1168,104 @@ class LogViewerManager {
     }
 
     /**
+     * Clear all recent files history
+     */
+    clearRecentFiles() {
+        this.recentFiles = [];
+        this.context.globalState.update(STORAGE_KEYS.RECENT_FILES, []);
+    }
+
+    /**
+     * Clear markbook data for a specific file
+     * @param {string} filePath - File path
+     */
+    clearMarkbook(filePath) {
+        const fileHash = this.getFileHash(filePath);
+        const key = STORAGE_KEYS.MARKBOOK_PREFIX + fileHash;
+        this.context.globalState.update(key, undefined);
+    }
+
+    /**
+     * Clear all markbook data from storage
+     */
+    clearAllMarkbooks() {
+        // Get all keys and delete those starting with MARKBOOK_PREFIX
+        const keys = this.context.globalState.keys();
+        for (const key of keys) {
+            if (key.startsWith(STORAGE_KEYS.MARKBOOK_PREFIX)) {
+                this.context.globalState.update(key, undefined);
+            }
+        }
+    }
+
+    /**
+     * Generate a hash key from file path for storage
+     * @param {string} filePath - File path
+     * @returns {string} Hash key
+     */
+    getFileHash(filePath) {
+        // Use base64 encoding as simplified hash
+        return Buffer.from(filePath).toString('base64').replace(/[/+=]/g, '_');
+    }
+
+    /**
+     * Save markbook data for a file to globalState
+     * @param {Object} panelInfo - Panel info with file path and markbook
+     */
+    saveMarkbook(panelInfo) {
+        if (!panelInfo.filePath) return;
+
+        const fileHash = this.getFileHash(panelInfo.filePath);
+        const key = STORAGE_KEYS.MARKBOOK_PREFIX + fileHash;
+        const data = panelInfo.markbook.serialize();
+
+        this.context.globalState.update(key, data);
+    }
+
+    /**
+     * Load markbook data from globalState for a file
+     * @param {Object} panelInfo - Panel info to load markbook into
+     */
+    loadMarkbook(panelInfo) {
+        if (!panelInfo.filePath) return;
+
+        const fileHash = this.getFileHash(panelInfo.filePath);
+        const key = STORAGE_KEYS.MARKBOOK_PREFIX + fileHash;
+        const data = this.context.globalState.get(key, null);
+
+        if (data) {
+            panelInfo.markbook.deserialize(data);
+        }
+    }
+
+    /**
      * Load file into existing empty panel
      * @param {Object} panelInfo - Existing panel info
      * @param {string} filePath - File path to load
      */
     async loadFileIntoPanel(panelInfo, filePath) {
         try {
-            // Load file
+            // Update panel info for loading
+            panelInfo.filePath = filePath;
+
+            // Show loading state first for better UX on large files
+            const loadingHtml = this.generateLoadingHtml(panelInfo);
+            panelInfo.panel.webview.html = loadingHtml;
+
+            // Load file (this may take time for large files)
             const success = await panelInfo.analyzer.loadFile(filePath);
             if (!success) {
                 throw new Error('Failed to load file');
             }
 
             // Update panel info
-            panelInfo.filePath = filePath;
             panelInfo.isEmptyState = false;
 
             // Add to recent files
             this.addToRecentFiles(filePath);
+
+            // Load persisted markbook data for this file
+            this.loadMarkbook(panelInfo);
 
             // Update panel title
             panelInfo.panel.title = `Log: ${path.basename(filePath)}`;

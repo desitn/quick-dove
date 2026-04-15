@@ -19,6 +19,11 @@
   "categories": [
     "Other"
   ],
+  "scripts": {
+    "build": "powershell.exe -ExecutionPolicy Bypass -File build.ps1",
+    "build:vsix": "vsce package",
+    "build:dove": "cd dove && npm run build:exe"
+  },
   "dependencies": {
     "iconv-lite": "^0.6.3"
   },

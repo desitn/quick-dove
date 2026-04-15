@@ -195,6 +195,8 @@
                                     <input type="text" id="newPortName" placeholder="{{settings.portNamePlaceholder}}" data-modified="false">
                                     <input type="text" id="newPortDesc" placeholder="{{settings.portDescPlaceholder}}" data-modified="false">
                                 </div>
+                                <!-- Port list dropdown -->
+                                <div class="port-list-dropdown" id="portListDropdown" style="display: none;"></div>
                                 <div class="form-row tag-selector-row">
                                     <div class="tag-selector">
                                         <label class="tag-checkbox" title="{{settings.tagATDesc}}"><input type="checkbox" value="AT"> <span class="tag-badge tag-at">{{settings.tagAT}}</span></label>
@@ -205,9 +207,14 @@
                                         <label class="tag-checkbox" title="{{settings.tagMainDesc}}"><input type="checkbox" value="Main"> <span class="tag-badge tag-main">{{settings.tagMain}}</span></label>
                                         <label class="tag-checkbox" title="{{settings.tagAuxDesc}}"><input type="checkbox" value="Aux"> <span class="tag-badge tag-aux">{{settings.tagAux}}</span></label>
                                     </div>
-                                    <button class="btn btn-primary" onclick="addPort()">
-                                        <i class="fa-solid fa-plus"></i> {{settings.add}}
-                                    </button>
+                                    <div class="port-action-buttons">
+                                        <button class="btn btn-icon-only" title="{{settings.scanPorts}}" onclick="scanPorts()">
+                                            <i class="fa-solid fa-search"></i>
+                                        </button>
+                                        <button class="btn btn-primary" onclick="addPort()">
+                                            <i class="fa-solid fa-plus"></i> {{settings.add}}
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>

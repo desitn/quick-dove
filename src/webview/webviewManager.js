@@ -312,6 +312,31 @@ class WebviewManager {
                         }
                         return;
                     // COM Port operations
+                    case 'scanPorts':
+                        // Call dove.exe port list to get serial ports
+                        const doveExePath = path.join(this.context.extensionPath, 'dove', 'dove.exe');
+                        if (!fs.existsSync(doveExePath)) {
+                            this.settingsPanel.webview.postMessage({
+                                command: 'configError',
+                                message: 'dove.exe not found'
+                            });
+                            return;
+                        }
+                        try {
+                            const { execSync } = require('child_process');
+                            const result = execSync(`"${doveExePath}" port list`, { encoding: 'utf8', timeout: 5000 });
+                            const ports = JSON.parse(result);
+                            this.settingsPanel.webview.postMessage({
+                                command: 'scanPortsResult',
+                                ports: ports
+                            });
+                        } catch (error) {
+                            this.settingsPanel.webview.postMessage({
+                                command: 'configError',
+                                message: 'Failed to scan ports: ' + error.message
+                            });
+                        }
+                        return;
                     case 'addComPort':
                         const addSuccess = configManager.addComPort(message.port, message.tags, message.description);
                         if (addSuccess) {
@@ -393,14 +418,73 @@ class WebviewManager {
                             });
                         }
                         return;
+                    case 'resetConfigRequest':
+                        // Request confirmation before reset (webview sandbox blocks native confirm())
+                        const confirmReset = await vscode.window.showWarningMessage(
+                            localize('settings.resetConfirm') || 'Are you sure you want to reset all settings to defaults?',
+                            { modal: true },
+                            localize('settings.reset') || 'Reset'
+                        );
+                        if (confirmReset) {
+                            // User confirmed, proceed with reset
+                            const success = configManager.reset();
+                            if (success) {
+                                const resetConfig = configManager.getConfig();
+                                const resetThemeSettings = typeof resetConfig.theme === 'object' ? resetConfig.theme : { mode: resetConfig.theme || 'auto', accent: resetConfig.accentColor || 'blue' };
+                                const resetEffectiveTheme = this.getEffectiveTheme(resetThemeSettings.mode || 'auto');
+                                this.settingsPanel.webview.postMessage({
+                                    command: 'configData',
+                                    config: resetConfig,
+                                    configFilePath: configManager.getConfigPath(),
+                                    effectiveTheme: resetEffectiveTheme,
+                                    localizedStrings: {
+                                        uninstall: localize('settings.uninstall'),
+                                        installing: localize('settings.installing'),
+                                        uninstalling: localize('settings.uninstalling'),
+                                        checkingStatus: localize('settings.checkingStatus'),
+                                        checkStatus: localize('settings.checkStatus'),
+                                        install: localize('settings.install'),
+                                        portExists: localize('settings.portExists'),
+                                        portNameEmpty: localize('settings.portNameEmpty'),
+                                        portTagsEmpty: localize('settings.portTagsEmpty')
+                                    }
+                                });
+                                this.settingsPanel.webview.postMessage({
+                                    command: 'configSaved',
+                                    message: localize('settings.resetSuccess')
+                                });
+                                vscode.commands.executeCommand('firmwareDownloader.refresh');
+                            } else {
+                                this.settingsPanel.webview.postMessage({
+                                    command: 'configError',
+                                    message: localize('settings.resetFailed')
+                                });
+                            }
+                        }
+                        return;
                     case 'resetConfig':
                         // Reset to defaults
                         const resetSuccess = configManager.reset();
                         if (resetSuccess) {
+                            const resetConfig = configManager.getConfig();
+                            const resetThemeSettings = typeof resetConfig.theme === 'object' ? resetConfig.theme : { mode: resetConfig.theme || 'auto', accent: resetConfig.accentColor || 'blue' };
+                            const resetEffectiveTheme = this.getEffectiveTheme(resetThemeSettings.mode || 'auto');
                             this.settingsPanel.webview.postMessage({
                                 command: 'configData',
-                                config: configManager.getConfig(),
-                                configFilePath: configManager.getConfigPath()
+                                config: resetConfig,
+                                configFilePath: configManager.getConfigPath(),
+                                effectiveTheme: resetEffectiveTheme,
+                                localizedStrings: {
+                                    uninstall: localize('settings.uninstall'),
+                                    installing: localize('settings.installing'),
+                                    uninstalling: localize('settings.uninstalling'),
+                                    checkingStatus: localize('settings.checkingStatus'),
+                                    checkStatus: localize('settings.checkStatus'),
+                                    install: localize('settings.install'),
+                                    portExists: localize('settings.portExists'),
+                                    portNameEmpty: localize('settings.portNameEmpty'),
+                                    portTagsEmpty: localize('settings.portTagsEmpty')
+                                }
                             });
                             this.settingsPanel.webview.postMessage({
                                 command: 'configSaved',
@@ -690,37 +774,28 @@ class WebviewManager {
             let installedPath;
 
             if (agent === 'claude-code') {
-                // Claude Code: versioned structure ~/.claude/skills/<skill-name>/<extension-version>/SKILL.md
+                // Claude Code: flat structure ~/.claude/skills/<skill-name>/SKILL.md
                 const skillsBaseDir = path.join(userHome, '.claude', 'skills');
-                const versionedDirName = `${extensionName}-${extensionVersion}`;
-
-                // Check for old versions and remove them
                 const skillDirNames = ['dove-action', 'dove-query'];
+
                 for (const skillName of skillDirNames) {
                     const skillDir = path.join(skillsBaseDir, skillName);
+                    // Remove old versioned subdirectories if exist
                     if (fs.existsSync(skillDir)) {
                         const items = fs.readdirSync(skillDir);
                         for (const item of items) {
-                            if (item !== versionedDirName && item !== 'SKILL.md') {
-                                const oldVersionDir = path.join(skillDir, item);
-                                if (fs.statSync(oldVersionDir).isDirectory()) {
-                                    fs.rmSync(oldVersionDir, { recursive: true, force: true });
-                                }
+                            const itemPath = path.join(skillDir, item);
+                            if (fs.statSync(itemPath).isDirectory()) {
+                                // Remove old versioned directories like "quick-dove-0.2.5"
+                                fs.rmSync(itemPath, { recursive: true, force: true });
                             }
                         }
                     }
+                    // Create flat skill directory
+                    fs.mkdirSync(skillDir, { recursive: true });
+                    const skillSrc = skillName === 'dove-action' ? doveActionSrc : doveQuerySrc;
+                    fs.copyFileSync(skillSrc, path.join(skillDir, 'SKILL.md'));
                 }
-
-                // Create versioned skill directories
-                const doveActionDir = path.join(skillsBaseDir, 'dove-action', versionedDirName);
-                const doveQueryDir = path.join(skillsBaseDir, 'dove-query', versionedDirName);
-
-                fs.mkdirSync(doveActionDir, { recursive: true });
-                fs.mkdirSync(doveQueryDir, { recursive: true });
-
-                // Copy skill files
-                fs.copyFileSync(doveActionSrc, path.join(doveActionDir, 'SKILL.md'));
-                fs.copyFileSync(doveQuerySrc, path.join(doveQueryDir, 'SKILL.md'));
 
                 installedPath = skillsBaseDir;
             } else if (agent === 'cline') {
@@ -868,14 +943,14 @@ class WebviewManager {
 
         const skillNames = ['dove-action', 'dove-query'];
         let installedCount = 0;
-        let installedPath = '';
+        const installedPaths = [];
         const oldVersions = [];
 
         if (agent === 'claude-code') {
             const skillsBaseDir = path.join(userHome, '.claude', 'skills');
             const result = this.checkSkillDirectory(skillsBaseDir, skillNames, extensionVersion);
             installedCount = result.installedCount;
-            installedPath = result.installedPath;
+            installedPaths.push(...result.installedPaths);
             oldVersions.push(...result.oldVersions);
         } else if (agent === 'cline') {
             // Check both directories for Cline
@@ -887,23 +962,39 @@ class WebviewManager {
 
             // Combine results - installed if found in either location
             installedCount = Math.max(clineResult.installedCount, agentsResult.installedCount);
-            installedPath = clineResult.installedPath || agentsResult.installedPath;
+            // Use agents skills dir paths preferentially (most common setup)
+            if (agentsResult.installedPaths.length > 0) {
+                installedPaths.push(...agentsResult.installedPaths);
+            } else if (clineResult.installedPaths.length > 0) {
+                installedPaths.push(...clineResult.installedPaths);
+            }
             oldVersions.push(...clineResult.oldVersions, ...agentsResult.oldVersions);
         }
 
         // Get stored installation info
         const installedInfo = this.context.globalState.get(`quickFirmwarePlus.skillInstalledVersion.${agent}`);
 
+        // Format paths for display - show all skill paths
+        const formattedPaths = installedPaths.map(p =>
+            p.replace(userHome, '~').replace(/\\/g, '/')
+        );
+
+        // Base skills directory for display when no skills installed
+        const baseDir = agent === 'cline'
+            ? '~/.agents/skills (or ~/.cline/skills)'
+            : '~/.claude/skills';
+
         this.settingsPanel.webview.postMessage({
             command: 'skillStatusResult',
             agent: agent,
             installed: installedCount >= 2, // Both skills need to be installed
             skillsCount: installedCount,
-            path: installedPath || (agent === 'cline' ? '~/.cline/skills & ~/.agents/skills' : '~/.claude/skills'),
-            version: extensionVersion,
-            extensionName: `${extensionName} v${extensionVersion}`,
+            // Show all installed skill paths
+            paths: formattedPaths.length > 0 ? formattedPaths : [baseDir],
+            extensionName: extensionName,
+            currentVersion: extensionVersion,
             hasOldVersion: oldVersions.length > 0,
-            oldVersions: oldVersions
+            oldVersions: oldVersions.map(p => p.replace(userHome, '~').replace(/\\/g, '/'))
         });
     }
 
@@ -916,7 +1007,7 @@ class WebviewManager {
      */
     checkSkillDirectory(skillsBaseDir, skillNames, extensionVersion) {
         let installedCount = 0;
-        let installedPath = '';
+        const installedPaths = [];
         const oldVersions = [];
 
         for (const skillName of skillNames) {
@@ -926,26 +1017,26 @@ class WebviewManager {
                 for (const item of items) {
                     const itemPath = path.join(skillDir, item);
                     if (fs.statSync(itemPath).isDirectory()) {
-                        // Check if it contains SKILL.md (versioned structure for Claude Code)
+                        // Old versioned structure - mark as old version
                         const skillMdPath = path.join(itemPath, 'SKILL.md');
                         if (fs.existsSync(skillMdPath)) {
-                            installedCount++;
-                            if (item.includes(extensionVersion)) {
-                                installedPath = itemPath;
-                            } else {
-                                oldVersions.push(itemPath);
-                            }
+                            oldVersions.push(itemPath);
                         }
                     } else if (item === 'SKILL.md') {
-                        // Direct SKILL.md without version subdirectory (flat structure for Cline)
+                        // Flat structure (correct) - SKILL.md directly in skill folder
                         installedCount++;
-                        installedPath = skillDir;
+                        installedPaths.push(skillDir);
                     }
                 }
             }
         }
 
-        return { installedCount, installedPath, oldVersions };
+        return {
+            installedCount,
+            installedPaths,
+            hasCurrentVersion: installedCount >= skillNames.length,
+            oldVersions
+        };
     }
 
     /**

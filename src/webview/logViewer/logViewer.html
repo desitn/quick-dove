@@ -31,11 +31,25 @@
                     <div class="recent-files-header">
                         <i class="fa-solid fa-clock-rotate-left"></i>
                         <span>{{logviewer.recentFiles}}</span>
+                        <button class="btn btn-icon" id="btnClearRecentFiles" title="{{logviewer.clearRecentFiles}}">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
                     </div>
                     <div class="recent-files-list" id="recentFilesList">
                         <!-- Recent files will be populated here -->
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Loading State (shown while loading large files) -->
+        <div class="loading-container {{loadingStateClass}}" id="loadingContainer">
+            <div class="loading-content">
+                <div class="loading-spinner">
+                    <i class="fa-solid fa-spinner fa-spin"></i>
+                </div>
+                <div class="loading-text">{{logviewer.loading}}</div>
+                <div class="loading-progress" id="loadingProgress"></div>
             </div>
         </div>
 
@@ -165,6 +179,15 @@
             <div class="context-menu-item" id="ctxRemoveHighlight">
                 <i class="fa-regular fa-circle"></i>
                 <span>{{logviewer.clearHighlight}}</span>
+            </div>
+            <div class="context-menu-separator"></div>
+            <div class="context-menu-item" id="ctxHighlightLine">
+                <i class="fa-solid fa-highlighter"></i>
+                <span>{{logviewer.highlightLine}}</span>
+            </div>
+            <div class="context-menu-item" id="ctxRemoveLineHighlight">
+                <i class="fa-solid fa-eraser"></i>
+                <span>{{logviewer.clearLineHighlight}}</span>
             </div>
             <div class="context-menu-separator"></div>
             <div class="context-menu-item" id="ctxSearch">

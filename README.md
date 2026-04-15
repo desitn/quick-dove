@@ -109,11 +109,11 @@
 | 命令 | 说明 |
 |------|------|
 | `flash --list` | 列出可用固件 |
-| `devices` | 列出 USB 设备 |
-| `serial` | 列出串口 |
+| `port list --usb` | 列出 USB 设备 |
+| `port list` | 列出串口 |
 | `config` | 查看配置 |
-| `monitor` | 监控串口 |
-| `at` 查询类 | ATI、AT+CGMI 等查询命令 |
+| `port monitor` | 监控串口 |
+| `port at` 查询类 | ATI、AT+CGMI 等查询命令 |
 
 > 详细文档见 [dove/skill/dove-action/SKILL.md](dove/skill/dove-action/SKILL.md) 和 [dove/skill/dove-query/SKILL.md](dove/skill/dove-query/SKILL.md)
 

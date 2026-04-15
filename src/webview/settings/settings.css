@@ -523,6 +523,72 @@
     flex: 1;
 }
 
+/* Port list dropdown */
+.port-list-dropdown {
+    background: var(--input-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+    margin-bottom: 12px;
+}
+
+.port-item {
+    padding: 10px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.port-item:hover {
+    background: var(--hover-bg);
+}
+
+.port-item:last-child {
+    border-bottom: none;
+}
+
+.port-path {
+    font-weight: bold;
+    color: var(--text-primary);
+}
+
+.port-info {
+    font-size: 0.85em;
+    color: var(--text-muted);
+}
+
+/* Port action buttons container */
+.port-action-buttons {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+/* Icon-only button for scan */
+.btn-icon-only {
+    background: var(--btn-secondary-bg);
+    color: var(--btn-secondary-text);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 6px 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+}
+
+.btn-icon-only:hover {
+    background: var(--hover-bg);
+}
+
+.btn-icon-only i {
+    font-size: 14px;
+}
+
 .tag-selector-row {
     display: flex;
     align-items: center;
@@ -795,6 +861,10 @@ select:focus {
     font-size: 12px;
     color: var(--accent-color);
     margin-top: 4px;
+}
+
+.status-item .status-version.outdated {
+    color: var(--warning-color, #f59e0b);
 }
 
 /* Skill Status Items */

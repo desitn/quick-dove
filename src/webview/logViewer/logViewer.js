@@ -42,16 +42,34 @@
 
         setupEventListeners();
         setupMessageHandlers();
-        
+
         // Check if in empty state (no file loaded)
         const emptyStateContainer = document.getElementById('emptyStateContainer');
+        const loadingContainer = document.getElementById('loadingContainer');
+
         if (emptyStateContainer && !emptyStateContainer.classList.contains('hidden')) {
             // Request recent files for empty state
             vscode.postMessage({ command: 'getRecentFiles' });
+        } else if (loadingContainer && !loadingContainer.classList.contains('hidden')) {
+            // In loading state, wait for content
         } else {
+            // File already loaded - trigger fade-in animation
+            triggerContentFadeIn();
             // Request initial data for loaded file
             vscode.postMessage({ command: 'getBookmarks' });
             vscode.postMessage({ command: 'getSearchHistory' });
+        }
+    }
+
+    // Trigger fade-in animation for content
+    function triggerContentFadeIn() {
+        const contentWrapper = document.querySelector('.content-wrapper');
+        const linesContainer = document.getElementById('linesContainer');
+        if (contentWrapper) {
+            setTimeout(() => contentWrapper.classList.add('loaded'), 50);
+        }
+        if (linesContainer) {
+            setTimeout(() => linesContainer.classList.add('loaded'), 50);
         }
     }
 
@@ -62,6 +80,13 @@
         if (btnSelectLogFile) {
             btnSelectLogFile.addEventListener('click', () => {
                 vscode.postMessage({ command: 'selectLogFile' });
+            });
+        }
+
+        const btnClearRecentFiles = document.getElementById('btnClearRecentFiles');
+        if (btnClearRecentFiles) {
+            btnClearRecentFiles.addEventListener('click', () => {
+                vscode.postMessage({ command: 'clearRecentFiles' });
             });
         }
 
@@ -107,6 +132,14 @@
         });
         document.getElementById('ctxRemoveHighlight').addEventListener('click', () => {
             removeHighlight();
+            hideContextMenu();
+        });
+        document.getElementById('ctxHighlightLine').addEventListener('click', () => {
+            highlightLineSelection(false);
+            hideContextMenu();
+        });
+        document.getElementById('ctxRemoveLineHighlight').addEventListener('click', () => {
+            removeLineHighlight();
             hideContextMenu();
         });
         document.getElementById('ctxSearch').addEventListener('click', () => {
@@ -196,6 +229,9 @@
                 case 'bookmarkResult':
                     handleBookmarkResult(message.result);
                     break;
+                case 'updateBookmarkIcon':
+                    updateBookmarkIcon(message.lineNumber, message.isBookmarked);
+                    break;
                 case 'scrollToLine':
                     scrollToLine(message.lineNumber);
                     break;
@@ -208,11 +244,27 @@
                 case 'updateLines':
                     updateLinesContent(message.lines);
                     break;
+                case 'clearHighlightsDisplay':
+                    clearHighlightsDisplay(message.keywords);
+                    break;
                 case 'recentFiles':
                     displayRecentFiles(message.files);
                     break;
+                case 'recentFilesCleared':
+                    showNotification('Recent files cleared', 'success');
+                    displayRecentFiles([]);
+                    break;
                 case 'fileLoaded':
                     handleFileLoaded(message);
+                    break;
+                case 'updateLineHighlights':
+                    updateLineHighlightsDisplay(message.keywords);
+                    break;
+                case 'clearLineHighlightsDisplay':
+                    clearLineHighlightsDisplay();
+                    break;
+                case 'lineHighlightResult':
+                    handleLineHighlightResult(message.result);
                     break;
             }
         });
@@ -259,12 +311,16 @@
     // Handle file loaded (switch from empty state to file view)
     function handleFileLoaded(message) {
         const emptyStateContainer = document.getElementById('emptyStateContainer');
+        const loadingContainer = document.getElementById('loadingContainer');
         const headerBar = document.getElementById('headerBar');
         const mainContent = document.querySelector('.main-content');
 
-        // Hide empty state
+        // Hide empty state and loading
         if (emptyStateContainer) {
             emptyStateContainer.classList.add('hidden');
+        }
+        if (loadingContainer) {
+            loadingContainer.classList.add('hidden');
         }
 
         // Show header and main content
@@ -273,6 +329,16 @@
         }
         if (mainContent) {
             mainContent.style.display = 'flex';
+        }
+
+        // Trigger fade-in animation for content
+        const contentWrapper = document.querySelector('.content-wrapper');
+        const linesContainer = document.getElementById('linesContainer');
+        if (contentWrapper) {
+            setTimeout(() => contentWrapper.classList.add('loaded'), 50);
+        }
+        if (linesContainer) {
+            setTimeout(() => linesContainer.classList.add('loaded'), 50);
         }
 
         // Request bookmarks and search history
@@ -363,6 +429,10 @@
 
         if (!keyword) return;
 
+        // Show searching state
+        const resultsContainer = document.getElementById('searchResults');
+        resultsContainer.innerHTML = '<div class="searching-state"><i class="fa-solid fa-spinner fa-spin"></i> Searching...</div>';
+
         vscode.postMessage({
             command: 'search',
             keyword: keyword,
@@ -429,7 +499,7 @@
         const selectedItem = searchResultItems[selectedSearchIndex];
         if (selectedItem) {
             selectedItem.classList.add('selected');
-            selectedItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            selectedItem.scrollIntoView({ behavior: 'instant', block: 'nearest' });
             // Auto jump to the line
             const lineNumber = parseInt(selectedItem.dataset.line);
             gotoLine(lineNumber);
@@ -509,11 +579,14 @@
         // Get selection from context menu data attribute (stored during right-click)
         const selectionFromMenu = contextMenu.dataset.selection;
         console.log('[Highlight] highlightSelection called, selectionFromMenu:', selectionFromMenu, 'currentSelection:', currentSelection);
-        
+
         // Use the selection stored in context menu if available
         const keywordToHighlight = selectionFromMenu || currentSelection;
-        
+
         if (keywordToHighlight) {
+            // Show processing state
+            showNotification('<i class="fa-solid fa-spinner fa-spin"></i> Processing highlight...', 'info');
+
             console.log('[Highlight] Sending message to extension:', { command: 'highlight', keyword: keywordToHighlight, useRegex: useRegex });
             vscode.postMessage({
                 command: 'highlight',
@@ -522,6 +595,7 @@
             });
         } else {
             console.log('[Highlight] No selection available, not sending message');
+            showNotification('No selection to highlight', 'error');
         }
     }
 
@@ -539,9 +613,13 @@
     }
 
     function clearAllHighlights() {
-        // Send message to extension to clear all highlights
+        // Send message to extension to clear all keyword highlights
         vscode.postMessage({
             command: 'clearAllHighlights'
+        });
+        // Also clear all line highlights
+        vscode.postMessage({
+            command: 'clearAllLineHighlights'
         });
     }
 
@@ -575,7 +653,7 @@
 
     function handleBookmarkResult(result) {
         const action = result.action;
-        
+
         if (action === 'added') {
             showNotification(`Bookmarked line ${result.bookmark.lineNumber}`, 'success');
         } else {
@@ -584,6 +662,17 @@
 
         // Refresh bookmarks display
         vscode.postMessage({ command: 'getBookmarks' });
+    }
+
+    // Update bookmark icon on a single line (no full page refresh)
+    function updateBookmarkIcon(lineNumber, isBookmarked) {
+        const lineElement = document.querySelector(`.line[data-line="${lineNumber}"]`);
+        if (lineElement) {
+            const bookmarkIcon = lineElement.querySelector('.bookmark-icon');
+            if (bookmarkIcon) {
+                bookmarkIcon.innerHTML = isBookmarked ? '<i class="fa-solid fa-bookmark"></i>' : '';
+            }
+        }
     }
 
     function displayBookmarks(bookmarks) {
@@ -720,8 +809,9 @@
     function gotoLine(lineNumber) {
         const lineElement = document.querySelector(`.line[data-line="${lineNumber}"]`);
         if (lineElement) {
-            lineElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            
+            // Use instant scroll for better performance on large logs
+            lineElement.scrollIntoView({ behavior: 'instant', block: 'center' });
+
             // Highlight the line
             document.querySelectorAll('.line.selected').forEach(line => {
                 line.classList.remove('selected');
@@ -774,13 +864,31 @@
             ctxGotoOriginal.style.display = 'none';
         }
 
-        // Show context menu
+        // Show context menu with boundary detection
         const x = e.clientX;
         const y = e.clientY;
-        
+
+        // Position menu initially
         contextMenu.style.left = `${x}px`;
         contextMenu.style.top = `${y}px`;
         contextMenu.classList.add('visible');
+
+        // Check boundaries and adjust if needed
+        const menuRect = contextMenu.getBoundingClientRect();
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+
+        // Adjust horizontal position if menu exceeds right boundary
+        if (menuRect.right > viewportWidth) {
+            const newLeft = x - menuRect.width;
+            contextMenu.style.left = `${Math.max(0, newLeft)}px`;
+        }
+
+        // Adjust vertical position if menu exceeds bottom boundary
+        if (menuRect.bottom > viewportHeight) {
+            const newTop = y - menuRect.height;
+            contextMenu.style.top = `${Math.max(0, newTop)}px`;
+        }
     }
 
     function hideContextMenu() {
@@ -828,6 +936,139 @@
         }
         
         console.log('[UpdateLines] Lines updated successfully');
+    }
+
+    // Clear highlights display (remove highlight markup, restore original text)
+    function clearHighlightsDisplay(keywords) {
+        if (!keywords || keywords.length === 0) return;
+
+        console.log('[ClearHighlights] Clearing highlights for keywords:', keywords);
+
+        // Get all line content elements
+        const lineContents = document.querySelectorAll('.line-content');
+
+        lineContents.forEach(contentEl => {
+            // Remove all <mark> tags but keep the text content
+            const marks = contentEl.querySelectorAll('mark');
+            marks.forEach(mark => {
+                // Replace mark element with its text content
+                const textNode = document.createTextNode(mark.textContent);
+                mark.parentNode.replaceChild(textNode, mark);
+            });
+
+            // Normalize text nodes (merge adjacent text nodes)
+            contentEl.normalize();
+        });
+
+        console.log('[ClearHighlights] Highlights cleared successfully');
+    }
+
+    // Line Highlight Functions
+    // Update line backgrounds based on keywords
+    function updateLineHighlightsDisplay(keywords) {
+        if (!keywords || keywords.length === 0) {
+            clearLineHighlightsDisplay();
+            return;
+        }
+
+        console.log('[LineHighlight] Updating line backgrounds for keywords:', keywords);
+
+        // Line background highlight CSS classes mapping
+        const colorClasses = {
+            'red': 'line-bg-red',
+            'teal': 'line-bg-teal',
+            'blue': 'line-bg-blue',
+            'green': 'line-bg-green',
+            'yellow': 'line-bg-yellow',
+            'purple': 'line-bg-purple'
+        };
+
+        // Get all line elements
+        const lineElements = document.querySelectorAll('.line');
+
+        lineElements.forEach(lineEl => {
+            const lineContent = lineEl.querySelector('.line-content');
+            if (!lineContent) return;
+
+            const text = lineContent.textContent;
+
+            // Remove existing line highlight classes first
+            Object.values(colorClasses).forEach(cls => lineEl.classList.remove(cls));
+
+            // Check each keyword for match
+            let matchedColorName = null;
+            for (const kw of keywords) {
+                const regex = new RegExp(kw.keyword, 'gi');
+                if (regex.test(text)) {
+                    matchedColorName = kw.color.name;
+                    break; // Use first matching keyword's color
+                }
+            }
+
+            // Apply background class if matched
+            if (matchedColorName && colorClasses[matchedColorName]) {
+                lineEl.classList.add(colorClasses[matchedColorName]);
+            }
+        });
+
+        console.log('[LineHighlight] Line backgrounds updated successfully');
+    }
+
+    // Clear all line background highlights
+    function clearLineHighlightsDisplay() {
+        console.log('[LineHighlight] Clearing all line backgrounds');
+
+        const colorClasses = ['line-bg-red', 'line-bg-teal', 'line-bg-blue', 'line-bg-green', 'line-bg-yellow', 'line-bg-purple'];
+
+        const lineElements = document.querySelectorAll('.line');
+        lineElements.forEach(lineEl => {
+            colorClasses.forEach(cls => lineEl.classList.remove(cls));
+        });
+
+        console.log('[LineHighlight] Line backgrounds cleared successfully');
+    }
+
+    // Handle line highlight result notification
+    function handleLineHighlightResult(result) {
+        const action = result.action;
+        const keyword = result.keyword;
+
+        if (action === 'added') {
+            showNotification(`Line highlighted: "${keyword}"`, 'success');
+        } else if (action === 'cleared') {
+            showNotification('All line highlights cleared', 'success');
+        } else if (action === 'removed') {
+            showNotification(`Removed line highlight: "${keyword}"`, 'success');
+        }
+    }
+
+    // Line highlight selection (for context menu)
+    function highlightLineSelection(useRegex = false) {
+        const selectionFromMenu = contextMenu.dataset.selection;
+        const keywordToHighlight = selectionFromMenu || currentSelection;
+
+        if (keywordToHighlight) {
+            vscode.postMessage({
+                command: 'highlightLine',
+                keyword: keywordToHighlight,
+                useRegex: useRegex
+            });
+        } else {
+            showNotification('No selection to highlight line', 'error');
+        }
+    }
+
+    // Remove line highlight for selection
+    function removeLineHighlight() {
+        const selectionFromMenu = contextMenu.dataset.selection;
+        const keywordToRemove = selectionFromMenu || currentSelection;
+
+        if (keywordToRemove) {
+            vscode.postMessage({
+                command: 'removeLineHighlight',
+                keyword: keywordToRemove
+            });
+        }
     }
 
     // Selection Handling
@@ -959,12 +1200,12 @@
 
     // Notification
     function showNotification(message, type = 'info') {
-        notification.textContent = message;
+        notification.innerHTML = message;
         notification.className = `notification ${type} visible`;
 
         setTimeout(() => {
             notification.classList.remove('visible');
-        }, 3000);
+        }, 1500);
     }
 
     // Utility Functions

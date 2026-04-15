@@ -31,7 +31,7 @@ function get_configuration() {
 /**
  * Write dove.json configuration file to workspace root
  * This file is used by the independent dove tool
- * Note: This function now preserves existing config and only updates necessary fields
+ * Note: This function now uses config values directly (no merge with existing)
  */
 function writeFirmwareCliConfig(config) {
     const workspace = vscode.workspace.workspaceFolders;
@@ -41,31 +41,26 @@ function writeFirmwareCliConfig(config) {
 
     const workspacePath = workspace[0].uri.fsPath;
     const configPath = path.join(workspacePath, 'dove.json');
-    
-    // Read existing config to preserve all fields
-    let configData = {};
-    try {
-        if (fs.existsSync(configPath)) {
-            const content = fs.readFileSync(configPath, 'utf8');
-            configData = JSON.parse(content);
-        }
-    } catch (error) {
-        // If read/parse fails, start with empty object
-        configData = {};
-    }
-    
-    // Merge with current config, preserving existing fields
-    const mergedConfig = {
-        ...configData,
-        firmwarePath: config.firmwarePath || configData.firmwarePath || '',
-        buildCommands: config.buildCommands || configData.buildCommands || [],
-        buildGitBashPath: config.buildGitBashPath || configData.buildGitBashPath || '',
-        defaultComPort: config.defaultComPort || configData.defaultComPort || '',
+
+    // Write config directly without merge to ensure reset works correctly
+    const configToWrite = {
+        firmwarePath: config.firmwarePath ?? '',
+        buildCommands: config.buildCommands ?? [],
+        buildGitBashPath: config.buildGitBashPath ?? '',
+        defaultComPort: config.defaultComPort ?? '',
+        comPorts: config.comPorts ?? [],
+        language: config.language ?? 'auto',
+        theme: config.theme ?? { mode: 'auto', accent: 'blue' },
         workspacePath: workspacePath
     };
-    
+
+    // Preserve additional fields like search if they exist
+    if (config.search) {
+        configToWrite.search = config.search;
+    }
+
     try {
-        fs.writeFileSync(configPath, JSON.stringify(mergedConfig, null, 2));
+        fs.writeFileSync(configPath, JSON.stringify(configToWrite, null, 2));
         output_chan.appendLine(localize('configurationWritten', configPath));
     } catch (error) {
         output_chan.appendLine(localize('failedToWriteConfig', error.message));
@@ -378,7 +373,7 @@ class DeviceTreeDataProvider {
                     const workspace = vscode.workspace.workspaceFolders;
                     const workspacePath = workspace && workspace.length > 0 ? workspace[0].uri.fsPath : '';
                     const configPath = path.join(workspacePath, 'dove.json');
-                    const child = spawn(firmwareCliPath, ['devices', '--json'], { 
+                    const child = spawn(firmwareCliPath, ['port', 'list', '--usb', '--json'], { 
                         env: {
                             ...process.env,
                             FIRMWARE_CLI_CONFIG: configPath
@@ -657,7 +652,12 @@ function activate(context)
 
     // Initialize config manager
     configManager.initialize(context);
-    
+
+    // Listen for config changes and sync with writeFirmwareCliConfig
+    configManager.onDidChangeConfig(() => {
+        writeFirmwareCliConfig(configManager.getConfig());
+    });
+
     // Initialize dove.json config file on activation
     const config = get_configuration();
     writeFirmwareCliConfig(config);

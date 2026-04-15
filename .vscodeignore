@@ -6,6 +6,7 @@ quectel_build/
 dove/dist
 dove/node_modules
 dove/src
+dove/test
 dove/package.json
 dove/package-lock.json
 dove/tsconfig.json

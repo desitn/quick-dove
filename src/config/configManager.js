@@ -153,7 +153,6 @@ class ConfigManager {
 
     /**
      * Write configuration to file
-     * @param {Object} config - Configuration object
      */
     _writeConfig(config) {
         if (!this._configPath) {
@@ -161,7 +160,10 @@ class ConfigManager {
         }
 
         try {
-            fs.writeFileSync(this._configPath, JSON.stringify(config, null, 2));
+            const content = JSON.stringify(config, null, 2);
+            fs.writeFileSync(this._configPath, content, 'utf8');
+            // Update cache immediately after successful write
+            // This ensures getConfig() returns correct data even before file watcher triggers
             this._config = config;
             return true;
         } catch (error) {

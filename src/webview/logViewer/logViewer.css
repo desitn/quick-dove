@@ -158,6 +158,7 @@ body {
     font-size: 13px;
     line-height: 1.5;
     white-space: pre;
+    border-left: 3px solid transparent;
 }
 
 .line:hover {
@@ -165,7 +166,9 @@ body {
 }
 
 .line.selected {
-    background: var(--line-highlight);
+    border-left-color: var(--accent-color);
+    border-left-width: 4px;
+    box-shadow: inset 0 0 0 1px var(--accent-color);
 }
 
 .line-number {
@@ -215,6 +218,14 @@ body {
 .filter-line:hover {
     background: rgba(88, 166, 255, 0.1);
 }
+
+/* Line Background Highlight Classes */
+.line-bg-red { background-color: rgba(255, 107, 107, 0.15); }
+.line-bg-teal { background-color: rgba(78, 205, 196, 0.15); }
+.line-bg-blue { background-color: rgba(69, 183, 209, 0.15); }
+.line-bg-green { background-color: rgba(150, 206, 180, 0.15); }
+.line-bg-yellow { background-color: rgba(255, 234, 167, 0.15); }
+.line-bg-purple { background-color: rgba(162, 155, 254, 0.15); }
 
 /* Highlight Styles */
 .highlight {
@@ -406,6 +417,21 @@ body {
     background: var(--bg-tertiary);
     border-left-color: var(--accent-color);
     border-left-width: 3px;
+}
+
+/* Searching state */
+.searching-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 20px;
+    color: var(--text-muted);
+    font-size: 13px;
+}
+
+.searching-state i {
+    color: var(--accent-color);
 }
 
 .search-result-line {
@@ -620,22 +646,22 @@ textarea.tool-input {
 /* Notification */
 .notification {
     position: fixed;
-    top: 16px;
+    bottom: 16px;
     right: 16px;
-    padding: 12px 20px;
+    padding: 10px 16px;
     background: var(--accent-color);
     color: white;
     border-radius: 6px;
     font-size: 13px;
     opacity: 0;
-    transform: translateX(100px);
-    transition: all 0.3s ease;
+    transform: translateY(20px);
+    transition: all 0.2s ease;
     z-index: 1001;
 }
 
 .notification.visible {
     opacity: 1;
-    transform: translateX(0);
+    transform: translateY(0);
 }
 
 .notification.error {
@@ -683,6 +709,70 @@ textarea.tool-input {
 
 .empty-state-container.hidden {
     display: none;
+}
+
+/* Loading State */
+.loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    background: var(--bg-primary);
+}
+
+.loading-container.hidden {
+    display: none;
+}
+
+.loading-content {
+    text-align: center;
+}
+
+.loading-spinner {
+    font-size: 48px;
+    color: var(--accent-color);
+    margin-bottom: 16px;
+}
+
+.loading-spinner i {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Content fade-in transition */
+.content-wrapper {
+    opacity: 0;
+    transition: opacity 0.3s ease-out;
+}
+
+.content-wrapper.loaded {
+    opacity: 1;
+}
+
+/* Lines container fade-in */
+.lines-container {
+    opacity: 0;
+    transition: opacity 0.2s ease-out;
+}
+
+.lines-container.loaded {
+    opacity: 1;
+}
+
+.loading-text {
+    font-size: 16px;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+}
+
+.loading-progress {
+    font-size: 14px;
+    color: var(--text-muted);
 }
 
 .empty-state-content {

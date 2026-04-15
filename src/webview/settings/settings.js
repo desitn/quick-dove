@@ -285,6 +285,9 @@ window.addEventListener('message', event => {
         case 'cppDefineError':
             showStatusMessage('error', message.message);
             break;
+        case 'scanPortsResult':
+            handleScanPortsResult(message.ports);
+            break;
     }
 });
 
@@ -468,6 +471,49 @@ function addPort() {
     portInput.value = '';
     descInput.value = '';
     document.querySelectorAll('.tag-checkbox input').forEach(cb => cb.checked = false);
+}
+
+/**
+ * Scan serial ports using dove.exe
+ */
+function scanPorts() {
+    vscode.postMessage({ command: 'scanPorts' });
+}
+
+/**
+ * Handle scan ports result
+ */
+function handleScanPortsResult(ports) {
+    const dropdown = document.getElementById('portListDropdown');
+    if (!ports || ports.length === 0) {
+        showStatusMessage('error', localizedStrings.noPortsFound || 'No serial ports found');
+        dropdown.style.display = 'none';
+        return;
+    }
+
+    // Display port list
+    dropdown.innerHTML = ports.map(port => {
+        const info = `${port.manufacturer} - VID:${port.vendorId} PID:${port.productId}`;
+        const desc = (port.fullDescription || '').replace(/'/g, "\\'").replace(/"/g, '\\"');
+        return `
+            <div class="port-item" onclick="selectPort('${port.path}', '${port.manufacturer.replace(/'/g, "\\'")}', '${desc.substring(0, 50)}')">
+                <span class="port-path">${escapeHtml(port.path)}</span>
+                <span class="port-info">${escapeHtml(info)}</span>
+            </div>
+        `;
+    }).join('');
+    dropdown.style.display = 'block';
+}
+
+/**
+ * Select port from dropdown
+ */
+function selectPort(path, manufacturer, description) {
+    document.getElementById('newPortName').value = path;
+    document.getElementById('newPortDesc').value = manufacturer + (description ? ' ' + description : '');
+    document.getElementById('portListDropdown').style.display = 'none';
+    markAsModified(document.getElementById('newPortName'), true);
+    hasUnsavedChanges = true;
 }
 
 /**
@@ -862,11 +908,8 @@ function saveSettings() {
  * Reset to defaults
  */
 function resetToDefaults() {
-    if (!confirm('Are you sure you want to reset all settings to defaults?')) {
-        return;
-    }
-    
-    vscode.postMessage({ command: 'resetConfig' });
+    // Send message to extension to handle confirmation (webview sandbox blocks native confirm())
+    vscode.postMessage({ command: 'resetConfigRequest' });
 }
 
 /**
@@ -1012,6 +1055,11 @@ function handleSkillStatusResult(message) {
     if (!statusContainer) return;
 
     if (message.installed) {
+        // Build paths display - show all skill paths
+        const pathsHtml = message.paths.map(p =>
+            `<div class="status-path">${escapeHtml(p)}</div>`
+        ).join('');
+
         statusContainer.innerHTML = `
             <div class="status-item">
                 <div class="status-icon installed">
@@ -1019,9 +1067,8 @@ function handleSkillStatusResult(message) {
                 </div>
                 <div class="status-info">
                     <div class="status-title">Installed (${message.skillsCount} skills)</div>
-                    <div class="status-path">${escapeHtml(message.path)}</div>
-                    ${message.version ? `<div class="status-version">Version: ${escapeHtml(message.version)}</div>` : ''}
-                    ${message.extensionName ? `<div class="status-version">Extension: ${escapeHtml(message.extensionName)}</div>` : ''}
+                    ${pathsHtml}
+                    <div class="status-version">Extension: ${escapeHtml(message.extensionName)} v${escapeHtml(message.currentVersion)}</div>
                 </div>
             </div>
         `;
@@ -1033,13 +1080,13 @@ function handleSkillStatusResult(message) {
                 </div>
                 <div class="status-info">
                     <div class="status-title">Not Installed</div>
-                    <div class="status-path">Click "Install" to add skills</div>
+                    <div class="status-path">${escapeHtml(message.paths[0] || 'Click "Install" to add skills')}</div>
                 </div>
             </div>
         `;
     }
 
-    // Handle old version warning
+    // Handle old version warning (old versioned subdirectories)
     if (message.hasOldVersion && message.oldVersions && message.oldVersions.length > 0) {
         statusContainer.innerHTML += `
             <div class="status-item">
@@ -1047,8 +1094,11 @@ function handleSkillStatusResult(message) {
                     <i class="fa-solid fa-exclamation-triangle"></i>
                 </div>
                 <div class="status-info">
-                    <div class="status-title">Old Versions Found</div>
+                    <div class="status-title">Old Versioned Directories Found</div>
                     <div class="status-path">${message.oldVersions.map(v => escapeHtml(v)).join('<br>')}</div>
+                    <div class="status-version" style="color: var(--warning-color, #f59e0b);">
+                        Click "Install" to clean up and reinstall
+                    </div>
                 </div>
             </div>
         `;
