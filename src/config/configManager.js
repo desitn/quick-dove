@@ -30,7 +30,21 @@ const DEFAULT_CLI_CONFIG = {
  */
 const DEFAULT_EXTENSION_CONFIG = {
     language: 'auto',       // 'auto' | 'en' | 'zh-cn'
-    themeMode: 'auto'       // 'auto' | 'dark' | 'light'
+    themeMode: 'auto',      // 'auto' | 'dark' | 'light'
+    search: {
+        port: 8088,
+        scope: 'global',
+        maxResults: 50
+    }
+};
+
+/**
+ * Default search config
+ */
+const DEFAULT_SEARCH_CONFIG = {
+    port: 8088,
+    scope: 'global',
+    maxResults: 50
 };
 
 // Predefined tags for COM ports (synced with dove submodule PortTag type)
@@ -229,6 +243,76 @@ class ConfigManager {
 
     setThemeMode(mode) {
         return this.setExtensionConfig({ themeMode: mode });
+    }
+
+    // ========== Search Config (stored under extension.search) ==========
+
+    /**
+     * Get search config
+     */
+    getSearchConfig() {
+        const extension = this.getExtensionConfig();
+        return extension.search || { ...DEFAULT_SEARCH_CONFIG };
+    }
+
+    /**
+     * Set search config
+     */
+    setSearchConfig(searchConfig) {
+        const extension = this.getExtensionConfig();
+        extension.search = { ...extension.search, ...searchConfig };
+        return this.setExtensionConfig(extension);
+    }
+
+    /**
+     * Get search port
+     */
+    getSearchPort() {
+        const search = this.getSearchConfig();
+        return search.port || DEFAULT_SEARCH_CONFIG.port;
+    }
+
+    /**
+     * Set search port
+     */
+    setSearchPort(port) {
+        const search = this.getSearchConfig();
+        search.port = port;
+        return this.setSearchConfig(search);
+    }
+
+    /**
+     * Get search scope
+     */
+    getSearchScope() {
+        const search = this.getSearchConfig();
+        return search.scope || DEFAULT_SEARCH_CONFIG.scope;
+    }
+
+    /**
+     * Set search scope
+     */
+    setSearchScope(scope) {
+        const search = this.getSearchConfig();
+        search.scope = scope;
+        return this.setSearchConfig(search);
+    }
+
+    /**
+     * Get search max results
+     */
+    getSearchMaxResults() {
+        const search = this.getSearchConfig();
+        return search.maxResults || DEFAULT_SEARCH_CONFIG.maxResults;
+    }
+
+    /**
+     * Set search max results
+     */
+    setSearchMaxResults(maxResults) {
+        const search = this.getSearchConfig();
+        search.maxResults = maxResults;
+        return this.setSearchConfig(search);
     }
 
     // ========== Firmware Path ==========

@@ -38,11 +38,6 @@
           "id": "firmware-explorer",
           "title": "%extension.displayName%",
           "icon": "images/icon-quick.svg"
-        },
-        {
-          "id": "extension-tools",
-          "title": "%view.extensionTools%",
-          "icon": "$(tools)"
         }
       ]
     },
@@ -61,18 +56,16 @@
           "contextualTitle": "Quick Dove"
         },
         {
+          "id": "firmware-tools",
+          "name": "%view.portableTools%",
+          "icon": "$(tools)",
+          "contextualTitle": "Quick Dove"
+        },
+        {
           "id": "firmware-settings",
           "name": "%view.settings%",
           "icon": "$(gear)",
           "contextualTitle": "Quick Dove"
-        }
-      ],
-      "extension-tools": [
-        {
-          "id": "extension-tools-view",
-          "name": "%view.extensionTools%",
-          "icon": "$(tools)",
-          "contextualTitle": "%view.extensionTools%"
         }
       ]
     },
@@ -182,12 +175,12 @@
         },
         {
           "command": "firmwareDownloader.showSearch",
-          "when": "view == extension-tools-view",
+          "when": "view == firmware-tools",
           "group": "navigation"
         },
         {
           "command": "firmwareDownloader.openLogViewer",
-          "when": "view == extension-tools-view",
+          "when": "view == firmware-tools",
           "group": "navigation"
         }
       ],

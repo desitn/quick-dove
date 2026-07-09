@@ -59,7 +59,7 @@ class WebviewManager {
         this.panel = vscode.window.createWebviewPanel(
             'quickFirmwarePlusWelcome',
             localize('welcome.title'),
-            vscode.ViewColumn.One,
+            { viewColumn: vscode.ViewColumn.Active },
             {
                 enableScripts: true,
                 retainContextWhenHidden: true,
@@ -152,8 +152,8 @@ class WebviewManager {
             'welcome.feature.build.desc': localize('welcome.feature.build.desc'),
             'welcome.feature.device': localize('welcome.feature.device'),
             'welcome.feature.device.desc': localize('welcome.feature.device.desc'),
-            'welcome.feature.extensionTools': localize('welcome.feature.extensionTools'),
-            'welcome.feature.extensionTools.desc': localize('welcome.feature.extensionTools.desc'),
+            'welcome.feature.portableTools': localize('welcome.feature.portableTools'),
+            'welcome.feature.portableTools.desc': localize('welcome.feature.portableTools.desc'),
             'welcome.startWizard': localize('welcome.startWizard'),
             'welcome.openSettings': localize('welcome.openSettings'),
             'welcome.close': localize('welcome.close'),
@@ -223,7 +223,7 @@ class WebviewManager {
         this.settingsPanel = vscode.window.createWebviewPanel(
             'quickFirmwarePlusSettings',
             localize('settings.title'),
-            vscode.ViewColumn.One,
+            { viewColumn: vscode.ViewColumn.Active },
             {
                 enableScripts: true,
                 retainContextWhenHidden: true,
@@ -335,10 +335,10 @@ class WebviewManager {
                                 timeout: 5000,
                                 cwd: workspacePath || undefined
                             });
-                            const ports = JSON.parse(result);
+                            const parsed = JSON.parse(result);
                             this.settingsPanel.webview.postMessage({
                                 command: 'scanPortsResult',
-                                ports: ports
+                                ports: parsed.ports || []
                             });
                         } catch (error) {
                             this.settingsPanel.webview.postMessage({
@@ -655,7 +655,7 @@ class WebviewManager {
         this.searchPanel = vscode.window.createWebviewPanel(
             'quickFirmwarePlusSearch',
             localize('search.title'),
-            vscode.ViewColumn.One,
+            { viewColumn: vscode.ViewColumn.Active },
             {
                 enableScripts: true,
                 retainContextWhenHidden: true,

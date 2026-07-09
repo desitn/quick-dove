@@ -50,7 +50,7 @@ class LogViewerManager {
         const panel = vscode.window.createWebviewPanel(
             'logViewer',
             localize('logviewer.title'),
-            vscode.ViewColumn.One,
+            { viewColumn: vscode.ViewColumn.Active },
             {
                 enableScripts: true,
                 retainContextWhenHidden: true,
@@ -101,7 +101,7 @@ class LogViewerManager {
         const panel = vscode.window.createWebviewPanel(
             'logViewer',
             `Log: ${path.basename(filePath)}`,
-            vscode.ViewColumn.One,
+            { viewColumn: vscode.ViewColumn.Active },
             {
                 enableScripts: true,
                 retainContextWhenHidden: true,
@@ -153,7 +153,7 @@ class LogViewerManager {
         const panel = vscode.window.createWebviewPanel(
             'logFilter',
             `Filter: ${filterKeyword} - ${path.basename(originalInfo.filePath)}`,
-            vscode.ViewColumn.Two, // Open in second column
+            { viewColumn: vscode.ViewColumn.Beside },
             {
                 enableScripts: true,
                 retainContextWhenHidden: true,

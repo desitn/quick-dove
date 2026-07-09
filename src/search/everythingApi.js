@@ -9,8 +9,33 @@ const { debugLog } = require('../debug');
 
 class EverythingApi {
     constructor() {
-        this.defaultPort = 8080;
+        // Try to auto-detect Everything HTTP server port from config
+        this.defaultPort = this._detectPort();
         this.timeout = 5000;
+    }
+
+    /**
+     * Auto-detect Everything HTTP server port from Everything.ini
+     * Falls back to 8088 if detection fails (common default)
+     */
+    _detectPort() {
+        try {
+            const appData = process.env.APPDATA;
+            if (!appData) return 8088;
+            const iniPath = path.join(appData, 'Everything', 'Everything.ini');
+            if (require('fs').existsSync(iniPath)) {
+                const content = require('fs').readFileSync(iniPath, 'utf8');
+                const match = content.match(/http_server_port=(\d+)/);
+                if (match) {
+                    const port = parseInt(match[1], 10);
+                    debugLog('EverythingApi', `Auto-detected HTTP server port: ${port}`);
+                    return port;
+                }
+            }
+        } catch (e) {
+            // Ignore detection errors, use fallback
+        }
+        return 8088;
     }
 
     /**

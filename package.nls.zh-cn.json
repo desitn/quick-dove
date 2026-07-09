@@ -239,7 +239,7 @@
   "logviewer.recentFilesCleared": "最近文件已清除",
   "logviewer.markbookCleared": "所有书签已清除",
   "logviewer.fileNotFound": "文件未找到或无法访问",
-  "view.extensionTools": "Dove Tools",
+  "view.portableTools": "便携工具",
   "view.search": "搜索",
   "view.logViewer": "日志查看器",
   "command.toggleCppDefine": "切换 C/C++ 宏定义",

@@ -239,7 +239,7 @@
   "logviewer.recentFilesCleared": "Recent files cleared",
   "logviewer.markbookCleared": "All bookmarks cleared",
   "logviewer.fileNotFound": "File not found or inaccessible",
-  "view.extensionTools": "Dove Tools",
+  "view.portableTools": "Portable Tools",
   "view.search": "Search",
   "view.logViewer": "Log Viewer",
   "command.toggleCppDefine": "Toggle C/C++ Define",

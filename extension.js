@@ -151,7 +151,7 @@ class FirmwareTreeDataProvider {
                 if (configPath) {
                     env.FIRMWARE_CLI_CONFIG = configPath;
                 }
-                const result = spawnSync(firmwareCliPath, ['list', '--json'], {
+                const result = spawnSync(firmwareCliPath, ['flash', '--list'], {
                     shell: true,
                     encoding: 'utf8',
                     timeout: 5000,
@@ -196,19 +196,43 @@ class FirmwareTreeDataProvider {
         }
         
         output_chan.appendLine("fall_back firmware list!");
-        // Fallback to original method
+        // Fallback: check configured firmwarePath
         if (firmwarePath && firmwarePath.length > 0) {
             if (fs.existsSync(firmwarePath)) {
-                const dir_path = firmwarePath;
-                const time = fs.statSync(dir_path).mtime;
-                if (fs.statSync(dir_path).isDirectory()) {
-                    const dir = path.basename(dir_path);
-                    const firmware_files = this.getFirmwareFiles(dir_path);
-                    const item = new FirmwareItem(dir, dir_path, time, vscode.TreeItemCollapsibleState.Collapsed, firmware_files);
-                    items.push(item);
+                const stat = fs.statSync(firmwarePath);
+                if (stat.isDirectory()) {
+                    const dir = path.basename(firmwarePath);
+                    const time = stat.mtime;
+
+                    // 1. Scan firmwarePath itself for firmware files
+                    let firmware_files = this.getFirmwareFiles(firmwarePath);
+
+                    if (firmware_files.length > 0) {
+                        items.push(new FirmwareItem(dir, firmwarePath, time, vscode.TreeItemCollapsibleState.Collapsed, firmware_files));
+                        return items;
+                    }
+
+                    // 2. If no files directly, check firmwarePath/quectel_build/release/
+                    const release_path = path.join(firmwarePath, 'quectel_build', 'release');
+                    if (fs.existsSync(release_path)) {
+                        const release_dirs = fs.readdirSync(release_path);
+                        for (const subdir of release_dirs) {
+                            const subdir_path = path.join(release_path, subdir);
+                            if (fs.statSync(subdir_path).isDirectory()) {
+                                const sub_firmware_files = this.getFirmwareFiles(subdir_path);
+                                if (sub_firmware_files.length > 0) {
+                                    const sub_time = fs.statSync(subdir_path).mtime;
+                                    items.push(new FirmwareItem(subdir, subdir_path, sub_time, vscode.TreeItemCollapsibleState.Collapsed, sub_firmware_files));
+                                }
+                            }
+                        }
+                        if (items.length > 0) {
+                            return items;
+                        }
+                    }
                 }
-                return items;
             }
+            // firmwarePath configured but no firmware found → fall through to workspace check
         }
         const workspace_folders = vscode.workspace.workspaceFolders;
         if (workspace_folders && workspace_folders.length > 0) {
@@ -370,7 +394,7 @@ class DeviceTreeDataProvider {
                     if (configPath) {
                         env.FIRMWARE_CLI_CONFIG = configPath;
                     }
-                    const child = spawn(firmwareCliPath, ['port', 'list', '--usb', '--json'], {
+                    const child = spawn(firmwareCliPath, ['port', 'list'], {
                         env: env
                     });
                     let output = '';
@@ -389,13 +413,11 @@ class DeviceTreeDataProvider {
                             try {
                                 output_chan.appendLine(output);
                                 const result = JSON.parse(output);
-                                if (result.devices && result.devices.length > 0) {
-                                    // Sort and create device items
-                                    result.devices.sort((a, b) => a.localeCompare(b));
-                                    for (const device of result.devices) {
+                                if (result.ports && result.ports.length > 0) {
+                                    for (const port of result.ports) {
                                         items.push(new DeviceItem(
-                                            device,
-                                            '',
+                                            port.path,
+                                            port.friendlyName || '',
                                             vscode.TreeItemCollapsibleState.None
                                         ));
                                     }
@@ -505,7 +527,7 @@ class SettingsItem extends vscode.TreeItem {
     }
 }
 
-class ExtensionToolsTreeDataProvider {
+class PortableToolsTreeDataProvider {
     constructor() {
         this._onDidChangeTreeData = new vscode.EventEmitter();
         this.onDidChangeTreeData = this._onDidChangeTreeData.event;
@@ -518,24 +540,24 @@ class ExtensionToolsTreeDataProvider {
     }
     getChildren(element) {
         if (!element) {
-            return this.getExtensionToolsItems();
+            return this.getPortableToolsItems();
         }
         return [];
     }
-    getExtensionToolsItems() {
+    getPortableToolsItems() {
         const items = [];
         
         // Add Search panel entry
-        items.push(new ExtensionToolItem(localize('view.search'), '', vscode.TreeItemCollapsibleState.None, 'search'));
+        items.push(new PortableToolItem(localize('view.search'), '', vscode.TreeItemCollapsibleState.None, 'search'));
         
         // Add Log Viewer entry
-        items.push(new ExtensionToolItem(localize('view.logViewer'), '', vscode.TreeItemCollapsibleState.None, 'log-viewer'));
+        items.push(new PortableToolItem(localize('view.logViewer'), '', vscode.TreeItemCollapsibleState.None, 'log-viewer'));
         
         return items;
     }
 }
 
-class ExtensionToolItem extends vscode.TreeItem {
+class PortableToolItem extends vscode.TreeItem {
     constructor(label, description, collapsibleState, type, data = null) {
         super(label, collapsibleState);
         this.description = description;
@@ -689,9 +711,9 @@ function activate(context)
     vscode.window.registerTreeDataProvider('firmware-devices', deviceTreeDataProvider);
     deviceTreeDataProvider.startAutoRefresh();
 
-    // Initialize extension tools view
-    const extensionToolsTreeDataProvider = new ExtensionToolsTreeDataProvider();
-    vscode.window.registerTreeDataProvider('extension-tools-view', extensionToolsTreeDataProvider);
+    // Initialize portable tools view (search + log viewer)
+    const portableToolsTreeDataProvider = new PortableToolsTreeDataProvider();
+    vscode.window.registerTreeDataProvider('firmware-tools', portableToolsTreeDataProvider);
 
     // Initialize webview managers
     const webviewManager = new WebviewManager(context);
@@ -1332,18 +1354,34 @@ function activate(context)
                 tracker.reset();
                 last_dl_info.dlState = 'running';
                 last_dl_info.dlChild = child;
-                
-                // 30-second timeout: kill download process if no output
-                let kill_timeout = setTimeout(() => {
-                    output_chan.appendLine(localize('doChildDownloadProcessKill'));
-                    kill_process_tree(child, 'SIGKILL')
-                    .then(() => {
-                        output_chan.appendLine(localize('childProcessTerminateSuccess'));
-                    })
-                    .catch((error) => {
-                        output_chan.appendLine(localize('childProcessTerminateFailed', error));
-                    });
-                }, 30000);
+
+                // Helper to reset the idle timeout on any output
+                let kill_timeout = null;
+                const resetKillTimeout = () => {
+                    if (kill_timeout) {
+                        clearTimeout(kill_timeout);
+                    }
+                    // 120-second idle timeout: kill if no output at all for 2 minutes
+                    kill_timeout = setTimeout(() => {
+                        output_chan.appendLine(localize('doChildDownloadProcessKill'));
+                        kill_process_tree(child, 'SIGKILL')
+                        .then(() => {
+                            output_chan.appendLine(localize('childProcessTerminateSuccess'));
+                            // Ensure cleanup even if close event doesn't fire
+                            last_dl_info.dlState = 'stop';
+                            last_dl_info.dlChild = null;
+                            // The outer promise will resolve via close/error event or timeout below
+                        })
+                        .catch((error) => {
+                            output_chan.appendLine(localize('childProcessTerminateFailed', error));
+                            // Force cleanup: if taskkill also fails, clear state anyway
+                            last_dl_info.dlState = 'stop';
+                            last_dl_info.dlChild = null;
+                        });
+                    }, 120000);
+                };
+                // Start the initial timeout
+                resetKillTimeout();
 
                 // Listen to stdout
                 child.stdout.on('data', (data) => {
@@ -1354,7 +1392,10 @@ function activate(context)
                         output = data.toString('utf8');
                     }
                     output_chan.appendLine(output);
-                    
+
+                    // Reset idle timeout on any output — process is alive
+                    resetKillTimeout();
+
                     // Try to parse JSON progress
                     try {
                         const lines = output.split('\n');
@@ -1363,10 +1404,6 @@ function activate(context)
                                 const json = JSON.parse(line.trim());
                                 if (json.progress !== undefined) {
                                     tracker.update_progress(json.progress);
-                                    if (kill_timeout) {
-                                        clearTimeout(kill_timeout);
-                                        kill_timeout = null;
-                                    }
                                 }
                             }
                         }
@@ -1375,7 +1412,7 @@ function activate(context)
                     }
                 });
 
-                // Listen to stderr
+                // Listen to stderr — don't treat as fatal, just log and reset timeout
                 child.stderr.on('data', (data) => {
                     let errorOutput;
                     if (process.platform === 'win32') {
@@ -1385,12 +1422,8 @@ function activate(context)
                     }
                     output_chan.appendLine(`stderr: ${errorOutput}`);
                     tracker.reset();
-                    last_dl_info.dlState = 'stop';
-                    last_dl_info.dlChild = null;
-                    if (kill_timeout) {
-                        clearTimeout(kill_timeout);
-                        kill_timeout = null;
-                    }
+                    // Reset idle timeout on stderr output too
+                    resetKillTimeout();
                 });
             
                 // Listen to process close event
