@@ -139,9 +139,7 @@ class WebviewManager {
         );
 
         // Get effective theme
-        const currentConfig = configManager.getConfig();
-        const themeSettings = typeof currentConfig.theme === 'object' ? currentConfig.theme : { mode: currentConfig.theme || 'auto', accent: currentConfig.accentColor || 'blue' };
-        const effectiveTheme = this.getEffectiveTheme(themeSettings.mode || 'auto');
+        const themeInfo = this._getThemeInfo();
 
         let html = this.loadTemplate('welcome/welcome', {
             'locale': locale,
@@ -169,8 +167,7 @@ class WebviewManager {
         html = html.replace('href="{{fontawesome.css}}"', `href="${fontAwesomeUri}"`);
 
         // Apply effective theme to HTML
-        // Note: {{locale}} was already replaced by loadTemplate(), so use actual locale value
-        html = html.replace(`<html lang="${locale}">`, `<html lang="${locale}" data-theme="${effectiveTheme}" data-accent="${themeSettings.accent || 'blue'}">`);
+        html = html.replace(`<html lang="${locale}">`, `<html lang="${locale}" data-theme="${themeInfo.mode}" data-accent="${themeInfo.color}">`);
 
         return html;
     }
@@ -179,12 +176,24 @@ class WebviewManager {
      * Get current locale
      */
     getLocale() {
-        // Read language from dove.json (configManager) instead of VS Code settings
         const language = configManager.getLanguage();
         if (language === 'auto') {
             return vscode.env.language.toLowerCase();
         }
         return language.toLowerCase();
+    }
+
+    /**
+     * Get theme info for webview
+     * dove CLI: theme.color (stored in .dove/dove.json)
+     * Plugin: themeMode (stored in globalState)
+     * @returns {Object} { mode: 'dark'|'light', color: 'blue'|... }
+     */
+    _getThemeInfo() {
+        const themeColor = configManager.getThemeColor() || 'blue';
+        const themeMode = configManager.getThemeMode() || 'auto';
+        const effectiveTheme = this.getEffectiveTheme(themeMode);
+        return { mode: effectiveTheme, color: themeColor };
     }
 
     /**
@@ -229,9 +238,8 @@ class WebviewManager {
         // Listen for VS Code theme changes
         vscode.workspace.onDidChangeConfiguration(e => {
             if (e.affectsConfiguration('workbench.colorTheme')) {
-                const config = configManager.getConfig();
-                const themeSettings = typeof config.theme === 'object' ? config.theme : { mode: config.theme || 'auto', accent: config.accentColor || 'blue' };
-                if (themeSettings.mode === 'auto') {
+                const themeMode = configManager.getThemeMode();
+                if (themeMode === 'auto') {
                     this.settingsPanel.webview.postMessage({
                         command: 'themeChanged',
                         theme: this.getEffectiveTheme('auto')
@@ -247,13 +255,12 @@ class WebviewManager {
                     case 'getConfig':
                         // Send current configuration to webview
                         const config = configManager.getConfig();
-                        const themeSettings = typeof config.theme === 'object' ? config.theme : { mode: config.theme || 'auto', accent: config.accentColor || 'blue' };
-                        const effectiveTheme = this.getEffectiveTheme(themeSettings.mode || 'auto');
+                        const themeInfo = this._getThemeInfo();
                         this.settingsPanel.webview.postMessage({
                             command: 'configData',
                             config: config,
                             configFilePath: configManager.getConfigPath(),
-                            effectiveTheme: effectiveTheme,
+                            effectiveTheme: themeInfo.mode,
                             localizedStrings: {
                                 uninstall: localize('settings.uninstall'),
                                 installing: localize('settings.installing'),
@@ -272,12 +279,10 @@ class WebviewManager {
                         return;
                     case 'getEffectiveTheme':
                         // Send effective theme for auto mode
-                        const currentThemeConfig = configManager.getConfig();
-                        const currentThemeSettings = typeof currentThemeConfig.theme === 'object' ? currentThemeConfig.theme : { mode: currentThemeConfig.theme || 'auto' };
-                        const currentEffectiveTheme = this.getEffectiveTheme(currentThemeSettings.mode || 'auto');
+                        const themeInfoForAuto = this._getThemeInfo();
                         this.settingsPanel.webview.postMessage({
                             command: 'effectiveTheme',
-                            theme: currentEffectiveTheme
+                            theme: themeInfoForAuto.mode
                         });
                         return;
                     case 'browseFirmwarePath':
@@ -324,7 +329,12 @@ class WebviewManager {
                         }
                         try {
                             const { execSync } = require('child_process');
-                            const result = execSync(`"${doveExePath}" port list`, { encoding: 'utf8', timeout: 5000 });
+                            const workspacePath = configManager.getWorkspacePath();
+                            const result = execSync(`"${doveExePath}" port list`, {
+                                encoding: 'utf8',
+                                timeout: 5000,
+                                cwd: workspacePath || undefined
+                            });
                             const ports = JSON.parse(result);
                             this.settingsPanel.webview.postMessage({
                                 command: 'scanPortsResult',
@@ -338,7 +348,7 @@ class WebviewManager {
                         }
                         return;
                     case 'addComPort':
-                        const addSuccess = configManager.addComPort(message.port, message.tags, message.description);
+                        const addSuccess = configManager.addComPort(message.port, message.tag);
                         if (addSuccess) {
                             this.settingsPanel.webview.postMessage({
                                 command: 'configData',
@@ -360,56 +370,58 @@ class WebviewManager {
                             configFilePath: configManager.getConfigPath()
                         });
                         return;
-                    case 'setActiveComPort':
-                        configManager.setActiveComPort(message.portName);
-                        this.settingsPanel.webview.postMessage({
-                            command: 'configData',
-                            config: configManager.getConfig(),
-                            configFilePath: configManager.getConfigPath()
-                        });
-                        return;
-                    case 'updateComPort':
-                        configManager.updateComPort(message.index, message.updates);
-                        this.settingsPanel.webview.postMessage({
-                            command: 'configData',
-                            config: configManager.getConfig(),
-                            configFilePath: configManager.getConfigPath()
-                        });
+                    case 'deleteComPortRequest':
+                        const portNameToDelete = message.portName;
+                        const confirmDelete = await vscode.window.showWarningMessage(
+                            localize('settings.deletePortConfirm') || `Delete port "${portNameToDelete}"?`,
+                            { modal: true },
+                            localize('settings.delete') || 'Delete'
+                        );
+                        if (confirmDelete) {
+                            configManager.deleteComPort(message.index);
+                            this.settingsPanel.webview.postMessage({
+                                command: 'configData',
+                                config: configManager.getConfig(),
+                                configFilePath: configManager.getConfigPath()
+                            });
+                        }
                         return;
                     case 'saveConfig':
-                        // Save configuration
-                        const updates = {
+                        // Save configuration - dove CLI fields and extension field to .dove/dove.json
+                        const cliUpdates = {
                             firmwarePath: message.config.firmwarePath,
                             buildCommands: message.config.buildCommands,
-                            buildGitBashPath: message.config.buildGitBashPath,
-                            language: message.config.language,
-                            theme: message.config.theme
+                            buildGitBashPath: message.config.buildGitBashPath
                         };
-                        // comPorts is managed separately through add/update/delete messages
 
-                        const success = configManager.setMultiple(updates);
+                        if (message.config.theme && message.config.theme.color) {
+                            cliUpdates.theme = { color: message.config.theme.color };
+                        }
+
+                        // comPorts is managed separately
+
+                        const success = configManager.setMultiple(cliUpdates);
+
+                        // Save extension settings (language, themeMode) to dove.json extension field
+                        if (message.config.language) {
+                            configManager.setLanguage(message.config.language);
+                        }
+                        if (message.config.theme && message.config.theme.mode) {
+                            configManager.setThemeMode(message.config.theme.mode);
+                        }
+
                         if (success) {
-                            // Apply theme if changed
-                            if (updates.theme) {
-                                const themeSettings = typeof updates.theme === 'object' ? updates.theme : { mode: updates.theme };
-                                const effectiveTheme = this.getEffectiveTheme(themeSettings.mode || 'auto');
-                                this.settingsPanel.webview.postMessage({
-                                    command: 'themeChanged',
-                                    theme: effectiveTheme
-                                });
-                                // Apply accent color if changed
-                                if (themeSettings.accent) {
-                                    this.settingsPanel.webview.postMessage({
-                                        command: 'accentColorChanged',
-                                        accentColor: themeSettings.accent
-                                    });
-                                }
-                            }
+                            // Notify theme change
+                            const newThemeInfo = this._getThemeInfo();
+                            this.settingsPanel.webview.postMessage({
+                                command: 'themeChanged',
+                                theme: newThemeInfo.mode,
+                                accentColor: newThemeInfo.color
+                            });
                             this.settingsPanel.webview.postMessage({
                                 command: 'configSaved',
                                 message: localize('settings.saved')
                             });
-                            // Trigger refresh
                             vscode.commands.executeCommand('firmwareDownloader.refresh');
                         } else {
                             this.settingsPanel.webview.postMessage({
@@ -419,24 +431,21 @@ class WebviewManager {
                         }
                         return;
                     case 'resetConfigRequest':
-                        // Request confirmation before reset (webview sandbox blocks native confirm())
                         const confirmReset = await vscode.window.showWarningMessage(
                             localize('settings.resetConfirm') || 'Are you sure you want to reset all settings to defaults?',
                             { modal: true },
                             localize('settings.reset') || 'Reset'
                         );
                         if (confirmReset) {
-                            // User confirmed, proceed with reset
                             const success = configManager.reset();
                             if (success) {
                                 const resetConfig = configManager.getConfig();
-                                const resetThemeSettings = typeof resetConfig.theme === 'object' ? resetConfig.theme : { mode: resetConfig.theme || 'auto', accent: resetConfig.accentColor || 'blue' };
-                                const resetEffectiveTheme = this.getEffectiveTheme(resetThemeSettings.mode || 'auto');
+                                const resetThemeInfo = this._getThemeInfo();
                                 this.settingsPanel.webview.postMessage({
                                     command: 'configData',
                                     config: resetConfig,
                                     configFilePath: configManager.getConfigPath(),
-                                    effectiveTheme: resetEffectiveTheme,
+                                    effectiveTheme: resetThemeInfo.mode,
                                     localizedStrings: {
                                         uninstall: localize('settings.uninstall'),
                                         installing: localize('settings.installing'),
@@ -463,17 +472,15 @@ class WebviewManager {
                         }
                         return;
                     case 'resetConfig':
-                        // Reset to defaults
                         const resetSuccess = configManager.reset();
                         if (resetSuccess) {
                             const resetConfig = configManager.getConfig();
-                            const resetThemeSettings = typeof resetConfig.theme === 'object' ? resetConfig.theme : { mode: resetConfig.theme || 'auto', accent: resetConfig.accentColor || 'blue' };
-                            const resetEffectiveTheme = this.getEffectiveTheme(resetThemeSettings.mode || 'auto');
+                            const resetThemeInfo = this._getThemeInfo();
                             this.settingsPanel.webview.postMessage({
                                 command: 'configData',
                                 config: resetConfig,
                                 configFilePath: configManager.getConfigPath(),
-                                effectiveTheme: resetEffectiveTheme,
+                                effectiveTheme: resetThemeInfo.mode,
                                 localizedStrings: {
                                     uninstall: localize('settings.uninstall'),
                                     installing: localize('settings.installing'),
@@ -691,11 +698,9 @@ class WebviewManager {
         const searchJsUri = this.searchPanel.webview.asWebviewUri(
             vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'searchPanel', 'searchPanel.js'))
         );
-        
+
         // Get effective theme
-        const currentConfig = configManager.getConfig();
-        const themeSettings = typeof currentConfig.theme === 'object' ? currentConfig.theme : { mode: currentConfig.theme || 'auto', accent: currentConfig.accentColor || 'blue' };
-        const effectiveTheme = this.getEffectiveTheme(themeSettings.mode || 'auto');
+        const themeInfo = this._getThemeInfo();
 
         let html = this.loadTemplate('searchPanel/searchPanel', {
             'locale': locale,
@@ -722,8 +727,7 @@ class WebviewManager {
         html = html.replace('src="{{search.js}}"', `src="${searchJsUri}"`);
 
         // Apply effective theme to HTML
-        // Note: {{locale}} was already replaced by loadTemplate(), so use actual locale value
-        html = html.replace(`<html lang="${locale}">`, `<html lang="${locale}" data-theme="${effectiveTheme}" data-accent="${themeSettings.accent || 'blue'}">`);
+        html = html.replace(`<html lang="${locale}">`, `<html lang="${locale}" data-theme="${themeInfo.mode}" data-accent="${themeInfo.color}">`);
 
         return html;
     }
@@ -1056,11 +1060,9 @@ class WebviewManager {
         const settingsJsUri = this.settingsPanel.webview.asWebviewUri(
             vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'settings', 'settings.js'))
         );
-        
+
         // Get current config and effective theme
-        const currentConfig = configManager.getConfig();
-        const themeSettings = typeof currentConfig.theme === 'object' ? currentConfig.theme : { mode: currentConfig.theme || 'auto', accent: currentConfig.accentColor || 'blue' };
-        const effectiveTheme = this.getEffectiveTheme(themeSettings.mode || 'auto');
+        const themeInfo = this._getThemeInfo();
 
         let html = this.loadTemplate('settings/settings', {
             'locale': locale,
@@ -1098,30 +1100,31 @@ class WebviewManager {
             'settings.comPortsDesc': localize('settings.comPortsDesc'),
             'settings.portName': localize('settings.portName'),
             'settings.portTags': localize('settings.portTags'),
-            'settings.portDescription': localize('settings.portDescription'),
             'settings.portActions': localize('settings.portActions'),
             'settings.noPorts': localize('settings.noPorts'),
             'settings.addPort': localize('settings.addPort'),
-            'settings.editPort': localize('settings.editPort'),
+            'settings.add': localize('settings.add'),
             'settings.portNamePlaceholder': localize('settings.portNamePlaceholder'),
-            'settings.portDescPlaceholder': localize('settings.portDescPlaceholder'),
             'settings.portExists': localize('settings.portExists'),
             'settings.portNameEmpty': localize('settings.portNameEmpty'),
-            'settings.portTagsEmpty': localize('settings.portTagsEmpty'),
-            'settings.tagAT': localize('settings.tagAT'),
-            'settings.tagDownload': localize('settings.tagDownload'),
-            'settings.tagLog': localize('settings.tagLog'),
-            'settings.tagDebug': localize('settings.tagDebug'),
-            'settings.tagUART': localize('settings.tagUART'),
-            'settings.tagMain': localize('settings.tagMain'),
-            'settings.tagAux': localize('settings.tagAux'),
-            'settings.tagATDesc': localize('settings.tagATDesc'),
-            'settings.tagDownloadDesc': localize('settings.tagDownloadDesc'),
-            'settings.tagLogDesc': localize('settings.tagLogDesc'),
-            'settings.tagDebugDesc': localize('settings.tagDebugDesc'),
-            'settings.tagUARTDesc': localize('settings.tagUARTDesc'),
-            'settings.tagMainDesc': localize('settings.tagMainDesc'),
-            'settings.tagAuxDesc': localize('settings.tagAuxDesc'),
+            'settings.portTagEmpty': localize('settings.portTagEmpty'),
+            'settings.scanPorts': localize('settings.scanPorts'),
+            'settings.noPortsFound': localize('settings.noPortsFound'),
+            'settings.availablePorts': localize('settings.availablePorts'),
+            'settings.delete': localize('settings.delete'),
+            // PortTag types (synced with dove submodule)
+            'settings.portTagEmpty': localize('settings.portTagEmpty'),
+            'settings.selectTag': localize('settings.selectTag'),
+            'settings.tagUARTAT': localize('settings.tagUARTAT'),
+            'settings.tagUARTDBG': localize('settings.tagUARTDBG'),
+            'settings.tagUSBAT': localize('settings.tagUSBAT'),
+            'settings.tagUSBDIAG': localize('settings.tagUSBDIAG'),
+            'settings.tagInvalid': localize('settings.tagInvalid'),
+            'settings.tagUARTATDesc': localize('settings.tagUARTATDesc'),
+            'settings.tagUARTDBGDesc': localize('settings.tagUARTDBGDesc'),
+            'settings.tagUSBATDesc': localize('settings.tagUSBATDesc'),
+            'settings.tagUSBDIAGDesc': localize('settings.tagUSBDIAGDesc'),
+            'settings.tagInvalidDesc': localize('settings.tagInvalidDesc'),
             'settings.language': localize('settings.language'),
             'settings.languageLabel': localize('settings.languageLabel'),
             'settings.languageDesc': localize('settings.languageDesc'),
@@ -1147,11 +1150,13 @@ class WebviewManager {
             'settings.themeLight': localize('settings.themeLight'),
             'settings.accentColorLabel': localize('settings.accentColorLabel'),
             'settings.accentColorDesc': localize('settings.accentColorDesc'),
+            'settings.accentCyan': localize('settings.accentCyan'),
             'settings.accentBlue': localize('settings.accentBlue'),
             'settings.accentGreen': localize('settings.accentGreen'),
-            'settings.accentPurple': localize('settings.accentPurple'),
-            'settings.accentOrange': localize('settings.accentOrange'),
-            'settings.accentPink': localize('settings.accentPink'),
+            'settings.accentMagenta': localize('settings.accentMagenta'),
+            'settings.accentYellow': localize('settings.accentYellow'),
+            'settings.accentRed': localize('settings.accentRed'),
+            'settings.accentWhite': localize('settings.accentWhite'),
             // Agent Integration settings
             'settings.agentIntegration': localize('settings.agentIntegration'),
             'settings.skillIntegration': localize('settings.skillIntegration'),
@@ -1195,8 +1200,7 @@ class WebviewManager {
         html = html.replace('src="{{settings.js}}"', `src="${settingsJsUri}"`);
 
         // Apply effective theme to HTML
-        // Note: {{locale}} was already replaced by loadTemplate(), so use actual locale value
-        html = html.replace(`<html lang="${locale}">`, `<html lang="${locale}" data-theme="${effectiveTheme}" data-accent="${themeSettings.accent || 'blue'}">`);
+        html = html.replace(`<html lang="${locale}">`, `<html lang="${locale}" data-theme="${themeInfo.mode}" data-accent="${themeInfo.color}">`);
 
         return html;
     }

@@ -212,7 +212,7 @@
       "explorer/context": [
         {
           "command": "firmwareDownloader.openLogViewer",
-          "when": "resourceExtname == .txt || resourceExtname == .log",
+          "when": "resourceExtname == .txt || resourceExtname == .log || resourceExtname == .jsonl",
           "group": "2_workspace@5"
         }
       ]

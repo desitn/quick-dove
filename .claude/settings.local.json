@@ -49,7 +49,11 @@
       "Bash(powershell.exe -ExecutionPolicy Bypass -File build.ps1)",
       "Bash(dove/dove.exe build:*)",
       "Bash(pkg . --targets node18-win-x64 --output ./dove.exe)",
-      "Bash(timeout 2 ./dove.exe tui)"
+      "Bash(timeout 2 ./dove.exe tui)",
+      "Bash(./dove/dove.exe build:*)",
+      "Bash(ls -la F:/vscode-extension/quick-dove/dove/*.json)",
+      "Bash(ls -la F:/vscode-extension/quick-dove/*.json F:/vscode-extension/quick-dove/.dove/*.json)",
+      "Bash(./dove/dove.exe config:*)"
     ]
   }
 }

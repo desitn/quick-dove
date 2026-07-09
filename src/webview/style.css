@@ -1,6 +1,7 @@
 /* ==================== CSS Variables - Theme Support ==================== */
 
 /* ==================== Accent Color Variants ==================== */
+/* Synced with dove CLI ThemeConfig: cyan | blue | green | magenta | yellow | red | white */
 
 /* Blue Accent (Default) - applies when data-accent="blue" or not set */
 :root[data-accent="blue"],
@@ -14,6 +15,17 @@
     --input-focus-shadow: rgba(88, 166, 255, 0.3);
 }
 
+/* Cyan Accent */
+:root[data-accent="cyan"] {
+    --accent-color: #22d3ee;
+    --accent-color-light: #67e8f9;
+    --accent-color-dark: #0891b2;
+    --accent-gradient-start: #22d3ee;
+    --accent-gradient-end: #06b6d4;
+    --input-focus-border: #22d3ee;
+    --input-focus-shadow: rgba(34, 211, 238, 0.3);
+}
+
 /* Green Accent */
 :root[data-accent="green"] {
     --accent-color: #3fb950;
@@ -25,8 +37,8 @@
     --input-focus-shadow: rgba(63, 185, 80, 0.3);
 }
 
-/* Purple Accent */
-:root[data-accent="purple"] {
+/* Magenta Accent */
+:root[data-accent="magenta"] {
     --accent-color: #a371f7;
     --accent-color-light: #bc8cff;
     --accent-color-dark: #8957e5;
@@ -36,26 +48,37 @@
     --input-focus-shadow: rgba(163, 113, 247, 0.3);
 }
 
-/* Orange Accent */
-:root[data-accent="orange"] {
-    --accent-color: #f78166;
-    --accent-color-light: #ffa657;
-    --accent-color-dark: #da3633;
-    --accent-gradient-start: #f78166;
-    --accent-gradient-end: #da3633;
-    --input-focus-border: #f78166;
-    --input-focus-shadow: rgba(247, 129, 102, 0.3);
+/* Yellow Accent */
+:root[data-accent="yellow"] {
+    --accent-color: #f0b429;
+    --accent-color-light: #fbbf24;
+    --accent-color-dark: #d97706;
+    --accent-gradient-start: #f0b429;
+    --accent-gradient-end: #eab308;
+    --input-focus-border: #f0b429;
+    --input-focus-shadow: rgba(240, 180, 41, 0.3);
 }
 
-/* Pink Accent */
-:root[data-accent="pink"] {
-    --accent-color: #f778ba;
-    --accent-color-light: #ff9bce;
-    --accent-color-dark: #db61a2;
-    --accent-gradient-start: #f778ba;
-    --accent-gradient-end: #db61a2;
-    --input-focus-border: #f778ba;
-    --input-focus-shadow: rgba(247, 120, 186, 0.3);
+/* Red Accent */
+:root[data-accent="red"] {
+    --accent-color: #f85149;
+    --accent-color-light: #ff7b72;
+    --accent-color-dark: #da3633;
+    --accent-gradient-start: #f85149;
+    --accent-gradient-end: #e5534b;
+    --input-focus-border: #f85149;
+    --input-focus-shadow: rgba(248, 81, 73, 0.3);
+}
+
+/* White Accent */
+:root[data-accent="white"] {
+    --accent-color: #f0f6fc;
+    --accent-color-light: #ffffff;
+    --accent-color-dark: #8b949e;
+    --accent-gradient-start: #f0f6fc;
+    --accent-gradient-end: #c9d1d9;
+    --input-focus-border: #f0f6fc;
+    --input-focus-shadow: rgba(240, 246, 252, 0.3);
 }
 
 /* ==================== Dark Theme (Default) ==================== */

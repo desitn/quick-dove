@@ -175,7 +175,6 @@
                                         <tr>
                                             <th>{{settings.portName}}</th>
                                             <th>{{settings.portTags}}</th>
-                                            <th>{{settings.portDescription}}</th>
                                             <th>{{settings.portActions}}</th>
                                         </tr>
                                     </thead>
@@ -193,19 +192,19 @@
                                 <h3><i class="fa-solid fa-plus"></i> {{settings.addPort}}</h3>
                                 <div class="form-row port-input-row">
                                     <input type="text" id="newPortName" placeholder="{{settings.portNamePlaceholder}}" data-modified="false">
-                                    <input type="text" id="newPortDesc" placeholder="{{settings.portDescPlaceholder}}" data-modified="false">
                                 </div>
-                                <!-- Port list dropdown -->
+                                <!-- Port list dropdown (scanned ports) -->
                                 <div class="port-list-dropdown" id="portListDropdown" style="display: none;"></div>
                                 <div class="form-row tag-selector-row">
                                     <div class="tag-selector">
-                                        <label class="tag-checkbox" title="{{settings.tagATDesc}}"><input type="checkbox" value="AT"> <span class="tag-badge tag-at">{{settings.tagAT}}</span></label>
-                                        <label class="tag-checkbox" title="{{settings.tagDownloadDesc}}"><input type="checkbox" value="Download"> <span class="tag-badge tag-download">{{settings.tagDownload}}</span></label>
-                                        <label class="tag-checkbox" title="{{settings.tagLogDesc}}"><input type="checkbox" value="Log"> <span class="tag-badge tag-log">{{settings.tagLog}}</span></label>
-                                        <label class="tag-checkbox" title="{{settings.tagDebugDesc}}"><input type="checkbox" value="Debug"> <span class="tag-badge tag-debug">{{settings.tagDebug}}</span></label>
-                                        <label class="tag-checkbox" title="{{settings.tagUARTDesc}}"><input type="checkbox" value="UART"> <span class="tag-badge tag-uart">{{settings.tagUART}}</span></label>
-                                        <label class="tag-checkbox" title="{{settings.tagMainDesc}}"><input type="checkbox" value="Main"> <span class="tag-badge tag-main">{{settings.tagMain}}</span></label>
-                                        <label class="tag-checkbox" title="{{settings.tagAuxDesc}}"><input type="checkbox" value="Aux"> <span class="tag-badge tag-aux">{{settings.tagAux}}</span></label>
+                                        <select id="portTagSelect" class="tag-dropdown">
+                                            <option value="">-- {{settings.selectTag}} --</option>
+                                            <option value="UART_AT">{{settings.tagUARTAT}}</option>
+                                            <option value="UART_DBG">{{settings.tagUARTDBG}}</option>
+                                            <option value="USB_AT">{{settings.tagUSBAT}}</option>
+                                            <option value="USB_DIAG">{{settings.tagUSBDIAG}}</option>
+                                            <option value="Invalid">{{settings.tagInvalid}}</option>
+                                        </select>
                                     </div>
                                     <div class="port-action-buttons">
                                         <button class="btn btn-icon-only" title="{{settings.scanPorts}}" onclick="scanPorts()">
@@ -254,11 +253,13 @@
                             <label>{{settings.accentColorLabel}}</label>
                             <div class="description">{{settings.accentColorDesc}}</div>
                             <select id="accentColorSelect" data-modified="false">
+                                <option value="cyan">{{settings.accentCyan}}</option>
                                 <option value="blue">{{settings.accentBlue}}</option>
                                 <option value="green">{{settings.accentGreen}}</option>
-                                <option value="purple">{{settings.accentPurple}}</option>
-                                <option value="orange">{{settings.accentOrange}}</option>
-                                <option value="pink">{{settings.accentPink}}</option>
+                                <option value="magenta">{{settings.accentMagenta}}</option>
+                                <option value="yellow">{{settings.accentYellow}}</option>
+                                <option value="red">{{settings.accentRed}}</option>
+                                <option value="white">{{settings.accentWhite}}</option>
                             </select>
                         </div>
                     </div>

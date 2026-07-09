@@ -11,7 +11,7 @@ const events = require('events');
 
 /**
  * Log Analyzer Class
- * Handles log file loading with multiple encoding support
+ * Handles log file loading with multiple encoding support and format detection
  */
 class LogAnalyzer extends events.EventEmitter {
     constructor() {
@@ -21,10 +21,11 @@ class LogAnalyzer extends events.EventEmitter {
         this.fileSize = 0;         // File size in bytes
         this.encoding = 'utf8';    // Detected encoding
         this.isLoading = false;    // Loading state
+        this.isJsonl = false;      // Is JSONL format
     }
 
     /**
-     * Load log file with automatic encoding detection
+     * Load log file with automatic encoding detection and format support
      * @param {string} filePath - Path to log file
      * @returns {Promise<boolean>} Success status
      */
@@ -38,28 +39,37 @@ class LogAnalyzer extends events.EventEmitter {
         this.lines = [];
 
         try {
+            // Detect if file is JSONL format
+            this.isJsonl = this.isJsonlFile(filePath);
+
             // Detect file encoding
             this.encoding = await this.detectEncoding(filePath);
-            
+
             // Get file stats
             const stats = fs.statSync(filePath);
             this.fileSize = stats.size;
 
             // Read file with detected encoding
             const content = await this.readFileWithEncoding(filePath, this.encoding);
-            
-            // Split into lines
-            this.lines = content.split(/\r?\n/).map((text, index) => ({
-                lineNumber: index + 1,
-                text: text,
-                length: text.length
-            }));
+
+            // Split into lines and parse
+            this.lines = content.split(/\r?\n/).map((text, index) => {
+                const parsedText = this.isJsonl ? this.parseJsonlLine(text) : text;
+                return {
+                    lineNumber: index + 1,
+                    text: parsedText,
+                    rawText: text,  // Keep original for JSONL
+                    length: parsedText.length,
+                    isJson: this.isJsonl && this.isValidJson(text)
+                };
+            }).filter(line => line.text.length > 0);  // Remove empty lines
 
             this.emit('loaded', {
                 filePath: this.filePath,
                 lineCount: this.lines.length,
                 encoding: this.encoding,
-                fileSize: this.fileSize
+                fileSize: this.fileSize,
+                isJsonl: this.isJsonl
             });
 
             this.isLoading = false;
@@ -68,6 +78,117 @@ class LogAnalyzer extends events.EventEmitter {
         } catch (error) {
             this.emit('error', error);
             this.isLoading = false;
+            return false;
+        }
+    }
+
+    /**
+     * Check if file is JSONL format
+     * @param {string} filePath - File path
+     * @returns {boolean} Is JSONL file
+     */
+    isJsonlFile(filePath) {
+        const ext = filePath.toLowerCase();
+        if (ext.endsWith('.jsonl')) {
+            return true;
+        }
+        // Also check content - first line should be valid JSON
+        try {
+            const firstLines = fs.readFileSync(filePath, { encoding: 'utf8', length: 1024 });
+            const firstLine = firstLines.split('\n')[0].trim();
+            if (firstLine.length > 0) {
+                JSON.parse(firstLine);
+                return true;
+            }
+        } catch {
+            // Not JSONL
+        }
+        return false;
+    }
+
+    /**
+     * Parse a JSONL line into readable format
+     * @param {string} lineText - Raw line text
+     * @returns {string} Parsed/formatted text
+     */
+    parseJsonlLine(lineText) {
+        if (!lineText || lineText.trim().length === 0) {
+            return '';
+        }
+
+        try {
+            const json = JSON.parse(lineText);
+
+            // Format based on common log fields
+            if (typeof json === 'object') {
+                // Extract common log fields
+                const timestamp = json.timestamp || json.time || json.ts || json.date || '';
+                const level = json.level || json.severity || json.status || '';
+                const message = json.message || json.msg || json.log || json.text || '';
+                const source = json.source || json.src || json.component || json.logger || '';
+
+                // Build formatted output
+                let formatted = '';
+                if (timestamp) {
+                    formatted += `[${timestamp}] `;
+                }
+                if (level) {
+                    formatted += `${level.toUpperCase().padEnd(5)} `;
+                }
+                if (source) {
+                    formatted += `[${source}] `;
+                }
+                if (message) {
+                    formatted += message;
+                }
+
+                // If no common fields, pretty-print the JSON
+                if (!formatted) {
+                    formatted = JSON.stringify(json, null, 2);
+                }
+
+                // Add remaining fields as context if not already included
+                const remaining = this.getRemainingFields(json, ['timestamp', 'time', 'ts', 'date', 'level', 'severity', 'status', 'message', 'msg', 'log', 'text', 'source', 'src', 'component', 'logger']);
+                if (remaining && Object.keys(remaining).length > 0) {
+                    formatted += ` | ${JSON.stringify(remaining)}`;
+                }
+
+                return formatted;
+            }
+
+            return JSON.stringify(json);
+        } catch {
+            // Not valid JSON, return raw text
+            return lineText;
+        }
+    }
+
+    /**
+     * Get remaining fields from JSON object
+     * @param {Object} json - JSON object
+     * @param {Array<string>} excludeFields - Fields to exclude
+     * @returns {Object} Remaining fields
+     */
+    getRemainingFields(json, excludeFields) {
+        const remaining = {};
+        for (const key of Object.keys(json)) {
+            if (!excludeFields.includes(key)) {
+                remaining[key] = json[key];
+            }
+        }
+        return remaining;
+    }
+
+    /**
+     * Check if text is valid JSON
+     * @param {string} text - Text to check
+     * @returns {boolean} Is valid JSON
+     */
+    isValidJson(text) {
+        try {
+            JSON.parse(text);
+            return true;
+        } catch {
             return false;
         }
     }
@@ -252,7 +373,8 @@ class LogAnalyzer extends events.EventEmitter {
             filePath: this.filePath,
             lineCount: this.lines.length,
             encoding: this.encoding,
-            fileSize: this.fileSize
+            fileSize: this.fileSize,
+            isJsonl: this.isJsonl
         };
     }
 
@@ -264,6 +386,7 @@ class LogAnalyzer extends events.EventEmitter {
         this.filePath = '';
         this.fileSize = 0;
         this.encoding = 'utf8';
+        this.isJsonl = false;
     }
 }
 

@@ -154,6 +154,22 @@ function setupChangeTracking() {
             hasUnsavedChanges = true;
         });
     });
+
+    // Theme preview - immediate effect when selecting accent color
+    const accentColorSelect = document.getElementById('accentColorSelect');
+    if (accentColorSelect) {
+        accentColorSelect.addEventListener('change', () => {
+            applyAccentColor(accentColorSelect.value);
+        });
+    }
+
+    // Theme mode preview
+    const themeSelect = document.getElementById('themeSelect');
+    if (themeSelect) {
+        themeSelect.addEventListener('change', () => {
+            applyTheme(themeSelect.value);
+        });
+    }
 }
 
 /**
@@ -310,16 +326,19 @@ function populateForm() {
     // Language
     document.getElementById('languageSelect').value = currentConfig.language || 'auto';
 
-    // Theme - handle both old (string) and new (object) structure
-    const themeConfig = typeof currentConfig.theme === 'object' ? currentConfig.theme : { mode: currentConfig.theme || 'auto', accent: currentConfig.accentColor || 'blue' };
-    document.getElementById('themeSelect').value = themeConfig.mode || 'auto';
-    document.getElementById('accentColorSelect').value = themeConfig.accent || 'blue';
+    // Theme - follow dove CLI CLIConfig structure
+    // theme.color (dove CLI) + extension.themeMode (plugin)
+    const themeColor = currentConfig.theme?.color || 'blue';
+    const themeMode = currentConfig.extension?.themeMode || 'auto';
+
+    document.getElementById('themeSelect').value = themeMode;
+    document.getElementById('accentColorSelect').value = themeColor;
 
     // Apply theme preview
-    applyTheme(themeConfig.mode || 'auto');
+    applyTheme(themeMode);
 
     // Apply accent color
-    applyAccentColor(themeConfig.accent || 'blue');
+    applyAccentColor(themeColor);
 
     // Config File Path
     if (currentConfig.configFilePath) {
@@ -402,23 +421,14 @@ function renderPortTable() {
 
     tbody.innerHTML = currentConfig.comPorts.map((p, index) => {
         const isActive = p.isActive;
-        const tagsHtml = p.tags.map(t => `<span class="tag-badge tag-${t.toLowerCase()}">${t}</span>`).join('');
+        // Single tag display
+        const tagHtml = p.tag ? `<span class="tag-badge tag-${p.tag.toLowerCase().replace('_', '-')}">${p.tag}</span>` : '';
         return `
             <tr class="${isActive ? 'active' : ''}">
                 <td>${escapeHtml(p.port)}</td>
-                <td>${tagsHtml}</td>
-                <td>${escapeHtml(p.description || '')}</td>
+                <td>${tagHtml}</td>
                 <td>
                     <div class="port-actions">
-                        <button class="btn-icon btn-set-active"
-                                onclick="setActivePort(${index})"
-                                ${isActive ? 'disabled' : ''}
-                                title="${isActive ? 'Current Active' : 'Set as Active'}">
-                            <i class="fa-solid ${isActive ? 'fa-check' : 'fa-play'}"></i>
-                        </button>
-                        <button class="btn-icon btn-edit" onclick="editPort(${index})" title="Edit">
-                            <i class="fa-solid fa-pen"></i>
-                        </button>
                         <button class="btn-icon btn-delete" onclick="deletePort(${index})" title="Delete">
                             <i class="fa-solid fa-trash"></i>
                         </button>
@@ -434,23 +444,17 @@ function renderPortTable() {
  */
 function addPort() {
     const portInput = document.getElementById('newPortName');
-    const descInput = document.getElementById('newPortDesc');
+    const tagSelect = document.getElementById('portTagSelect');
     const port = portInput.value.trim();
-    const description = descInput.value.trim();
-
-    // Collect selected tags
-    const tags = [];
-    document.querySelectorAll('.tag-checkbox input:checked').forEach(cb => {
-        tags.push(cb.value);
-    });
+    const tag = tagSelect ? tagSelect.value : '';
 
     if (!port) {
         showStatusMessage('error', localizedStrings.portNameEmpty || 'Please enter port name');
         return;
     }
 
-    if (tags.length === 0) {
-        showStatusMessage('error', localizedStrings.portTagsEmpty || 'Please select at least one tag');
+    if (!tag) {
+        showStatusMessage('error', localizedStrings.portTagEmpty || 'Please select a tag');
         return;
     }
 
@@ -463,14 +467,12 @@ function addPort() {
     vscode.postMessage({
         command: 'addComPort',
         port: port,
-        tags: tags,
-        description: description
+        tag: tag
     });
 
     // Clear form
     portInput.value = '';
-    descInput.value = '';
-    document.querySelectorAll('.tag-checkbox input').forEach(cb => cb.checked = false);
+    if (tagSelect) tagSelect.value = '';
 }
 
 /**
@@ -481,7 +483,7 @@ function scanPorts() {
 }
 
 /**
- * Handle scan ports result
+ * Handle scan ports result - show all COM ports with current tags
  */
 function handleScanPortsResult(ports) {
     const dropdown = document.getElementById('portListDropdown');
@@ -491,14 +493,26 @@ function handleScanPortsResult(ports) {
         return;
     }
 
-    // Display port list
+    // Get current configured ports
+    const configuredPorts = currentConfig.comPorts || [];
+    const configuredMap = new Map();
+    configuredPorts.forEach(p => {
+        configuredMap.set(p.port, p.tag);
+    });
+
+    // Display port list - show all ports, mark configured ones
     dropdown.innerHTML = ports.map(port => {
-        const info = `${port.manufacturer} - VID:${port.vendorId} PID:${port.productId}`;
-        const desc = (port.fullDescription || '').replace(/'/g, "\\'").replace(/"/g, '\\"');
+        const existingTag = configuredMap.get(port.path);
+        const tagHtml = existingTag
+            ? `<span class="tag-badge tag-${existingTag.toLowerCase().replace('_', '-')}">${existingTag}</span>`
+            : '<span class="tag-empty">-</span>';
+        const info = port.friendlyName || port.manufacturer || '';
+
         return `
-            <div class="port-item" onclick="selectPort('${port.path}', '${port.manufacturer.replace(/'/g, "\\'")}', '${desc.substring(0, 50)}')">
+            <div class="port-item ${existingTag ? 'configured' : ''}" onclick="selectPort('${port.path}')">
                 <span class="port-path">${escapeHtml(port.path)}</span>
                 <span class="port-info">${escapeHtml(info)}</span>
+                <span class="port-tag">${tagHtml}</span>
             </div>
         `;
     }).join('');
@@ -508,126 +522,26 @@ function handleScanPortsResult(ports) {
 /**
  * Select port from dropdown
  */
-function selectPort(path, manufacturer, description) {
+function selectPort(path) {
     document.getElementById('newPortName').value = path;
-    document.getElementById('newPortDesc').value = manufacturer + (description ? ' ' + description : '');
     document.getElementById('portListDropdown').style.display = 'none';
     markAsModified(document.getElementById('newPortName'), true);
     hasUnsavedChanges = true;
 }
 
 /**
- * Delete port
+ * Delete port - send message to extension for confirmation
  */
 function deletePort(index) {
     if (!currentConfig.comPorts || index >= currentConfig.comPorts.length) {
         return;
     }
 
-    const portName = currentConfig.comPorts[index].port;
-    if (!confirm(`Delete port "${portName}"?`)) {
-        return;
-    }
-
     vscode.postMessage({
-        command: 'deleteComPort',
-        index: index
-    });
-}
-
-/**
- * Set active port
- */
-function setActivePort(index) {
-    if (!currentConfig.comPorts || index >= currentConfig.comPorts.length) {
-        return;
-    }
-
-    vscode.postMessage({
-        command: 'setActiveComPort',
+        command: 'deleteComPortRequest',
+        index: index,
         portName: currentConfig.comPorts[index].port
     });
-}
-
-/**
- * Edit port - populate form with existing values
- */
-function editPort(index) {
-    if (!currentConfig.comPorts || index >= currentConfig.comPorts.length) {
-        return;
-    }
-
-    editingPortIndex = index;
-    const port = currentConfig.comPorts[index];
-
-    // Populate form
-    document.getElementById('newPortName').value = port.port;
-    document.getElementById('newPortDesc').value = port.description || '';
-
-    // Clear all checkboxes first
-    document.querySelectorAll('.tag-checkbox input').forEach(cb => cb.checked = false);
-
-    // Set checkboxes based on existing tags
-    port.tags.forEach(tag => {
-        const checkbox = document.querySelector(`.tag-checkbox input[value="${tag}"]`);
-        if (checkbox) checkbox.checked = true;
-    });
-
-    // Change add button to update button
-    const addBtn = document.querySelector('.add-port-form .btn-primary');
-    addBtn.innerHTML = '<i class="fa-solid fa-save"></i> Update';
-    addBtn.onclick = () => updatePort(index);
-
-    // Focus on port name input
-    document.getElementById('newPortName').focus();
-}
-
-/**
- * Update port after editing
- */
-function updatePort(index) {
-    if (index < 0) {
-        return;
-    }
-
-    const port = document.getElementById('newPortName').value.trim();
-    const description = document.getElementById('newPortDesc').value.trim();
-
-    const tags = [];
-    document.querySelectorAll('.tag-checkbox input:checked').forEach(cb => {
-        tags.push(cb.value);
-    });
-
-    if (!port) {
-        showStatusMessage('error', localizedStrings.portNameEmpty || 'Please enter port name');
-        return;
-    }
-
-    if (tags.length === 0) {
-        showStatusMessage('error', localizedStrings.portTagsEmpty || 'Please select at least one tag');
-        return;
-    }
-
-    vscode.postMessage({
-        command: 'updateComPort',
-        index: index,
-        updates: {
-            port: port,
-            tags: tags,
-            description: description
-        }
-    });
-
-    // Reset form
-    editingPortIndex = -1;
-    document.getElementById('newPortName').value = '';
-    document.getElementById('newPortDesc').value = '';
-    document.querySelectorAll('.tag-checkbox input').forEach(cb => cb.checked = false);
-
-    // Reset button
-    const addBtn = document.querySelector('.add-port-form .btn-primary');
-    addBtn.innerHTML = '<i class="fa-solid fa-plus"></i> Add';
-    addBtn.onclick = addPort;
 }
 
 /**
@@ -890,9 +804,13 @@ function saveSettings() {
     // comPorts is managed separately through add/update/delete messages
     // defaultComPort is auto-synced with active port in configManager
     currentConfig.language = document.getElementById('languageSelect').value;
+
+    // Theme - follow dove CLI CLIConfig structure
+    // theme.color (dove CLI ThemeConfig)
+    // theme.mode → extension.themeMode (plugin)
     currentConfig.theme = {
-        mode: document.getElementById('themeSelect').value,
-        accent: document.getElementById('accentColorSelect').value
+        color: document.getElementById('accentColorSelect').value,
+        mode: document.getElementById('themeSelect').value
     };
 
     // Debug: log the config being saved

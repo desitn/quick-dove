@@ -240,6 +240,12 @@ class LogViewerManager {
         const fileInfo = panelInfo.analyzer.getFileInfo();
         const lines = panelInfo.analyzer.lines;
 
+        // Build file info string
+        let fileInfoStr = `${fileInfo.lineCount} lines | ${fileInfo.encoding} | ${this.formatFileSize(fileInfo.fileSize)}`;
+        if (fileInfo.isJsonl) {
+            fileInfoStr += ' | JSONL';
+        }
+
         // Generate line content HTML
         const linesHtml = lines.map(line => {
             const highlightedText = panelInfo.highlighter.buildHighlightedHtml(line.text);
@@ -270,7 +276,7 @@ class LogViewerManager {
 
         // Replace placeholders
         html = html.replace('{{fileName}}', path.basename(panelInfo.filePath));
-        html = html.replace('{{fileInfo}}', `${fileInfo.lineCount} lines | ${fileInfo.encoding} | ${this.formatFileSize(fileInfo.fileSize)}`);
+        html = html.replace('{{fileInfo}}', fileInfoStr);
         html = html.replace('{{linesContent}}', linesHtml);
         html = html.replace('{{panelId}}', panelInfo.id);
         html = html.replace('{{isFilterView}}', 'false');
@@ -411,12 +417,12 @@ class LogViewerManager {
     }
 
     /**
-     * Get accent color from config
-     * @returns {string} Accent color (blue/green/purple/orange/pink)
+     * Get accent color from config (dove CLI theme.color)
+     * @returns {string} Theme color (cyan/blue/green/magenta/yellow/red/white)
      */
     getAccentColor() {
         const { configManager } = require('../../config/configManager');
-        return configManager.getAccentColor() || 'blue';
+        return configManager.getThemeColor() || 'blue';
     }
 
     /**
@@ -425,8 +431,8 @@ class LogViewerManager {
      */
     getConfigEffectiveTheme() {
         const { configManager } = require('../../config/configManager');
-        const theme = configManager.getTheme() || 'auto';
-        return this.getEffectiveTheme(theme);
+        const themeMode = configManager.getThemeMode() || 'auto';
+        return this.getEffectiveTheme(themeMode);
     }
 
     /**
@@ -542,7 +548,8 @@ class LogViewerManager {
             canSelectMany: false,
             openLabel: localize('logviewer.selectFile'),
             filters: {
-                'Log Files': ['log', 'txt', 'out', 'err'],
+                'Log Files': ['log', 'txt', 'out', 'err', 'jsonl'],
+                'JSON Lines': ['jsonl'],
                 'All Files': ['*']
             }
         });

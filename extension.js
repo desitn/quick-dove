@@ -29,38 +29,32 @@ function get_configuration() {
 }
 
 /**
- * Write dove.json configuration file to workspace root
- * This file is used by the independent dove tool
- * Note: This function now uses config values directly (no merge with existing)
+ * Write .dove/dove.json configuration file
+ * All fields including extension are managed by configManager
+ * This function syncs configManager's config to file
  */
 function writeFirmwareCliConfig(config) {
-    const workspace = vscode.workspace.workspaceFolders;
-    if (!workspace || workspace.length === 0) {
-        return;
-    }
+    const configPath = configManager.getConfigPath();
+    if (!configPath) return;
 
-    const workspacePath = workspace[0].uri.fsPath;
-    const configPath = path.join(workspacePath, 'dove.json');
-
-    // Write config directly without merge to ensure reset works correctly
+    // Write all fields including extension
     const configToWrite = {
+        workspacePath: config.workspacePath ?? '',
         firmwarePath: config.firmwarePath ?? '',
         buildCommands: config.buildCommands ?? [],
         buildGitBashPath: config.buildGitBashPath ?? '',
-        defaultComPort: config.defaultComPort ?? '',
         comPorts: config.comPorts ?? [],
-        language: config.language ?? 'auto',
-        theme: config.theme ?? { mode: 'auto', accent: 'blue' },
-        workspacePath: workspacePath
+        theme: config.theme ?? { color: 'blue' },
+        extension: config.extension ?? { language: 'auto', themeMode: 'auto' }
     };
 
-    // Preserve additional fields like search if they exist
-    if (config.search) {
-        configToWrite.search = config.search;
-    }
-
+    const newContent = JSON.stringify(configToWrite, null, 2);
     try {
-        fs.writeFileSync(configPath, JSON.stringify(configToWrite, null, 2));
+        if (fs.existsSync(configPath)) {
+            const existingContent = fs.readFileSync(configPath, 'utf8');
+            if (existingContent === newContent) return;
+        }
+        fs.writeFileSync(configPath, newContent);
         output_chan.appendLine(localize('configurationWritten', configPath));
     } catch (error) {
         output_chan.appendLine(localize('failedToWriteConfig', error.message));
@@ -151,17 +145,17 @@ class FirmwareTreeDataProvider {
         try {
             const firmwareCliPath = getFirmwareCliPath(this.context);
             if (firmwareCliPath) {
-                const workspace = vscode.workspace.workspaceFolders;
-                const workspacePath = workspace && workspace.length > 0 ? workspace[0].uri.fsPath : '';
-                const configPath = path.join(workspacePath, 'dove.json');
-                const result = spawnSync(firmwareCliPath, ['list', '--json'], { 
+                // Use configManager's path (matches dove's findConfigPath priority)
+                const configPath = configManager.getConfigPath();
+                const env = { ...process.env };
+                if (configPath) {
+                    env.FIRMWARE_CLI_CONFIG = configPath;
+                }
+                const result = spawnSync(firmwareCliPath, ['list', '--json'], {
                     shell: true,
                     encoding: 'utf8',
                     timeout: 5000,
-                    env: {
-                        ...process.env,
-                        FIRMWARE_CLI_CONFIG: configPath
-                    }
+                    env: env
                 });
                 
                 if (result.status === 0 && result.stdout) {
@@ -370,14 +364,14 @@ class DeviceTreeDataProvider {
                 }
 
                 return new Promise((resolve) => {
-                    const workspace = vscode.workspace.workspaceFolders;
-                    const workspacePath = workspace && workspace.length > 0 ? workspace[0].uri.fsPath : '';
-                    const configPath = path.join(workspacePath, 'dove.json');
-                    const child = spawn(firmwareCliPath, ['port', 'list', '--usb', '--json'], { 
-                        env: {
-                            ...process.env,
-                            FIRMWARE_CLI_CONFIG: configPath
-                        }
+                    // Use configManager's path (matches dove's findConfigPath priority)
+                    const configPath = configManager.getConfigPath();
+                    const env = { ...process.env };
+                    if (configPath) {
+                        env.FIRMWARE_CLI_CONFIG = configPath;
+                    }
+                    const child = spawn(firmwareCliPath, ['port', 'list', '--usb', '--json'], {
+                        env: env
                     });
                     let output = '';
                     let errorOutput = '';
@@ -1110,115 +1104,59 @@ function activate(context)
         }
     });
 
-    // Register build command - with confirmation dialog
+    // Register build command - show quick pick menu to select and execute
     let build_disposable = vscode.commands.registerCommand('firmwareDownloader.build', async function () {
 
         const buildCommands = configManager.getBuildCommands();
-        const activeCmd = configManager.getActiveBuildCommandItem();
-        let build_args = '';
-        let selectedCmd = null;
 
-        // If there are configured build commands, use the active one or first one
+        // Build quick pick items - numbered list
+        let quickPickItems = [];
+
         if (buildCommands.length > 0) {
-            selectedCmd = activeCmd;
-
-            if (!selectedCmd) {
-                selectedCmd = buildCommands[0];
-                // Set first command as active if no active command
-                if (!buildCommands.some(cmd => cmd.isActive)) {
-                    configManager.setActiveBuildCommand(selectedCmd.name);
-                    writeFirmwareCliConfig(configManager.getConfig());
-                }
-            }
-
-            build_args = selectedCmd.command;
-
-        } else {
-            // No configured commands, use auto-detection
-            // Default to build OPT.bat
-            if (workspace_folders && workspace_folders.length > 0) { 
-                const re ='build*OPTfile.bat'
-                const re_sh ='build*OPTfile.sh'
-                const ws_folder = workspace_folders[0]; 
-                output_chan.appendLine(localize('currentWorkspace', ws_folder.uri));
-                let file = await vscode.workspace.findFiles(re, null, 1);
-                let detectedCommand = '';
-                let detectedName = '';
-                
-                if (file && file.length > 0) {  
-                    const file_path = file[0].fsPath;
-                    build_args = path.basename(file_path);
-                    detectedCommand = build_args;
-                    detectedName = path.basename(file_path, '.bat');
-                    output_chan.appendLine(localize('rootBuildFile', build_args));
-                }
-                // Default to build.sh
-                if (!build_args) {
-                    file = await vscode.workspace.findFiles(re_sh, null, 1);
-                    if (file && file.length > 0) {
-                        const file_path = file[0].fsPath;
-                        build_args = path.basename(file_path);
-                        detectedCommand = build_args;
-                        detectedName = path.basename(file_path, '.sh');
-                        output_chan.appendLine(localize('rootBuildFile', build_args) + ' (shell script)');
-                    }
-                }
-                
-                // Auto-save detected command as default
-                if (detectedCommand && detectedName) {
-                    const currentBuildCommands = configManager.getBuildCommands();
-                    // Check if already exists
-                    const exists = currentBuildCommands.some(cmd => cmd.name === detectedName);
-                    if (!exists) {
-                        currentBuildCommands.push({ name: detectedName, command: detectedCommand, isActive: true });
-                        // Clear isActive on other commands
-                        currentBuildCommands.forEach(cmd => {
-                            if (cmd.name !== detectedName) {
-                                cmd.isActive = false;
-                            }
-                        });
-                        configManager.setBuildCommands(currentBuildCommands);
-                        writeFirmwareCliConfig(configManager.getConfig());
-                        vscode.commands.executeCommand('firmwareDownloader.refresh');
-                        output_chan.appendLine(localize('autoDetectedSaved', detectedName));
-                    }
-                }
-            }
+            // Numbered list: 1. xxx, 2. xxx, 3. xxx...
+            quickPickItems = buildCommands.map((cmd, index) => ({
+                label: `${index + 1}. ${cmd.name}`,
+                description: cmd.description ? `${cmd.description}` : cmd.command,
+                detail: cmd.isActive ? '✓ 当前选中' : '',
+                command: cmd,
+                index: index
+            }));
         }
 
-        if (!build_args) { 
-            const choice = await vscode.window.showInformationMessage(
-                localize('noBuildCommand'),
-                localize('addCommand')
-            );
-            if (choice === localize('addCommand')) {
-                vscode.commands.executeCommand('firmwareDownloader.configBuildCommand');
-            }
+        // Add "add build command" option at the end
+        quickPickItems.push({
+            label: '$(add) 添加编译命令',
+            description: '配置新的编译脚本',
+            command: '-addCommand',
+            index: -1
+        });
+
+        const selected = await vscode.window.showQuickPick(quickPickItems, {
+            placeHolder: buildCommands.length > 0 ? '选择编译命令执行 (1-' + buildCommands.length + ')' : '添加编译命令',
+            ignoreFocusOut: true
+        });
+
+        if (!selected) {
+            return; // User cancelled
+        }
+
+        // Handle "add command" option
+        if (selected.command === '-addCommand') {
+            vscode.commands.executeCommand('firmwareDownloader.addBuildCommand');
             return;
         }
 
-        // Show confirmation dialog with current command
-        const confirmMessage = localize('confirmBuildCommand', build_args);
-        const choice = await vscode.window.showInformationMessage(
-            confirmMessage,
-            { modal: false },
-            localize('yes'),
-            localize('switchCommand'),
-            localize('no'),
-        );
+        // User selected a build command - execute directly
+        const selectedCmd = selected.command;
 
-        if (choice === localize('switchCommand')) {
-            // User chose to switch command
-            vscode.commands.executeCommand('firmwareDownloader.configBuildCommand');
-            return;
+        // Update active command (optional, keeps selection for next time)
+        if (!selectedCmd.isActive) {
+            configManager.setActiveBuildCommand(selectedCmd.name);
+            writeFirmwareCliConfig(configManager.getConfig());
+            vscode.commands.executeCommand('firmwareDownloader.refresh');
         }
 
-        if (choice !== localize('yes')) {
-            // User chose "no" or cancelled
-            return;
-        }
-
-        // User confirmed, proceed with build using dove.exe
+        // Execute build using dove.exe
         const firmware_cli_path = getFirmwareCliPath(context);
 
         if (!firmware_cli_path) {
@@ -1226,22 +1164,17 @@ function activate(context)
             return;
         }
 
-        // Get active command name (optional) - use already declared activeCmd
-        const activeCmdName = activeCmd?.name || null;
-
         // Build dove.exe arguments
         let args = ['build'];
-        if (activeCmdName) {
-            args.push('-n', activeCmdName);
-        }
+        args.push('-n', selectedCmd.name);
 
         const task_cmd = firmware_cli_path;
 
         task_definition = {
             type: "shell",
-            label: localize('command.build'),
-            command: task_cmd, 
-            args: args, 
+            label: localize('command.build') + ': ' + selectedCmd.name,
+            command: task_cmd,
+            args: args,
             options: {
                 cwd: "${workspaceFolder}"
             },
@@ -1281,7 +1214,7 @@ function activate(context)
             firmwareTreeDataProvider.refresh();
         } catch (error) {
             vscode.window.showErrorMessage(localize('buildFailed', error.message));
-        } 
+        }
 
     });
 
@@ -1385,15 +1318,15 @@ function activate(context)
 
                 output_chan.appendLine(`show: ${FIRMWARE_CLI} ${command} ${args.join(' ')}`);
 
-                const workspace = vscode.workspace.workspaceFolders;
-                const workspacePath = workspace && workspace.length > 0 ? workspace[0].uri.fsPath : '';
-                const configPath = path.join(workspacePath, 'dove.json');
-                const child = spawn(command, args, { 
+                // Use configManager's path (matches dove's findConfigPath priority)
+                const configPath = configManager.getConfigPath();
+                const env = { ...process.env };
+                if (configPath) {
+                    env.FIRMWARE_CLI_CONFIG = configPath;
+                }
+                const child = spawn(command, args, {
                     shell: true,
-                    env: {
-                        ...process.env,
-                        FIRMWARE_CLI_CONFIG: configPath
-                    }
+                    env: env
                 });
                 const tracker = new progress_tracker(status_bar_dl);
                 tracker.reset();

@@ -232,7 +232,7 @@
   "logviewer.encodingLatin1": "Latin-1",
   "logviewer.emptyDesc": "打开日志文件以查看和分析其内容",
   "logviewer.selectFile": "选择日志文件",
-  "logviewer.supportedFormats": "过滤分层、高亮关键词、笔记本，载入识别格式: .log, .txt, .out, .err",
+  "logviewer.supportedFormats": "过滤分层、高亮关键词、笔记本，载入识别格式: .log, .txt, .out, .err, .jsonl",
   "logviewer.recentFiles": "最近文件",
   "logviewer.clearRecentFiles": "清除最近文件",
   "logviewer.clearAllMarkbooks": "清除所有书签",

@@ -232,7 +232,7 @@
   "logviewer.encodingLatin1": "Latin-1",
   "logviewer.emptyDesc": "Open a log file to view and analyze its content",
   "logviewer.selectFile": "Select Log File",
-  "logviewer.supportedFormats": "Supported formats: .log, .txt, .out, .err",
+  "logviewer.supportedFormats": "Supported formats: .log, .txt, .out, .err, .jsonl",
   "logviewer.recentFiles": "Recent Files",
   "logviewer.clearRecentFiles": "Clear Recent Files",
   "logviewer.clearAllMarkbooks": "Clear All Bookmarks",

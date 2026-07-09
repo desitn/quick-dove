@@ -3,6 +3,10 @@
 .agents/
 quectel_build/
 *.vsix
+dove/.claude
+dove/.dove
+dove/.github
+dove/env/env_backup
 dove/dist
 dove/node_modules
 dove/src
@@ -10,3 +14,7 @@ dove/test
 dove/package.json
 dove/package-lock.json
 dove/tsconfig.json
+dove/quectel_build
+dove/*.log
+dove/ecflashtool
+dove/pacdownload

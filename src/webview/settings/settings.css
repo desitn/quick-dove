@@ -420,7 +420,7 @@
     font-style: italic;
 }
 
-/* Tag Badges */
+/* Tag Badges (synced with dove submodule PortTag type) */
 .tag-badge {
     display: inline-block;
     padding: 4px 10px;
@@ -432,49 +432,37 @@
     transition: all 0.2s ease;
 }
 
-.tag-badge.tag-at {
+.tag-badge.tag-uart-at {
     background: rgba(52, 152, 219, 0.2);
     color: #3498db;
     border: 1px solid rgba(52, 152, 219, 0.3);
 }
 
-.tag-badge.tag-download {
-    background: rgba(46, 204, 113, 0.2);
-    color: #2ecc71;
-    border: 1px solid rgba(46, 204, 113, 0.3);
-}
-
-.tag-badge.tag-log {
-    background: rgba(155, 89, 182, 0.2);
-    color: #9b59b6;
-    border: 1px solid rgba(155, 89, 182, 0.3);
-}
-
-.tag-badge.tag-debug {
+.tag-badge.tag-uart-dbg {
     background: rgba(241, 196, 15, 0.2);
     color: #f1c40f;
     border: 1px solid rgba(241, 196, 15, 0.3);
 }
 
-.tag-badge.tag-uart {
-    background: rgba(26, 188, 156, 0.2);
-    color: #1abc9c;
-    border: 1px solid rgba(26, 188, 156, 0.3);
+.tag-badge.tag-usb-at {
+    background: rgba(46, 204, 113, 0.2);
+    color: #2ecc71;
+    border: 1px solid rgba(46, 204, 113, 0.3);
 }
 
-.tag-badge.tag-main {
-    background: rgba(230, 126, 34, 0.2);
-    color: #e67e22;
-    border: 1px solid rgba(230, 126, 34, 0.3);
+.tag-badge.tag-usb-diag {
+    background: rgba(155, 89, 182, 0.2);
+    color: #9b59b6;
+    border: 1px solid rgba(155, 89, 182, 0.3);
 }
 
-.tag-badge.tag-aux {
+.tag-badge.tag-invalid {
     background: rgba(149, 165, 166, 0.2);
     color: #95a5a6;
     border: 1px solid rgba(149, 165, 166, 0.3);
 }
 
-/* Tag Selector */
+/* Tag Selector Dropdown */
 .tag-selector {
     display: flex;
     flex-wrap: wrap;
@@ -482,20 +470,20 @@
     padding: 8px 0;
 }
 
-.tag-checkbox {
-    display: flex;
-    align-items: center;
+.tag-dropdown {
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background: var(--input-bg);
+    color: var(--text-primary);
+    font-size: 14px;
     cursor: pointer;
-    user-select: none;
+    min-width: 150px;
 }
 
-.tag-checkbox input[type="checkbox"] {
-    display: none;
-}
-
-.tag-checkbox input[type="checkbox"]:checked + .tag-badge {
-    transform: scale(1.05);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+.tag-dropdown:focus {
+    outline: none;
+    border-color: var(--accent-color);
 }
 
 /* Add Port Form */
@@ -558,6 +546,24 @@
 .port-info {
     font-size: 0.85em;
     color: var(--text-muted);
+}
+
+.port-tag {
+    margin-left: auto;
+}
+
+.tag-empty {
+    color: var(--text-muted);
+    font-size: 0.85em;
+}
+
+/* Port item configured state */
+.port-item.configured {
+    background: var(--info-bg);
+}
+
+.port-item.configured .port-path {
+    color: var(--accent-color);
 }
 
 /* Port action buttons container */
