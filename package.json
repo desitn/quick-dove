@@ -25,7 +25,10 @@
     "build:dove": "cd dove && npm run build:exe"
   },
   "dependencies": {
-    "iconv-lite": "^0.6.3"
+    "@serialport/parser-readline": "^13.0.0",
+    "iconv-lite": "^0.6.3",
+    "ini": "^6.0.0",
+    "serialport": "^13.0.0"
   },
   "activationEvents": [
     "onStartupFinished"
@@ -149,6 +152,11 @@
         "command": "firmwareDownloader.openCppDefineSettings",
         "title": "%command.openCppDefineSettings%",
         "icon": "$(settings-gear)"
+      },
+      {
+        "command": "firmwareDownloader.openSerial",
+        "title": "%command.openSerial%",
+        "icon": "$(plug)"
       }
     ],
     "menus": {
@@ -188,6 +196,11 @@
         {
           "command": "firmwareDownloader.download",
           "when": "view == firmware-explorer && viewItem == firmware-file"
+        },
+        {
+          "command": "firmwareDownloader.openSerial",
+          "when": "view == firmware-devices && viewItem == serial-device",
+          "group": "inline"
         }
       ],
       "editor/context": [
@@ -224,13 +237,26 @@
         "quickFirmwarePlus.language": {
           "type": "string",
           "default": "auto",
-          "enum": ["auto", "en", "zh-cn"],
+          "enum": [
+            "auto",
+            "en",
+            "zh-cn"
+          ],
           "enumDescriptions": [
             "%config.language.auto%",
             "%config.language.en%",
             "%config.language.zh-cn%"
           ],
           "description": "%config.language%"
+        },
+        "quickSerial.atCommandPaths": {
+          "type": "array",
+          "default": [],
+          "description": "%config.atCommandPaths%",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 20
         }
       }
     }

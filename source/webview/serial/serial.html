@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="author" content="destin.zhang@quectel.com">
+    <title>[Quick Serial]</title>
+    <link rel="stylesheet" href="{{serial.css}}">
+    <link rel="stylesheet" href="{{fontawesome.css}}">
+</head>
+<body>
+    <div class="container">
+        <!-- 顶部控制面板 -->
+        <div class="control-panel">
+            <div class="connection-controls">
+
+                <label for="portSelector">串口:</label>
+                <select id="portSelector"></select>
+                
+                <label for="baudRateSelector">波特率:</label>
+                <select id="baudRateSelector">
+                    <option value="9600">9600</option>
+                    <option value="19200">19200</option>
+                    <option value="38400">38400</option>
+                    <option value="57600">57600</option>
+                    <option value="115200" selected>115200</option>
+                    <option value="230400">230400</option>
+                    <option value="460800">460800</option>
+                    <option value="921600">921600</option>
+                </select>
+
+                <button id="connectBtn" class="btn-connect">连接</button>
+
+            </div>
+            
+            <div class="settings-controls">
+                <button id="panelModeToggleBtn" class="btn-small panel-mode-toggle-btn" title="切换面板模式">
+                    <i class="fa-regular fa-eye"></i>
+                </button>
+                <button id="automationModeToggleBtn" class="btn-small automation-mode-toggle" title="自动化模式">
+                    <i class="fa-regular fa-clock"></i>
+                </button>
+                <button id="themeToggleBtn" class="btn-small theme-toggle-btn" title="切换主题">
+                    <i class="fa-solid fa-lightbulb"></i>
+                    <i class="fa-regular fa-lightbulb"></i>
+                </button>
+            </div>
+        </div>
+        
+        <!-- 主内容区域 -->
+        <div class="main-content">
+            <!-- 左侧日志区域 -->
+            <div class="log-panel">
+                <!-- 串口日志显示区域 -->
+                <div class="log-section">
+                    <div class="log-header">
+                        <h3>日志</h3>
+                    </div>
+                    <div id="serialLog" class="serial-log-container" tabindex="0">
+                        <div class="log-entry info">
+                            <span class="timestamp">[00:00:00]</span> 
+                            <span class="log-level info">串口调试工具已就绪</span>
+                        </div>
+                    </div>
+                    <div id="searchFilterContainer" class="search-filter-container" style="display: none;">
+                        <div class="search-input-group">
+                            <input type="text" id="logSearchInput" placeholder="输入关键词过滤接收到的数据..." />
+                            <button id="logSearchBtn" class="btn-small" title="搜索">
+                                <i class="fa-solid fa-magnifying-glass"></i>
+                            </button>
+                            <button id="logClearSearchBtn" class="btn-small" title="清除">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="log-actions" style="margin-top: 10px;">
+                    <button id="clearLogBtn" class="btn-icon" title="清空">
+                        <i class="fa-regular fa-trash-can"></i>
+                    </button>
+                    <button id="saveLogBtn" class="btn-icon" title="保存">
+                        <i class="fa-regular fa-file-lines"></i>
+                    </button>
+
+                    <div class="actions-checkbox-controls">
+                        <label for="dtrCheckbox">
+                            <input type="checkbox" id="dtrCheckbox"> DTR
+                        </label>
+                        <label for="rtsCheckbox">
+                            <input type="checkbox" id="rtsCheckbox"> RTS
+                        </label>
+                        <label for="hexModeCheckbox">
+                            <input type="checkbox" id="hexModeCheckbox"> HEX
+                        </label>
+                        <label for="crlfModeCheckbox">
+                            <input type="checkbox" id="crlfModeCheckbox" checked> CRLF
+                        </label>
+                    </div>
+
+                    <div class="actions-checkbox-controls search-options">
+                        <label for="regexModeCheckbox">
+                            <input type="checkbox" id="regexModeCheckbox">RE
+                        </label>
+                    </div>
+
+                </div>
+                
+                <div class="send-section">
+                    <div class="send-input-group">
+                        <input type="text" id="sendText" placeholder="输入要发送的数据...">
+                        <button id="sendBtn" class="btn-send">发送</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 自动化执行区域 -->
+            <div class="automation-panel">
+                <div class="automation-header">
+                    <div class="title-and-button-container">
+                        <h3>自动化</h3>
+                        <div class="automation-buttons">
+                            <button id="captureAutomationBtn" class="btn-at-header" title="展开">
+                                <i class="fa-solid fa-bars"></i>
+                            </button>
+                            <button id="importCommandsBtn" class="btn-at-header" title="导入">
+                                <i class="fa-solid fa-arrows-down-to-line"></i>
+                            </button>
+                            <button id="clearAutomationBtn" class="btn-at-header" title="清空">
+                                <i class="fa-regular fa-trash-can"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="automationTrack" class="automation-track">
+                    <div class="track-placeholder">命令自动化序列</div>
+                </div>
+                <div id="automationStatus" class="automation-status" style="display:none;">
+                    <div class="status-info">
+                        <span class="progress-text">总进度：0%</span>
+                        <span class="elapsed-time">总耗时: 0s</span>
+                    </div>
+                </div>
+                <div class="automation-controls">
+                    <div class="settings-control-row">
+                        <div class="settings-row">
+                            <label>
+                                循环:
+                                <input type="number" id="loopCountInput" value="1" min="-1" max="9999">
+                            </label>
+                            <label>
+                                间隔:
+                                <input type="number" id="commandIntervalInput" value="1000" min="0" max="60000" step="100">
+                            </label>
+                        </div>
+                        <div class="control-row">
+                            <button id="toggleAutomationBtn" class="btn-icon btn-start-auto" title="开始/停止">
+                                <i class="fa-solid fa-play"></i>
+                                <i class="fa-solid fa-stop" style="display: none;"></i>
+                            </button>
+                            <button id="pauseResumeBtn" class="btn-icon btn-pause-auto" title="暂停/继续">
+                                <i class="fa-solid fa-pause"></i>
+                                <i class="fa-solid fa-play resume" style="display: none;"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- AT命令区域 -->
+            <div class="at-panel">
+                <div class="at-commands-container">
+                    <div class="at-header">
+                        <div class="title-and-button-container">
+                            <h3>命令集</h3>
+                            <button id="addAtCommandTab" class="btn-at-header" title="添加命令集">
+                                <i class="fa-regular fa-square-plus"></i>
+                            </button>
+                        </div>
+                        <div id="atConfigTabs" class="at-config-tabs">
+                        </div>
+                    </div>
+                    <div id="atCommandsList"></div>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+    
+    <script src="{{serial.js}}"></script>
+</body>
+</html>

@@ -22,6 +22,7 @@
   "config.language.auto": "Auto (follow VS Code)",
   "config.language.en": "English",
   "config.language.zh-cn": "Chinese (Simplified)",
+  "config.atCommandPaths": "AT command INI file paths",
   "msg.noBuildCommand": "No build command configured.",
   "msg.addCommand": "Add Command",
   "msg.buildComplete": "Build task completed",
@@ -244,6 +245,7 @@
   "view.logViewer": "Log Viewer",
   "command.toggleCppDefine": "Toggle C/C++ Define",
   "command.openCppDefineSettings": "Open C/C++ Define Settings",
+  "command.openSerial": "Open Serial Terminal",
   "settings.cppDefine": "C/C++ Define Helper",
   "settings.cppDefineLabel": "Preprocessor Defines",
   "settings.cppDefineDesc": "Manage C/C++ IntelliSense preprocessor defines",
@@ -259,5 +261,9 @@
   "msg.cppDefineRemoved": "Define removed: {0}",
   "msg.cppDefineInvalid": "Invalid define name (must be uppercase letters, numbers, underscores)",
   "msg.cppDefineNoSelection": "No text selected",
-  "msg.cppDefineNoWorkspace": "No workspace folder found"
+  "msg.cppDefineNoWorkspace": "No workspace folder found",
+  "command.openSerial": "Open Serial Terminal",
+  "command.openSerial": "打开串口调试器",
+  "config.atCommandPaths": "AT command INI file paths",
+  "config.atCommandPaths": "AT命令INI配置文件路径列表"
 }

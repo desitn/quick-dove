@@ -377,7 +377,7 @@ Add to `package.json`:
 Add to `extension.js`:
 
 ```javascript
-const { WebviewManager } = require('./src/webview/webviewManager');
+const { WebviewManager } = require('./source/webview/webviewManager');
 
 // Register command
 context.subscriptions.push(

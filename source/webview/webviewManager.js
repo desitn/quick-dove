@@ -64,7 +64,7 @@ class WebviewManager {
                 enableScripts: true,
                 retainContextWhenHidden: true,
                 localResourceRoots: [
-                    vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview'))
+                    vscode.Uri.file(path.join(this.context.extensionPath, 'source', 'webview'))
                 ]
             }
         );
@@ -111,7 +111,7 @@ class WebviewManager {
      * Load HTML template from file and replace placeholders
      */
     loadTemplate(templateName, replacements) {
-        const templatePath = path.join(this.context.extensionPath, 'src', 'webview', `${templateName}.html`);
+        const templatePath = path.join(this.context.extensionPath, 'source', 'webview', `${templateName}.html`);
         let html = fs.readFileSync(templatePath, 'utf8');
         
         // Replace all placeholders
@@ -129,13 +129,13 @@ class WebviewManager {
     getWelcomeHtml() {
         const locale = this.getLocale();
         const styleUri = this.panel.webview.asWebviewUri(
-            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'style.css'))
+            vscode.Uri.file(path.join(this.context.extensionPath, 'source', 'webview', 'style.css'))
         );
         const welcomeCssUri = this.panel.webview.asWebviewUri(
-            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'welcome', 'welcome.css'))
+            vscode.Uri.file(path.join(this.context.extensionPath, 'source', 'webview', 'welcome', 'welcome.css'))
         );
         const fontAwesomeUri = this.panel.webview.asWebviewUri(
-            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'assets', 'fontawesome', 'all.min.css'))
+            vscode.Uri.file(path.join(this.context.extensionPath, 'source', 'webview', 'assets', 'fontawesome', 'all.min.css'))
         );
 
         // Get effective theme
@@ -228,7 +228,7 @@ class WebviewManager {
                 enableScripts: true,
                 retainContextWhenHidden: true,
                 localResourceRoots: [
-                    vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview'))
+                    vscode.Uri.file(path.join(this.context.extensionPath, 'source', 'webview'))
                 ]
             }
         );
@@ -660,7 +660,7 @@ class WebviewManager {
                 enableScripts: true,
                 retainContextWhenHidden: true,
                 localResourceRoots: [
-                    vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview'))
+                    vscode.Uri.file(path.join(this.context.extensionPath, 'source', 'webview'))
                 ]
             }
         );
@@ -687,16 +687,16 @@ class WebviewManager {
     getSearchHtml() {
         const locale = this.getLocale();
         const styleUri = this.searchPanel.webview.asWebviewUri(
-            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'style.css'))
+            vscode.Uri.file(path.join(this.context.extensionPath, 'source', 'webview', 'style.css'))
         );
         const searchPanelCssUri = this.searchPanel.webview.asWebviewUri(
-            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'searchPanel', 'searchPanel.css'))
+            vscode.Uri.file(path.join(this.context.extensionPath, 'source', 'webview', 'searchPanel', 'searchPanel.css'))
         );
         const fontAwesomeUri = this.searchPanel.webview.asWebviewUri(
-            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'assets', 'fontawesome', 'all.min.css'))
+            vscode.Uri.file(path.join(this.context.extensionPath, 'source', 'webview', 'assets', 'fontawesome', 'all.min.css'))
         );
         const searchJsUri = this.searchPanel.webview.asWebviewUri(
-            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'searchPanel', 'searchPanel.js'))
+            vscode.Uri.file(path.join(this.context.extensionPath, 'source', 'webview', 'searchPanel', 'searchPanel.js'))
         );
 
         // Get effective theme
@@ -1049,16 +1049,16 @@ class WebviewManager {
     getSettingsHtml() {
         const locale = this.getLocale();
         const styleUri = this.settingsPanel.webview.asWebviewUri(
-            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'style.css'))
+            vscode.Uri.file(path.join(this.context.extensionPath, 'source', 'webview', 'style.css'))
         );
         const settingsCssUri = this.settingsPanel.webview.asWebviewUri(
-            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'settings', 'settings.css'))
+            vscode.Uri.file(path.join(this.context.extensionPath, 'source', 'webview', 'settings', 'settings.css'))
         );
         const fontAwesomeUri = this.settingsPanel.webview.asWebviewUri(
-            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'assets', 'fontawesome', 'all.min.css'))
+            vscode.Uri.file(path.join(this.context.extensionPath, 'source', 'webview', 'assets', 'fontawesome', 'all.min.css'))
         );
         const settingsJsUri = this.settingsPanel.webview.asWebviewUri(
-            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'settings', 'settings.js'))
+            vscode.Uri.file(path.join(this.context.extensionPath, 'source', 'webview', 'settings', 'settings.js'))
         );
 
         // Get current config and effective theme
