@@ -34,6 +34,7 @@ const {
 
 const ProgressTracker = require('./source/providers/progressTracker');
 const { registerOpenSerialCommand } = require('./source/commands/serialCommands');
+const { activateHermesRemote } = require('./source/hermes/hermesCommands');
 const {
     isValidCppDefineName,
     getCppDefines,
@@ -41,14 +42,23 @@ const {
     toggleCppDefine
 } = require('./source/commands/cppDefine');
 
+function isFirmwareFile(filename) {
+    const lower = filename.toLowerCase();
+    return lower.endsWith('_fbf.bin') || lower.endsWith('.pac') || lower.endsWith('.zip') || lower.endsWith('download_usb.ini');
+}
+
 function activate(context) {
     setupTerminalEnvironment(context);
 
     configManager.initialize(context);
+    // Listen for config changes and sync with writeFirmwareCliConfig
+    // Only write when config actually changes, not on every activation
     configManager.onDidChangeConfig(() => {
-        writeFirmwareCliConfig(configManager.getConfig());
+        const config = configManager.getConfig();
+        if (config.firmwarePath || (config.buildCommands && config.buildCommands.length > 0)) {
+            writeFirmwareCliConfig(config);
+        }
     });
-    writeFirmwareCliConfig(configManager.getConfig());
 
     let last_dl_info = {
         dlPromise: null, filePath: '', fileName: '', toolType: '',
@@ -228,6 +238,9 @@ function activate(context) {
     // Serial
     const openSerialCommand = registerOpenSerialCommand(context);
 
+    // Hermes Remote (AI context sending to Hermes terminals)
+    activateHermesRemote(context);
+
     // Build
     let build_disposable = vscode.commands.registerCommand('firmwareDownloader.build', async function () {
         const bcmds = configManager.getBuildCommands();
@@ -268,28 +281,74 @@ function activate(context) {
     // Download
     let download_disposable = vscode.commands.registerCommand('firmwareDownloader.download', async function (uri) {
         if (last_dl_info.dlPromise) { output_chan.appendLine(localize('alreadyDownloading')); return; }
-        last_dl_info.dlPromise = (async () => {
+        const dlPromise = (async () => {
             try {
-                let su = uri;
-                if (!su) {
-                    const cu = configManager.getFirmwarePath();
-                    if (cu && fs.existsSync(cu)) su = vscode.Uri.file(cu);
-                }
-                if (!su && workspace_folders && workspace_folders[0]) {
-                    const rp = path.join(workspace_folders[0].uri.fsPath, 'quectel_build', 'release');
-                    if (fs.existsSync(rp)) {
-                        const files = fs.readdirSync(rp);
-                        if (files.length > 0) {
-                            const sel = await vscode.window.showInformationMessage(
-                                localize('confirmFirmwareDir', path.join(rp, files[0])), localize('yes'), localize('no'));
-                            if (sel === localize('yes')) su = vscode.Uri.file(path.join(rp, files[0]));
-                            else return;
+                // === Step 1: Determine firmware file path ===
+                let firmwareFile = null;
+
+                if (uri && uri.fsPath) {
+                    // Called from tree view with specific firmware file
+                    firmwareFile = uri.fsPath;
+                } else {
+                    // Called from status bar — get configured firmware path
+                    const configuredPath = configManager.getFirmwarePath();
+                    if (configuredPath && fs.existsSync(configuredPath)) {
+                        if (fs.statSync(configuredPath).isFile()) {
+                            if (isFirmwareFile(configuredPath)) {
+                                firmwareFile = configuredPath;
+                            }
+                        } else {
+                            // Directory: scan quectel_build/release/ for actual firmware
+                            const releaseDir = path.join(configuredPath, 'quectel_build', 'release');
+                            if (fs.existsSync(releaseDir)) {
+                                const versionDirs = fs.readdirSync(releaseDir)
+                                    .map(d => path.join(releaseDir, d))
+                                    .filter(d => fs.statSync(d).isDirectory());
+                                for (const verDir of versionDirs) {
+                                    const files = fs.readdirSync(verDir);
+                                    const fwFile = files.find(f => isFirmwareFile(f));
+                                    if (fwFile) {
+                                        firmwareFile = path.join(verDir, fwFile);
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Fallback: check workspace quectel_build/release
+                    if (!firmwareFile && workspace_folders && workspace_folders[0]) {
+                        const wsRelease = path.join(workspace_folders[0].uri.fsPath, 'quectel_build', 'release');
+                        if (fs.existsSync(wsRelease)) {
+                            const dirs = fs.readdirSync(wsRelease)
+                                .map(d => path.join(wsRelease, d))
+                                .filter(d => fs.statSync(d).isDirectory());
+                            if (dirs.length === 1) {
+                                // Single version — use directly
+                                const verDir = dirs[0];
+                                const files = fs.readdirSync(verDir);
+                                const fwFile = files.find(f => isFirmwareFile(f));
+                                if (fwFile) firmwareFile = path.join(verDir, fwFile);
+                            } else if (dirs.length > 1) {
+                                // Multiple versions — prompt user
+                                const sel = await vscode.window.showInformationMessage(
+                                    localize('confirmFirmwareDir', dirs[0]), localize('yes'), localize('no'));
+                                if (sel === localize('yes')) {
+                                    const files = fs.readdirSync(dirs[0]);
+                                    const fwFile = files.find(f => isFirmwareFile(f));
+                                    if (fwFile) firmwareFile = path.join(dirs[0], fwFile);
+                                }
+                            }
                         }
                     }
                 }
-                if (!su) { vscode.window.showErrorMessage(localize('noFirmware')); return; }
 
-                const fp = su.fsPath;
+                if (!firmwareFile) {
+                    vscode.window.showErrorMessage(localize('noFirmware'));
+                    return;
+                }
+
+                // === Step 2: Execute flash ===
                 const cli = getFirmwareCliPath(context);
                 if (!cli) { vscode.window.showErrorMessage(localize('toolNotFound', 'dove.exe')); return; }
 
@@ -300,8 +359,9 @@ function activate(context) {
                         .then(() => output_chan.appendLine(localize('previousProcessTerminateSuccess')))
                         .catch(e => output_chan.appendLine(localize('previousProcessTerminateFailed', e)));
                 }
-                last_dl_info.filePath = fp;
-                last_dl_info.fileName = fp;
+
+                last_dl_info.filePath = firmwareFile;
+                last_dl_info.fileName = firmwareFile;
                 last_dl_info.toolType = 'cli';
                 last_dl_info.dlState = 'waiting';
                 last_dl_info.dlChild = null;
@@ -310,7 +370,7 @@ function activate(context) {
                 const cp = configManager.getConfigPath();
                 if (cp) env.FIRMWARE_CLI_CONFIG = cp;
 
-                const child = spawn(cli, ['flash', fp, '--progress', 'json'], { shell: true, env });
+                const child = spawn(cli, ['flash', firmwareFile, '--progress', 'json'], { shell: true, env });
                 const tracker = new ProgressTracker(status_bar_dl);
                 tracker.reset();
                 last_dl_info.dlState = 'running';
@@ -322,10 +382,11 @@ function activate(context) {
                     kt = setTimeout(() => {
                         output_chan.appendLine(localize('doChildDownloadProcessKill'));
                         kill_process_tree(child, 'SIGKILL')
-                            .then(() => { output_chan.appendLine(localize('childProcessTerminateSuccess')); last_dl_info.dlState = 'stop'; last_dl_info.dlChild = null; })
-                            .catch(e => { output_chan.appendLine(localize('childProcessTerminateFailed', e)); last_dl_info.dlState = 'stop'; last_dl_info.dlChild = null; });
+                            .then(() => { output_chan.appendLine(localize('childProcessTerminateSuccess')); cleanup(); })
+                            .catch(e => { output_chan.appendLine(localize('childProcessTerminateFailed', e)); cleanup(); });
                     }, 120000);
                 };
+                const cleanup = () => { last_dl_info.dlState = 'stop'; last_dl_info.dlChild = null; };
                 rkt();
 
                 child.stdout.on('data', (d) => {
@@ -354,13 +415,13 @@ function activate(context) {
                         else { vscode.window.showErrorMessage(localize('downloadFailed', code)); status_bar_dl.text = '$(error) ' + localize('downloadFailed2'); }
                         setTimeout(() => { status_bar_dl.text = '$(arrow-circle-down)'; vscode.commands.executeCommand('firmwareDownloader.devices_refresh'); }, 5000);
                         if (kt) { clearTimeout(kt); kt = null; }
-                        tracker.reset(); last_dl_info.dlState = 'stop'; last_dl_info.dlChild = null;
+                        tracker.reset(); cleanup();
                         resolve();
                     });
                     child.on('error', (error) => {
                         vscode.window.showErrorMessage(localize('downloadStartFailed', error.message));
                         status_bar_dl.text = '$(error) ' + localize('startFailed');
-                        last_dl_info.dlState = 'stop'; last_dl_info.dlChild = null;
+                        cleanup();
                         if (kt) { clearTimeout(kt); kt = null; }
                         reject(error);
                     });
@@ -371,6 +432,9 @@ function activate(context) {
                 last_dl_info.dlState = 'stop'; last_dl_info.dlChild = null;
             } finally { last_dl_info.dlPromise = null; }
         })();
+        last_dl_info.dlPromise = dlPromise;
+        dlPromise.catch(() => { last_dl_info.dlPromise = null; });
+
     });
 
     // Subscriptions
@@ -391,3 +455,4 @@ function activate(context) {
 function deactivate() { configManager.dispose(); }
 
 module.exports = { activate, deactivate };
+

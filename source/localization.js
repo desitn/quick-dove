@@ -334,7 +334,22 @@ const messages = {
     'cppDefineRemoved': 'Define removed: {0}',
     'cppDefineInvalid': 'Invalid define name (must be uppercase letters, numbers, underscores)',
     'cppDefineNoSelection': 'No text selected',
-    'cppDefineNoWorkspace': 'No workspace folder found'
+    'cppDefineNoWorkspace': 'No workspace folder found',
+    // Hermes Remote
+    'hermes.noFilesToAdd': 'No files to add.',
+    'hermes.noWorkspace': 'No workspace opened.',
+    'hermes.noSelection': 'No text selected.',
+    'hermes.noHermesTerminal': 'No Hermes terminal found, please open one first.',
+    'hermes.noTerminal': 'No terminal open.',
+    'hermes.setAsHermes': 'Set "{0}" as Hermes terminal.',
+    'hermes.selectTerminalToSet': 'Select terminal to set as Hermes',
+    'hermes.noHermesTerminalFound': 'No Hermes terminal found.',
+    'hermes.onlyOneHermesTerminal': 'Only one Hermes terminal: "{0}"',
+    'hermes.selectTargetTerminal': 'Select Hermes terminal to send to',
+    'hermes.currentTarget': '(current target)',
+    'hermes.current': '(current)',
+    'hermes.terminalActive': 'Hermes terminal active',
+    'hermes.selectionVisible': 'Selection visible to Hermes — click to send'
   },
   'zh-cn': {
     'noBuildCommand': '没有配置构建命令。',
@@ -668,7 +683,22 @@ const messages = {
     'cppDefineRemoved': '已删除宏定义: {0}',
     'cppDefineInvalid': '无效的宏定义名称（必须为大写字母、数字、下划线）',
     'cppDefineNoSelection': '未选中文本',
-    'cppDefineNoWorkspace': '未找到工作区文件夹'
+    'cppDefineNoWorkspace': '未找到工作区文件夹',
+    // Hermes Remote
+    'hermes.noFilesToAdd': '没有可添加的文件。',
+    'hermes.noWorkspace': '没有打开的工作区。',
+    'hermes.noSelection': '未选中任何文本。',
+    'hermes.noHermesTerminal': '未找到 Hermes 终端，请先打开一个。',
+    'hermes.noTerminal': '没有打开的终端。',
+    'hermes.setAsHermes': '已将 "{0}" 设为 Hermes 终端。',
+    'hermes.selectTerminalToSet': '选择要设为 Hermes 的终端',
+    'hermes.noHermesTerminalFound': '未找到 Hermes 终端。',
+    'hermes.onlyOneHermesTerminal': '只有一个 Hermes 终端: "{0}"',
+    'hermes.selectTargetTerminal': '选择要发送到的 Hermes 终端',
+    'hermes.currentTarget': '(当前目标)',
+    'hermes.current': '(当前)',
+    'hermes.terminalActive': 'Hermes 终端已激活',
+    'hermes.selectionVisible': '选区对 Hermes 可见 — 点击发送'
   }
 };
 

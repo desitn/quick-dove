@@ -265,5 +265,18 @@
   "command.openSerial": "Open Serial Terminal",
   "command.openSerial": "打开串口调试器",
   "config.atCommandPaths": "AT command INI file paths",
-  "config.atCommandPaths": "AT命令INI配置文件路径列表"
+  "config.atCommandPaths": "AT命令INI配置文件路径列表",
+  "command.addFileToContext": "Add to Hermes",
+  "command.sendSelectionToContext": "Send Selection to Hermes",
+  "command.setAsHermesTerminal": "Set as Hermes Terminal",
+  "command.selectTerminal": "Select Hermes Terminal",
+  "command.addWorkspaceToContext": "Add Workspace to Hermes",
+  "config.hermes.terminalNamePatterns": "Additional terminal name patterns; matching terminals are recognized as Hermes terminals (supports regex)",
+  "config.hermes.remoteMappings": "Map local folder paths to remote paths so Hermes running in an SSH terminal receives valid @references",
+  "config.hermes.remoteMappingLocal": "Local folder path, e.g. f:\\proj",
+  "config.hermes.remoteMappingRemote": "Remote path the local folder maps to, e.g. /home/user/proj",
+  "config.hermes.useAbsolutePaths": "Send local absolute paths (e.g. @F:\\proj\\src\\main.py) instead of relative paths. Enable when Hermes runs on a remote host that can access the local filesystem via absolute paths",
+  "config.hermes.workspaceRoot": "Workspace root path from Hermes' perspective. When empty the current workspace folder is used. Relative references are prefixed with it, e.g. @<workspaceRoot>/src/main.py:10-20",
+  "config.hermes.pathStyle": "Path separator style sent to Hermes: windows (backslash F:\\proj\\src) or posix (forward slash F:/proj/src)",
+  "config.hermes.pathPrefix": "Reference prefix (host identifier) sent to Hermes, e.g. windows. Format: <prefix> <workspaceRoot>  @<relativePath>. Empty to omit the prefix"
 }

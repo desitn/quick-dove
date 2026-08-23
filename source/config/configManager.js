@@ -140,6 +140,9 @@ class ConfigManager {
         try {
             if (fs.existsSync(this._configPath)) {
                 const content = fs.readFileSync(this._configPath, 'utf8');
+                if (!content.trim()) {
+                    throw new Error('Empty config file');
+                }
                 const parsed = JSON.parse(content);
                 // Ensure extension field exists
                 if (!parsed.extension) {
@@ -162,6 +165,11 @@ class ConfigManager {
 
         try {
             const content = JSON.stringify(config, null, 2);
+            // Skip write if content hasn't changed
+            if (fs.existsSync(this._configPath)) {
+                const existing = fs.readFileSync(this._configPath, 'utf8');
+                if (existing === content) return true;
+            }
             fs.writeFileSync(this._configPath, content, 'utf8');
             this._config = config;
             return true;

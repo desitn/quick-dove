@@ -261,5 +261,18 @@
   "msg.cppDefineRemoved": "已删除宏定义: {0}",
   "msg.cppDefineInvalid": "无效的宏定义名称（必须为大写字母、数字、下划线）",
   "msg.cppDefineNoSelection": "未选中文本",
-  "msg.cppDefineNoWorkspace": "未找到工作区文件夹"
+  "msg.cppDefineNoWorkspace": "未找到工作区文件夹",
+  "command.addFileToContext": "添加到 Hermes",
+  "command.sendSelectionToContext": "发送选区到 Hermes",
+  "command.setAsHermesTerminal": "设为 Hermes 终端",
+  "command.selectTerminal": "选择 Hermes 终端",
+  "command.addWorkspaceToContext": "添加工作区到 Hermes",
+  "config.hermes.terminalNamePatterns": "额外的终端名称匹配模式，匹配到的终端将被识别为 Hermes 终端（支持正则）",
+  "config.hermes.remoteMappings": "将本地文件夹路径映射为远端路径，使 SSH 终端中运行的 Hermes 能收到有效的 @引用",
+  "config.hermes.remoteMappingLocal": "本地文件夹路径，如 f:\\proj",
+  "config.hermes.remoteMappingRemote": "本地文件夹映射到的远端路径，如 /home/user/proj",
+  "config.hermes.useAbsolutePaths": "发送本地绝对路径（如 @F:\\proj\\src\\main.py）而非相对路径。当 Hermes 运行在能通过绝对路径访问本地文件系统的远端主机时开启",
+  "config.hermes.workspaceRoot": "Hermes 视角下的工作区根路径。留空时默认使用当前工作区文件夹。发送相对路径时会自动拼上该前缀，如 @<workspaceRoot>/src/main.py:10-20",
+  "config.hermes.pathStyle": "发送给 Hermes 的路径分隔符风格：windows（反斜杠 F:\\proj\\src）或 posix（正斜杠 F:/proj/src）",
+  "config.hermes.pathPrefix": "发送给 Hermes 的引用前缀（主机标识），如 windows。发送格式为 <前缀> <工作区根>  @<相对路径>，留空则不添加前缀"
 }

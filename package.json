@@ -2,7 +2,7 @@
   "name": "quick-dove",
   "displayName": "%extension.displayName%",
   "description": "%extension.description%",
-  "version": "0.2.6",
+  "version": "0.2.8",
   "publisher": "destin-zhang",
   "icon": "images/icon.png",
   "galleryBanner": {
@@ -157,6 +157,31 @@
         "command": "firmwareDownloader.openSerial",
         "title": "%command.openSerial%",
         "icon": "$(plug)"
+      },
+      {
+        "command": "hermesRemote.addFileToContext",
+        "title": "%command.addFileToContext%",
+        "category": "Hermes Remote"
+      },
+      {
+        "command": "hermesRemote.sendSelectionToContext",
+        "title": "%command.sendSelectionToContext%",
+        "category": "Hermes Remote"
+      },
+      {
+        "command": "hermesRemote.setAsHermesTerminal",
+        "title": "%command.setAsHermesTerminal%",
+        "category": "Hermes Remote"
+      },
+      {
+        "command": "hermesRemote.selectTerminal",
+        "title": "%command.selectTerminal%",
+        "category": "Hermes Remote"
+      },
+      {
+        "command": "hermesRemote.addWorkspaceToContext",
+        "title": "%command.addWorkspaceToContext%",
+        "category": "Hermes Remote"
       }
     ],
     "menus": {
@@ -213,6 +238,17 @@
           "command": "firmwareDownloader.toggleCppDefine",
           "group": "5_cpp@1",
           "when": "editorTextFocus && editorHasSelection"
+        },
+        {
+          "command": "hermesRemote.sendSelectionToContext",
+          "when": "editorHasSelection",
+          "group": "navigation"
+        }
+      ],
+      "editor/title/context": [
+        {
+          "command": "hermesRemote.addFileToContext",
+          "group": "navigation"
         }
       ],
       "explorer/context": [
@@ -220,6 +256,10 @@
           "command": "firmwareDownloader.openLogViewer",
           "when": "resourceExtname == .txt || resourceExtname == .log || resourceExtname == .jsonl",
           "group": "2_workspace@5"
+        },
+        {
+          "command": "hermesRemote.addFileToContext",
+          "group": "navigation"
         }
       ]
     },
@@ -229,36 +269,109 @@
         "key": "ctrl+d",
         "mac": "cmd+d",
         "when": "editorTextFocus && editorHasSelection"
+      },
+      {
+        "command": "hermesRemote.addFileToContext",
+        "key": "ctrl+shift+.",
+        "mac": "cmd+shift+.",
+        "when": "editorFocus"
+      },
+      {
+        "command": "hermesRemote.sendSelectionToContext",
+        "key": "ctrl+shift+,",
+        "mac": "cmd+shift+,",
+        "when": "editorHasSelection"
       }
     ],
-    "configuration": {
-      "title": "Quick Dove",
-      "properties": {
-        "quickFirmwarePlus.language": {
-          "type": "string",
-          "default": "auto",
-          "enum": [
-            "auto",
-            "en",
-            "zh-cn"
-          ],
-          "enumDescriptions": [
-            "%config.language.auto%",
-            "%config.language.en%",
-            "%config.language.zh-cn%"
-          ],
-          "description": "%config.language%"
-        },
-        "quickSerial.atCommandPaths": {
-          "type": "array",
-          "default": [],
-          "description": "%config.atCommandPaths%",
-          "items": {
-            "type": "string"
+    "configuration": [
+      {
+        "title": "Quick Dove",
+        "properties": {
+          "quickFirmwarePlus.language": {
+            "type": "string",
+            "default": "auto",
+            "enum": [
+              "auto",
+              "en",
+              "zh-cn"
+            ],
+            "enumDescriptions": [
+              "%config.language.auto%",
+              "%config.language.en%",
+              "%config.language.zh-cn%"
+            ],
+            "description": "%config.language%"
           },
-          "maxItems": 20
+          "quickSerial.atCommandPaths": {
+            "type": "array",
+            "default": [],
+            "description": "%config.atCommandPaths%",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20
+          }
+        }
+      },
+      {
+        "title": "Hermes Remote",
+        "properties": {
+          "hermesRemote.terminalNamePatterns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [],
+            "description": "%config.hermes.terminalNamePatterns%"
+          },
+          "hermesRemote.remoteMappings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "local": {
+                  "type": "string",
+                  "description": "%config.hermes.remoteMappingLocal%"
+                },
+                "remote": {
+                  "type": "string",
+                  "description": "%config.hermes.remoteMappingRemote%"
+                }
+              },
+              "required": [
+                "local",
+                "remote"
+              ]
+            },
+            "default": [],
+            "description": "%config.hermes.remoteMappings%"
+          },
+          "hermesRemote.useAbsolutePaths": {
+            "type": "boolean",
+            "default": false,
+            "description": "%config.hermes.useAbsolutePaths%"
+          },
+          "hermesRemote.workspaceRoot": {
+            "type": "string",
+            "default": "",
+            "description": "%config.hermes.workspaceRoot%"
+          },
+          "hermesRemote.pathStyle": {
+            "type": "string",
+            "enum": [
+              "windows",
+              "posix"
+            ],
+            "default": "windows",
+            "description": "%config.hermes.pathStyle%"
+          },
+          "hermesRemote.pathPrefix": {
+            "type": "string",
+            "default": "windows",
+            "description": "%config.hermes.pathPrefix%"
+          }
         }
       }
-    }
+    ]
   }
 }
