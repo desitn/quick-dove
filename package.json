@@ -2,7 +2,7 @@
   "name": "quick-dove",
   "displayName": "%extension.displayName%",
   "description": "%extension.description%",
-  "version": "0.2.8",
+  "version": "0.2.9",
   "publisher": "destin-zhang",
   "icon": "images/icon.png",
   "galleryBanner": {
@@ -254,7 +254,7 @@
       "explorer/context": [
         {
           "command": "firmwareDownloader.openLogViewer",
-          "when": "resourceExtname == .txt || resourceExtname == .log || resourceExtname == .jsonl",
+          "when": "resourceExtname == .txt || resourceExtname == .log || resourceExtname == .jsonl || resourceExtname == .csv || resourceExtname == .tsv",
           "group": "2_workspace@5"
         },
         {
@@ -345,11 +345,6 @@
             },
             "default": [],
             "description": "%config.hermes.remoteMappings%"
-          },
-          "hermesRemote.useAbsolutePaths": {
-            "type": "boolean",
-            "default": false,
-            "description": "%config.hermes.useAbsolutePaths%"
           },
           "hermesRemote.workspaceRoot": {
             "type": "string",

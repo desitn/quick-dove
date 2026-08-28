@@ -314,10 +314,15 @@ const messages = {
     'logviewer.encodingLatin1': 'Latin-1',
     'logviewer.emptyDesc': 'Open a log file to view and analyze its content',
     'logviewer.selectFile': 'Select Log File',
-    'logviewer.supportedFormats': 'Supported formats: .log, .txt, .out, .err',
+    'logviewer.supportedFormats': 'Supported formats: .log, .txt, .out, .err, .jsonl, .csv, .tsv',
     'logviewer.recentFiles': 'Recent Files',
     'logviewer.fileNotFound': 'File not found or inaccessible',
     'logviewer.copyPath': 'Copy Path',
+    'logviewer.columnSettings': 'Column Settings',
+    'logviewer.columns': 'Columns',
+    'logviewer.showAllColumns': 'Show All',
+    'logviewer.resetColumnWidths': 'Reset Widths',
+    'logviewer.lineNotLoaded': 'Line {0} is not loaded',
     // C/C++ Define Helper
     'settings.cppDefine': 'C/C++ Define Helper',
     'settings.cppDefineLabel': 'Preprocessor Defines',
@@ -347,9 +352,7 @@ const messages = {
     'hermes.onlyOneHermesTerminal': 'Only one Hermes terminal: "{0}"',
     'hermes.selectTargetTerminal': 'Select Hermes terminal to send to',
     'hermes.currentTarget': '(current target)',
-    'hermes.current': '(current)',
-    'hermes.terminalActive': 'Hermes terminal active',
-    'hermes.selectionVisible': 'Selection visible to Hermes — click to send'
+    'hermes.current': '(current)'
   },
   'zh-cn': {
     'noBuildCommand': '没有配置构建命令。',
@@ -663,10 +666,15 @@ const messages = {
     'logviewer.encodingLatin1': 'Latin-1',
     'logviewer.emptyDesc': '打开日志文件以查看和分析其内容',
     'logviewer.selectFile': '选择日志文件',
-    'logviewer.supportedFormats': '过滤分层、高亮关键词、笔记本，载入识别格式: .log, .txt, .out, .err',
+    'logviewer.supportedFormats': '过滤分层、高亮关键词、笔记本，载入识别格式: .log, .txt, .out, .err, .jsonl, .csv, .tsv',
     'logviewer.recentFiles': '最近文件',
     'logviewer.fileNotFound': '文件未找到或无法访问',
     'logviewer.copyPath': '复制路径',
+    'logviewer.columnSettings': '列设置',
+    'logviewer.columns': '列',
+    'logviewer.showAllColumns': '显示全部',
+    'logviewer.resetColumnWidths': '重置宽度',
+    'logviewer.lineNotLoaded': '第 {0} 行尚未加载',
     // C/C++ Define Helper
     'settings.cppDefine': 'C/C++ 宏辅助',
     'settings.cppDefineLabel': '预处理器宏定义',
@@ -696,9 +704,7 @@ const messages = {
     'hermes.onlyOneHermesTerminal': '只有一个 Hermes 终端: "{0}"',
     'hermes.selectTargetTerminal': '选择要发送到的 Hermes 终端',
     'hermes.currentTarget': '(当前目标)',
-    'hermes.current': '(当前)',
-    'hermes.terminalActive': 'Hermes 终端已激活',
-    'hermes.selectionVisible': '选区对 Hermes 可见 — 点击发送'
+    'hermes.current': '(当前)'
   }
 };
 

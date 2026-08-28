@@ -233,7 +233,7 @@
   "logviewer.encodingLatin1": "Latin-1",
   "logviewer.emptyDesc": "打开日志文件以查看和分析其内容",
   "logviewer.selectFile": "选择日志文件",
-  "logviewer.supportedFormats": "过滤分层、高亮关键词、笔记本，载入识别格式: .log, .txt, .out, .err, .jsonl",
+  "logviewer.supportedFormats": "过滤分层、高亮关键词、笔记本，载入识别格式: .log, .txt, .out, .err, .jsonl, .csv, .tsv",
   "logviewer.recentFiles": "最近文件",
   "logviewer.clearRecentFiles": "清除最近文件",
   "logviewer.clearAllMarkbooks": "清除所有书签",
@@ -271,8 +271,7 @@
   "config.hermes.remoteMappings": "将本地文件夹路径映射为远端路径，使 SSH 终端中运行的 Hermes 能收到有效的 @引用",
   "config.hermes.remoteMappingLocal": "本地文件夹路径，如 f:\\proj",
   "config.hermes.remoteMappingRemote": "本地文件夹映射到的远端路径，如 /home/user/proj",
-  "config.hermes.useAbsolutePaths": "发送本地绝对路径（如 @F:\\proj\\src\\main.py）而非相对路径。当 Hermes 运行在能通过绝对路径访问本地文件系统的远端主机时开启",
-  "config.hermes.workspaceRoot": "Hermes 视角下的工作区根路径。留空时默认使用当前工作区文件夹。发送相对路径时会自动拼上该前缀，如 @<workspaceRoot>/src/main.py:10-20",
+  "config.hermes.workspaceRoot": "添加工作区到上下文时使用的工作区根路径。留空时默认使用当前工作区文件夹。文件始终发送完整绝对路径",
   "config.hermes.pathStyle": "发送给 Hermes 的路径分隔符风格：windows（反斜杠 F:\\proj\\src）或 posix（正斜杠 F:/proj/src）",
-  "config.hermes.pathPrefix": "发送给 Hermes 的引用前缀（主机标识），如 windows。发送格式为 <前缀> <工作区根>  @<相对路径>，留空则不添加前缀"
+  "config.hermes.pathPrefix": "发送给 Hermes 的引用前缀（主机标识），如 windows。发送格式为 @<前缀> <完整路径>，留空则不添加前缀"
 }

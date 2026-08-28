@@ -34,6 +34,21 @@
     let selectedSearchIndex = -1;
     let searchResultItems = [];
 
+    // Pagination state (incremental loading)
+    let isTabular = container.dataset.tabular === 'true';
+    let totalLines = parseInt(container.dataset.totalLines || '0', 10);
+    let pageSize = parseInt(container.dataset.pageSize || '500', 10);
+    let loadedStart = 0;
+    let loadedCount = parseInt(container.dataset.loadedCount || '0', 10);
+    let isLoadingMore = false;
+    let pendingGotoLine = null;
+
+    // Column layout state (tabular files)
+    let columnCount = parseInt(container.dataset.colCount || '0', 10);
+    let columnWidths = [];
+    let defaultColumnWidths = [];
+    let columnVisibility = [];
+
     // Initialize
     function init() {
         // Get panel info from data attributes
@@ -59,6 +74,21 @@
             vscode.postMessage({ command: 'getBookmarks' });
             vscode.postMessage({ command: 'getSearchHistory' });
         }
+
+        // Tabular table: column layout + settings button
+        if (isTabular) {
+            initColumnLayout();
+            const btnColumnSettings = document.getElementById('btnColumnSettings');
+            if (btnColumnSettings) {
+                btnColumnSettings.style.display = 'inline-flex';
+            }
+            buildColumnSettingsList();
+            setupColumnResize();
+            setupHeaderClick();
+        }
+
+        // Incremental pagination (scroll to load more)
+        setupScrollPagination();
     }
 
     // Trigger fade-in animation for content
@@ -71,6 +101,262 @@
         if (linesContainer) {
             setTimeout(() => linesContainer.classList.add('loaded'), 50);
         }
+    }
+
+    // ==================== Incremental Pagination ====================
+
+    function setupScrollPagination() {
+        const wrapper = document.querySelector('.content-wrapper');
+        if (wrapper) {
+            wrapper.addEventListener('scroll', handleScroll);
+        }
+    }
+
+    function handleScroll() {
+        const wrapper = document.querySelector('.content-wrapper');
+        if (!wrapper) return;
+        if (wrapper.scrollTop + wrapper.clientHeight >= wrapper.scrollHeight - 300) {
+            loadMoreLines();
+        }
+    }
+
+    function loadMoreLines(targetLine = null) {
+        if (isLoadingMore) return;
+        if (loadedStart + loadedCount >= totalLines) return;
+        isLoadingMore = true;
+        vscode.postMessage({
+            command: 'loadMoreLines',
+            offset: loadedStart + loadedCount,
+            count: pageSize,
+            targetLine: targetLine != null ? targetLine : undefined
+        });
+    }
+
+    function handleAppendLines(message) {
+        const { html, startOffset, nextOffset, hasMore, replace } = message;
+        isLoadingMore = false;
+
+        if (html) {
+            if (replace) {
+                // Jump mode: replace all rendered data rows, keep the header row
+                linesContainer.querySelectorAll('.line:not(.table-header-line)').forEach(el => el.remove());
+            }
+            const temp = document.createElement('div');
+            temp.innerHTML = html;
+            const frag = document.createDocumentFragment();
+            while (temp.firstChild) {
+                frag.appendChild(temp.firstChild);
+            }
+            linesContainer.appendChild(frag);
+        }
+
+        if (typeof startOffset === 'number') {
+            loadedStart = startOffset;
+            loadedCount = nextOffset - startOffset;
+        }
+
+        if (isTabular) {
+            applyColumnLayout();
+        }
+
+        // Jump to a line that wasn't loaded yet
+        if (pendingGotoLine != null) {
+            const targetLine = pendingGotoLine;
+            const lineElement = document.querySelector(`.line[data-line="${targetLine}"]`);
+            if (lineElement) {
+                pendingGotoLine = null;
+                scrollToLineElement(lineElement, targetLine);
+            } else if (hasMore) {
+                loadMoreLines(targetLine);
+            } else {
+                pendingGotoLine = null;
+                showNotification(`Line ${targetLine} not found`, 'error');
+            }
+        }
+
+        // Auto-continue if the viewport is still near the bottom
+        const wrapper = document.querySelector('.content-wrapper');
+        if (!replace && wrapper && wrapper.scrollTop + wrapper.clientHeight >= wrapper.scrollHeight - 300) {
+            loadMoreLines();
+        }
+    }
+
+    // ==================== Tabular Column Layout ====================
+
+    function initColumnLayout() {
+        if (!isTabular) return;
+        let widths = [];
+        try {
+            widths = JSON.parse(container.dataset.columnWidths || '[]');
+        } catch (e) {
+            widths = [];
+        }
+        columnWidths = widths.slice(0, columnCount);
+        defaultColumnWidths = widths.slice(0, columnCount);
+        while (columnWidths.length < columnCount) {
+            columnWidths.push(120);
+        }
+        columnVisibility = columnWidths.map(() => true);
+        applyColumnLayout();
+    }
+
+    function applyColumnLayout() {
+        if (!isTabular) return;
+        const visible = [];
+        columnVisibility.forEach((v, i) => {
+            if (v) visible.push(i);
+        });
+        const template = visible.map(i => `${columnWidths[i]}px`).join(' ');
+        document.querySelectorAll('.line-content.tabular-content').forEach(el => {
+            el.style.gridTemplateColumns = template;
+            el.querySelectorAll(':scope > .tabular-cell').forEach(cell => {
+                const col = parseInt(cell.dataset.col, 10);
+                if (Number.isNaN(col) || col < 0) return;
+                if (columnVisibility[col]) {
+                    cell.classList.remove('hidden');
+                    cell.style.gridColumn = String(visible.indexOf(col) + 1);
+                } else {
+                    cell.classList.add('hidden');
+                }
+            });
+        });
+    }
+
+    function setupColumnResize() {
+        document.querySelectorAll('.table-header-line .col-resize-handle').forEach(handle => {
+            handle.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const col = parseInt(handle.dataset.col, 10);
+                if (Number.isNaN(col)) return;
+                const startX = e.clientX;
+                const startWidth = columnWidths[col] || 120;
+                const onMove = (ev) => {
+                    const newWidth = Math.max(40, Math.min(3000, startWidth + (ev.clientX - startX)));
+                    columnWidths[col] = newWidth;
+                    applyColumnLayout();
+                    syncColumnSettingsInputs();
+                };
+                const onUp = () => {
+                    handle.classList.remove('dragging');
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                };
+                handle.classList.add('dragging');
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
+            });
+        });
+    }
+
+    function setupHeaderClick() {
+        document.querySelectorAll('.table-header-line .tabular-cell').forEach(cell => {
+            cell.addEventListener('click', (e) => {
+                if (e.target.classList.contains('col-resize-handle')) return;
+                e.stopPropagation();
+                const col = parseInt(cell.dataset.col, 10);
+                if (Number.isNaN(col)) return;
+                columnVisibility[col] = !columnVisibility[col];
+                applyColumnLayout();
+                buildColumnSettingsList();
+            });
+        });
+    }
+
+    function buildColumnSettingsList() {
+        const list = document.getElementById('columnSettingsList');
+        if (!list || !isTabular) return;
+        list.innerHTML = '';
+        let headers = [];
+        try {
+            headers = JSON.parse(container.dataset.headers || '[]');
+        } catch (e) {
+            headers = [];
+        }
+        for (let i = 0; i < columnCount; i++) {
+            const row = document.createElement('div');
+            row.className = 'column-settings-item';
+
+            const label = document.createElement('label');
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.checked = columnVisibility[i];
+            cb.dataset.col = String(i);
+            const name = document.createElement('span');
+            name.className = 'column-settings-name';
+            name.textContent = headers[i] != null && headers[i] !== '' ? headers[i] : `Col ${i + 1}`;
+            name.title = name.textContent;
+            label.appendChild(cb);
+            label.appendChild(name);
+
+            const widthInput = document.createElement('input');
+            widthInput.type = 'number';
+            widthInput.className = 'column-settings-width';
+            widthInput.value = columnWidths[i];
+            widthInput.dataset.col = String(i);
+            widthInput.min = 40;
+            widthInput.max = 3000;
+
+            row.appendChild(label);
+            row.appendChild(widthInput);
+            list.appendChild(row);
+
+            cb.addEventListener('change', () => {
+                columnVisibility[i] = cb.checked;
+                applyColumnLayout();
+            });
+            widthInput.addEventListener('change', () => {
+                const w = parseInt(widthInput.value, 10);
+                if (!isNaN(w) && w > 0) {
+                    columnWidths[i] = Math.max(40, Math.min(3000, w));
+                    applyColumnLayout();
+                } else {
+                    widthInput.value = columnWidths[i];
+                }
+            });
+        }
+    }
+
+    function syncColumnSettingsInputs() {
+        document.querySelectorAll('.column-settings-width').forEach(inp => {
+            const col = parseInt(inp.dataset.col, 10);
+            if (!Number.isNaN(col)) {
+                inp.value = columnWidths[col];
+            }
+        });
+    }
+
+    function toggleColumnSettings() {
+        const panel = document.getElementById('columnSettingsPanel');
+        if (panel) {
+            panel.classList.toggle('visible');
+            if (panel.classList.contains('visible')) {
+                buildColumnSettingsList();
+            }
+        }
+    }
+
+    function hideColumnSettings() {
+        const panel = document.getElementById('columnSettingsPanel');
+        if (panel) {
+            panel.classList.remove('visible');
+        }
+    }
+
+    function showAllColumns() {
+        columnVisibility = columnVisibility.map(() => true);
+        applyColumnLayout();
+        buildColumnSettingsList();
+    }
+
+    function resetColumnWidths() {
+        columnWidths = defaultColumnWidths.slice();
+        while (columnWidths.length < columnCount) {
+            columnWidths.push(120);
+        }
+        columnVisibility = columnWidths.map(() => true);
+        applyColumnLayout();
+        buildColumnSettingsList();
     }
 
     // Setup Event Listeners
@@ -96,6 +382,24 @@
         document.getElementById('btnMarkbook').addEventListener('click', toggleMarkbookPanel);
         document.getElementById('btnTools').addEventListener('click', toggleToolsPanel);
         document.getElementById('btnClearHighlights').addEventListener('click', clearAllHighlights);
+
+        // Column settings
+        const btnColumnSettings = document.getElementById('btnColumnSettings');
+        if (btnColumnSettings) {
+            btnColumnSettings.addEventListener('click', toggleColumnSettings);
+        }
+        const btnCloseColumnSettings = document.getElementById('btnCloseColumnSettings');
+        if (btnCloseColumnSettings) {
+            btnCloseColumnSettings.addEventListener('click', hideColumnSettings);
+        }
+        const btnShowAllColumns = document.getElementById('btnShowAllColumns');
+        if (btnShowAllColumns) {
+            btnShowAllColumns.addEventListener('click', showAllColumns);
+        }
+        const btnResetColumnWidths = document.getElementById('btnResetColumnWidths');
+        if (btnResetColumnWidths) {
+            btnResetColumnWidths.addEventListener('click', resetColumnWidths);
+        }
 
         // Close buttons
         document.getElementById('btnCloseSearch').addEventListener('click', hideSearchPanel);
@@ -165,6 +469,11 @@
         // Line click handlers
         linesContainer.addEventListener('click', handleLineClick);
         linesContainer.addEventListener('contextmenu', handleContextMenu);
+
+        // Hover tooltip for truncated content
+        linesContainer.addEventListener('mouseover', handleLineMouseOver);
+        linesContainer.addEventListener('mousemove', handleLineMouseMove);
+        linesContainer.addEventListener('mouseleave', hideTooltip);
 
         // Hide context menu on click outside
         document.addEventListener('click', (e) => {
@@ -243,6 +552,9 @@
                     break;
                 case 'updateLines':
                     updateLinesContent(message.lines);
+                    break;
+                case 'appendLines':
+                    handleAppendLines(message);
                     break;
                 case 'clearHighlightsDisplay':
                     clearHighlightsDisplay(message.keywords);
@@ -806,18 +1118,136 @@
         }
     }
 
+    // Hover Tooltip (shows full content of truncated lines/cells)
+    let tooltipEl = null;
+
+    function ensureTooltip() {
+        if (!tooltipEl) {
+            tooltipEl = document.createElement('div');
+            tooltipEl.className = 'cell-tooltip';
+            document.body.appendChild(tooltipEl);
+        }
+        return tooltipEl;
+    }
+
+    function positionTooltip(x, y) {
+        if (!tooltipEl || !tooltipEl.classList.contains('visible')) return;
+        const rect = tooltipEl.getBoundingClientRect();
+        let left = x + 14;
+        let top = y + 14;
+        if (left + rect.width > window.innerWidth - 8) {
+            left = Math.max(8, x - rect.width - 14);
+        }
+        if (top + rect.height > window.innerHeight - 8) {
+            top = Math.max(8, y - rect.height - 14);
+        }
+        tooltipEl.style.left = left + 'px';
+        tooltipEl.style.top = top + 'px';
+    }
+
+    function showTooltip(text, x, y) {
+        const tip = ensureTooltip();
+        tip.textContent = text;
+        tip.classList.add('visible');
+        // Wait for layout, then position within viewport
+        requestAnimationFrame(() => positionTooltip(x, y));
+    }
+
+    function hideTooltip() {
+        if (tooltipEl) {
+            tooltipEl.classList.remove('visible');
+        }
+    }
+
+    function getRowFullText(contentEl) {
+        const cells = Array.from(contentEl.querySelectorAll(':scope > .tabular-cell:not(.hidden)'));
+        return cells.map(c => c.textContent).join('\t');
+    }
+
+    function handleLineMouseOver(e) {
+        const target = e.target;
+        const lineEl = target.closest('.line');
+        if (!lineEl) {
+            hideTooltip();
+            return;
+        }
+
+        // Sticky header row: no tooltip
+        if (lineEl.classList.contains('table-header-line')) {
+            hideTooltip();
+            return;
+        }
+
+        const contentEl = lineEl.querySelector('.line-content');
+        if (!contentEl) {
+            hideTooltip();
+            return;
+        }
+
+        if (isTabular) {
+            // Row is wider than the viewport -> full row can't be seen at once
+            const wrapper = document.querySelector('.content-wrapper');
+            const rowOverflows = wrapper && contentEl.scrollWidth > wrapper.clientWidth + 1;
+
+            const cell = target.closest('.tabular-cell');
+            if (cell) {
+                // Truncated cell -> show that cell's full content
+                if (cell.scrollWidth > cell.clientWidth + 1) {
+                    showTooltip(cell.textContent, e.clientX, e.clientY);
+                    return;
+                }
+                // Cell fits but the whole row overflows -> show the full row
+                if (rowOverflows) {
+                    showTooltip(getRowFullText(contentEl), e.clientX, e.clientY);
+                    return;
+                }
+            } else {
+                // Line number / padding / bookmark area -> show the full row
+                if (rowOverflows) {
+                    showTooltip(getRowFullText(contentEl), e.clientX, e.clientY);
+                    return;
+                }
+            }
+            hideTooltip();
+            return;
+        }
+
+        // Plain (non-tabular) line: show full content when truncated
+        if (contentEl.scrollWidth > contentEl.clientWidth + 1) {
+            showTooltip(contentEl.textContent, e.clientX, e.clientY);
+        } else {
+            hideTooltip();
+        }
+    }
+
+    function handleLineMouseMove(e) {
+        if (tooltipEl && tooltipEl.classList.contains('visible')) {
+            positionTooltip(e.clientX, e.clientY);
+        }
+    }
+
+    function scrollToLineElement(lineElement, lineNumber) {
+        // Use instant scroll for better performance on large logs
+        lineElement.scrollIntoView({ behavior: 'instant', block: 'center' });
+
+        // Highlight the line
+        document.querySelectorAll('.line.selected').forEach(line => {
+            line.classList.remove('selected');
+        });
+        lineElement.classList.add('selected');
+        currentLineNumber = lineNumber;
+    }
+
     function gotoLine(lineNumber) {
         const lineElement = document.querySelector(`.line[data-line="${lineNumber}"]`);
         if (lineElement) {
-            // Use instant scroll for better performance on large logs
-            lineElement.scrollIntoView({ behavior: 'instant', block: 'center' });
-
-            // Highlight the line
-            document.querySelectorAll('.line.selected').forEach(line => {
-                line.classList.remove('selected');
-            });
-            lineElement.classList.add('selected');
-            currentLineNumber = lineNumber;
+            scrollToLineElement(lineElement, lineNumber);
+        } else if (loadedStart + loadedCount < totalLines) {
+            // Not loaded yet - load pages until the target line is rendered
+            pendingGotoLine = lineNumber;
+            loadMoreLines(lineNumber);
+        } else {
+            showNotification(`Line ${lineNumber} not found`, 'error');
         }
     }
 
@@ -936,6 +1366,11 @@
         }
         
         console.log('[UpdateLines] Lines updated successfully');
+
+        // Re-apply column layout (collapsed columns / widths) to rebuilt tabular cells
+        if (isTabular) {
+            applyColumnLayout();
+        }
     }
 
     // Clear highlights display (remove highlight markup, restore original text)

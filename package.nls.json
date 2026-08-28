@@ -233,7 +233,7 @@
   "logviewer.encodingLatin1": "Latin-1",
   "logviewer.emptyDesc": "Open a log file to view and analyze its content",
   "logviewer.selectFile": "Select Log File",
-  "logviewer.supportedFormats": "Supported formats: .log, .txt, .out, .err, .jsonl",
+  "logviewer.supportedFormats": "Supported formats: .log, .txt, .out, .err, .jsonl, .csv, .tsv",
   "logviewer.recentFiles": "Recent Files",
   "logviewer.clearRecentFiles": "Clear Recent Files",
   "logviewer.clearAllMarkbooks": "Clear All Bookmarks",
@@ -275,8 +275,7 @@
   "config.hermes.remoteMappings": "Map local folder paths to remote paths so Hermes running in an SSH terminal receives valid @references",
   "config.hermes.remoteMappingLocal": "Local folder path, e.g. f:\\proj",
   "config.hermes.remoteMappingRemote": "Remote path the local folder maps to, e.g. /home/user/proj",
-  "config.hermes.useAbsolutePaths": "Send local absolute paths (e.g. @F:\\proj\\src\\main.py) instead of relative paths. Enable when Hermes runs on a remote host that can access the local filesystem via absolute paths",
-  "config.hermes.workspaceRoot": "Workspace root path from Hermes' perspective. When empty the current workspace folder is used. Relative references are prefixed with it, e.g. @<workspaceRoot>/src/main.py:10-20",
+  "config.hermes.workspaceRoot": "Workspace root path used when adding the workspace to context. When empty the current workspace folder is used. Files are always sent with their complete absolute paths",
   "config.hermes.pathStyle": "Path separator style sent to Hermes: windows (backslash F:\\proj\\src) or posix (forward slash F:/proj/src)",
-  "config.hermes.pathPrefix": "Reference prefix (host identifier) sent to Hermes, e.g. windows. Format: <prefix> <workspaceRoot>  @<relativePath>. Empty to omit the prefix"
+  "config.hermes.pathPrefix": "Reference prefix (host identifier) sent to Hermes, e.g. windows. Format: @<prefix> <completePath>. Empty to omit the prefix"
 }

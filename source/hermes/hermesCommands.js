@@ -9,18 +9,16 @@ const vscode = require('vscode');
 const { localize } = require('../localization');
 const { TerminalDetector } = require('./terminalDetector');
 const { ContextSender } = require('./contextSender');
-const { StatusBar } = require('./statusBar');
 
 /**
- * Activate the Hermes Remote feature. Registers all hermesRemote.* commands,
- * the terminal detector and the status bar indicator.
+ * Activate the Hermes Remote feature. Registers all hermesRemote.* commands
+ * and the terminal detector.
  */
 function activateHermesRemote(context) {
   const detector = new TerminalDetector();
   const sender = new ContextSender(detector);
-  const statusBar = new StatusBar(detector);
 
-  context.subscriptions.push(detector, statusBar);
+  context.subscriptions.push(detector);
 
   context.subscriptions.push(
     vscode.commands.registerCommand(

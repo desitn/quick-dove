@@ -153,11 +153,11 @@
 
 ### 发送格式
 
-默认发送 **"前缀 + 工作区根 + @相对路径"** 两段式引用：
+默认发送 **"@前缀 + 完整绝对路径"** 单段式引用（无需拼接工作区根与相对路径）：
 
 ```
-windows F:\vscode-extension\claude-vscode-context-plus  @README.md
-windows F:\vscode-extension\claude-vscode-context-plus  @src\main.py:10-20
+@windows F:\vscode-extension\claude-vscode-context-plus\README.md
+@windows F:\vscode-extension\claude-vscode-context-plus\src\main.py:10-20
 ```
 
 ### 配置项
@@ -166,18 +166,16 @@ windows F:\vscode-extension\claude-vscode-context-plus  @src\main.py:10-20
 |---|---|---|---|
 | `hermesRemote.terminalNamePatterns` | `string[]` | `[]` | 额外的终端名称匹配模式，匹配到的终端会被识别为 Hermes 终端 |
 | `hermesRemote.remoteMappings` | `{ local, remote }[]` | `[]` | 将本地文件夹路径映射为远端路径，供 SSH 终端中运行的 Hermes 使用 |
-| `hermesRemote.useAbsolutePaths` | `boolean` | `false` | 发送本地绝对路径（`@F:\proj\src\main.py`）而非相对路径 |
-| `hermesRemote.workspaceRoot` | `string` | `""` | Hermes 视角下的工作区根路径，留空默认使用当前工作区 |
+| `hermesRemote.workspaceRoot` | `string` | `""` | 添加工作区到上下文时使用的根路径，留空默认使用当前工作区 |
 | `hermesRemote.pathStyle` | `"windows" \| "posix"` | `"windows"` | 发送给 Hermes 的路径分隔符风格 |
-| `hermesRemote.pathPrefix` | `string` | `"windows"` | 引用前缀（主机标识），如 `windows` |
+| `hermesRemote.pathPrefix` | `string` | `"windows"` | 引用前缀（主机标识），如 `windows`，格式为 `@<前缀> <完整路径>` |
 
 ### SSH / 远端终端
 
-Hermes 通过 SSH 运行在远端主机时，`@` 引用必须能被该主机上的 Hermes 解析，有三种方案：
+Hermes 通过 SSH 运行在远端主机时，`@` 引用必须能被该主机上的 Hermes 解析，有两种方案：
 
-- **方案 A（绝对路径）**：远端主机可以直接读取本地绝对路径时，设置 `hermesRemote.useAbsolutePaths: true`。
-- **方案 B（路径映射）**：Hermes 相对于远端根目录解析路径时，配置 `hermesRemote.remoteMappings` 将本地文件夹映射到远端根目录。
-- **方案 C（默认）**：发送 "前缀 + 工作区根 + @相对路径" 两段式引用，无需配置。
+- **方案 A（路径映射）**：Hermes 相对于远端根目录解析路径时，配置 `hermesRemote.remoteMappings` 将本地文件夹映射到远端根目录。
+- **方案 B（默认）**：发送 `@<前缀> <完整绝对路径>` 单段式引用，远端主机能直接访问本地文件系统时无需配置。
 
 将 SSH 终端设为发送目标：终端名称包含 `hermes` 或 `ssh` 的终端会被自动识别（聚焦哪个就发哪个），也可在命令面板中执行 **"设为 Hermes 终端"** 手动锁定目标。
 

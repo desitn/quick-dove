@@ -22,6 +22,12 @@ class LogAnalyzer extends events.EventEmitter {
         this.encoding = 'utf8';    // Detected encoding
         this.isLoading = false;    // Loading state
         this.isJsonl = false;      // Is JSONL format
+        this.isTabular = false;    // Is tabular format (CSV/TSV)
+        this.delimiter = null;     // Delimiter for tabular files (',' or '\t')
+        this.tabularLabel = '';    // Format label ('CSV' or 'TSV')
+        this.headers = null;       // Column headers array (for tabular files)
+        this.columnCount = 0;      // Number of columns (for tabular files)
+        this.headerRowNumber = null; // Line number used as header (skipped in data rows)
     }
 
     /**
@@ -42,6 +48,15 @@ class LogAnalyzer extends events.EventEmitter {
             // Detect if file is JSONL format
             this.isJsonl = this.isJsonlFile(filePath);
 
+            // Detect tabular format (CSV/TSV)
+            const tabularInfo = this.detectTabular(filePath);
+            this.isTabular = !!tabularInfo;
+            this.delimiter = tabularInfo ? tabularInfo.delimiter : null;
+            this.tabularLabel = tabularInfo ? tabularInfo.label : '';
+            this.headers = null;
+            this.columnCount = 0;
+            this.headerRowNumber = null;
+
             // Detect file encoding
             this.encoding = await this.detectEncoding(filePath);
 
@@ -55,21 +70,44 @@ class LogAnalyzer extends events.EventEmitter {
             // Split into lines and parse
             this.lines = content.split(/\r?\n/).map((text, index) => {
                 const parsedText = this.isJsonl ? this.parseJsonlLine(text) : text;
-                return {
+                const line = {
                     lineNumber: index + 1,
                     text: parsedText,
                     rawText: text,  // Keep original for JSONL
                     length: parsedText.length,
                     isJson: this.isJsonl && this.isValidJson(text)
                 };
+                if (this.isTabular && text.trim().length > 0) {
+                    line.columns = this.parseDelimitedLine(text, this.delimiter);
+                }
+                return line;
             }).filter(line => line.text.length > 0);  // Remove empty lines
+
+            // If tabular, extract header row from first line
+            if (this.isTabular && this.lines.length > 0) {
+                const firstLine = this.lines[0];
+                const firstCells = firstLine.columns || [];
+                if (this.isHeaderRow(firstCells)) {
+                    // First line is a header -> use it and skip it in data rows
+                    this.headers = firstCells;
+                    this.headerRowNumber = firstLine.lineNumber;
+                } else {
+                    // First line is data -> generate generic column names
+                    this.headers = firstCells.map((_, i) => `Col ${i + 1}`);
+                    this.headerRowNumber = null;
+                }
+                this.columnCount = this.headers.length;
+            }
 
             this.emit('loaded', {
                 filePath: this.filePath,
                 lineCount: this.lines.length,
                 encoding: this.encoding,
                 fileSize: this.fileSize,
-                isJsonl: this.isJsonl
+                isJsonl: this.isJsonl,
+                isTabular: this.isTabular,
+                tabularLabel: this.tabularLabel,
+                columnCount: this.columnCount
             });
 
             this.isLoading = false;
@@ -104,6 +142,91 @@ class LogAnalyzer extends events.EventEmitter {
             // Not JSONL
         }
         return false;
+    }
+
+    /**
+     * Detect tabular format (CSV/TSV) by extension or content
+     * @param {string} filePath - File path
+     * @returns {Object|null} Tabular info { delimiter, label } or null
+     */
+    detectTabular(filePath) {
+        const ext = filePath.toLowerCase();
+        if (ext.endsWith('.csv')) {
+            return { delimiter: ',', label: 'CSV' };
+        }
+        if (ext.endsWith('.tsv')) {
+            return { delimiter: '\t', label: 'TSV' };
+        }
+
+        // Content heuristic: check if first line contains consistent delimiters
+        try {
+            const firstLines = fs.readFileSync(filePath, { encoding: 'utf8', length: 4096 });
+            const firstLine = firstLines.split('\n')[0];
+            if (!firstLine || firstLine.trim().length === 0) {
+                return null;
+            }
+            const commaCount = (firstLine.match(/,/g) || []).length;
+            const tabCount = (firstLine.match(/\t/g) || []).length;
+            if (tabCount >= 2 && tabCount >= commaCount) {
+                return { delimiter: '\t', label: 'TSV' };
+            }
+            if (commaCount >= 2) {
+                return { delimiter: ',', label: 'CSV' };
+            }
+        } catch {
+            // Ignore content detection errors
+        }
+        return null;
+    }
+
+    /**
+     * Parse a delimited line into cells (supports quoted fields and escaped quotes)
+     * @param {string} text - Raw line text
+     * @param {string} delimiter - Field delimiter (',' or '\t')
+     * @returns {Array<string>} Array of cell strings
+     */
+    parseDelimitedLine(text, delimiter) {
+        const cells = [];
+        let current = '';
+        let inQuotes = false;
+
+        for (let i = 0; i < text.length; i++) {
+            const ch = text[i];
+            if (inQuotes) {
+                if (ch === '"') {
+                    if (text[i + 1] === '"') {
+                        current += '"';
+                        i++;
+                    } else {
+                        inQuotes = false;
+                    }
+                } else {
+                    current += ch;
+                }
+            } else {
+                if (ch === '"') {
+                    inQuotes = true;
+                } else if (ch === delimiter) {
+                    cells.push(current);
+                    current = '';
+                } else {
+                    current += ch;
+                }
+            }
+        }
+        cells.push(current);
+        return cells;
+    }
+
+    /**
+     * Check if parsed cells look like a header row
+     * (any cell contains letters or CJK characters)
+     * @param {Array<string>} cells - Parsed cells
+     * @returns {boolean} Is header row
+     */
+    isHeaderRow(cells) {
+        if (!cells || cells.length === 0) return false;
+        return cells.some(c => /[a-zA-Z\u4e00-\u9fa5]/.test(c));
     }
 
     /**
@@ -374,7 +497,10 @@ class LogAnalyzer extends events.EventEmitter {
             lineCount: this.lines.length,
             encoding: this.encoding,
             fileSize: this.fileSize,
-            isJsonl: this.isJsonl
+            isJsonl: this.isJsonl,
+            isTabular: this.isTabular,
+            tabularLabel: this.tabularLabel,
+            columnCount: this.columnCount
         };
     }
 
@@ -387,6 +513,12 @@ class LogAnalyzer extends events.EventEmitter {
         this.fileSize = 0;
         this.encoding = 'utf8';
         this.isJsonl = false;
+        this.isTabular = false;
+        this.delimiter = null;
+        this.tabularLabel = '';
+        this.headers = null;
+        this.columnCount = 0;
+        this.headerRowNumber = null;
     }
 }
 

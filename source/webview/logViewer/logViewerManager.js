@@ -32,6 +32,7 @@ class LogViewerManager {
         this.searchHistory = [];           // In-memory search history
         this.maxHistorySize = 10;
         this.maxRecentFiles = 5;           // Max recent files to store
+        this.PAGE_SIZE = 500;              // Lines rendered per page (incremental loading)
 
         // Load persisted recent files list
         this.recentFiles = this.context.globalState.get(STORAGE_KEYS.RECENT_FILES, []);
@@ -55,7 +56,7 @@ class LogViewerManager {
                 enableScripts: true,
                 retainContextWhenHidden: true,
                 localResourceRoots: [
-                    vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview'))
+                    vscode.Uri.file(path.join(this.context.extensionPath, 'source', 'webview'))
                 ]
             }
         );
@@ -106,7 +107,7 @@ class LogViewerManager {
                 enableScripts: true,
                 retainContextWhenHidden: true,
                 localResourceRoots: [
-                    vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview'))
+                    vscode.Uri.file(path.join(this.context.extensionPath, 'source', 'webview'))
                 ]
             }
         );
@@ -158,7 +159,7 @@ class LogViewerManager {
                 enableScripts: true,
                 retainContextWhenHidden: true,
                 localResourceRoots: [
-                    vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview'))
+                    vscode.Uri.file(path.join(this.context.extensionPath, 'source', 'webview'))
                 ]
             }
         );
@@ -238,34 +239,33 @@ class LogViewerManager {
      */
     generateLogViewerHtml(panelInfo) {
         const fileInfo = panelInfo.analyzer.getFileInfo();
-        const lines = panelInfo.analyzer.lines;
 
         // Build file info string
         let fileInfoStr = `${fileInfo.lineCount} lines | ${fileInfo.encoding} | ${this.formatFileSize(fileInfo.fileSize)}`;
         if (fileInfo.isJsonl) {
             fileInfoStr += ' | JSONL';
         }
+        if (fileInfo.isTabular) {
+            fileInfoStr += ` | ${fileInfo.tabularLabel} (${fileInfo.columnCount} cols)`;
+        }
 
-        // Generate line content HTML
-        const linesHtml = lines.map(line => {
-            const highlightedText = panelInfo.highlighter.buildHighlightedHtml(line.text);
-            const isBookmarked = panelInfo.markbook.isBookmarked(line.lineNumber);
-            const bookmarkIcon = isBookmarked ? '<i class="fa-solid fa-bookmark"></i>' : '';
+        // Generate line content HTML (incremental: render only the first page)
+        const isTabular = fileInfo.isTabular;
+        const colCount = fileInfo.columnCount;
+        const renderLines = this.getRenderLines(panelInfo);
+        const totalLines = renderLines.length;
+        const initialLines = renderLines.slice(0, this.PAGE_SIZE);
 
-            // Check for line highlight (background color)
-            const lineMatch = panelInfo.lineHighlighter.getLineMatch(line.text);
-            const lineBgStyle = lineMatch ? `style="background-color: ${lineMatch.color.bg};"` : '';
+        const linesHtml = initialLines.map(line => this.buildLineHtml(panelInfo, line, { isTabular })).join('');
 
-            return `
-                <div class="line" data-line="${line.lineNumber}" ${lineBgStyle}>
-                    <span class="line-number">${line.lineNumber}</span>
-                    <span class="line-content">${highlightedText}</span>
-                    <span class="bookmark-icon">${bookmarkIcon}</span>
-                </div>
-            `;
-        }).join('');
+        // Header row for tabular files (reuses .line layout so columns align)
+        const headerHtml = this.buildHeaderHtml(panelInfo, isTabular);
 
-        const templatePath = path.join(this.context.extensionPath, 'src', 'webview', 'logViewer', 'logViewer.html');
+        // Default column widths for tabular files (resizable client-side)
+        const columnWidths = isTabular ? this.estimateColumnWidths(panelInfo.analyzer) : [];
+        const headersJson = JSON.stringify(isTabular ? (panelInfo.analyzer.headers || []) : []);
+
+        const templatePath = path.join(this.context.extensionPath, 'source', 'webview', 'logViewer', 'logViewer.html');
         let html = fs.readFileSync(templatePath, 'utf8');
 
         // Set display states for file loaded view
@@ -277,7 +277,12 @@ class LogViewerManager {
         // Replace placeholders
         html = html.replace('{{fileName}}', path.basename(panelInfo.filePath));
         html = html.replace('{{fileInfo}}', fileInfoStr);
-        html = html.replace('{{linesContent}}', linesHtml);
+        html = html.replace('{{linesContent}}', headerHtml + linesHtml);
+        // Container metadata for pagination + column layout
+        html = html.replace(
+            '<div class="log-viewer-container" data-panel-id="{{panelId}}"',
+            `<div class="log-viewer-container" data-panel-id="{{panelId}}" data-tabular="${isTabular}" data-col-count="${colCount}" data-column-widths='${JSON.stringify(columnWidths)}' data-headers='${headersJson}' data-total-lines="${totalLines}" data-page-size="${this.PAGE_SIZE}" data-loaded-count="${initialLines.length}"`
+        );
         html = html.replace('{{panelId}}', panelInfo.id);
         html = html.replace('{{isFilterView}}', 'false');
         html = html.replace('{{locale}}', this.getLocale());
@@ -292,16 +297,16 @@ class LogViewerManager {
 
         // Replace resource URIs
         const styleUri = panelInfo.panel.webview.asWebviewUri(
-            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'style.css'))
+            vscode.Uri.file(path.join(this.context.extensionPath, 'source', 'webview', 'style.css'))
         );
         const logViewerCssUri = panelInfo.panel.webview.asWebviewUri(
-            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'logViewer', 'logViewer.css'))
+            vscode.Uri.file(path.join(this.context.extensionPath, 'source', 'webview', 'logViewer', 'logViewer.css'))
         );
         const scriptUri = panelInfo.panel.webview.asWebviewUri(
-            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'logViewer', 'logViewer.js'))
+            vscode.Uri.file(path.join(this.context.extensionPath, 'source', 'webview', 'logViewer', 'logViewer.js'))
         );
         const fontAwesomeUri = panelInfo.panel.webview.asWebviewUri(
-            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'assets', 'fontawesome', 'all.min.css'))
+            vscode.Uri.file(path.join(this.context.extensionPath, 'source', 'webview', 'assets', 'fontawesome', 'all.min.css'))
         );
 
         html = html.replace('{{style.css}}', styleUri.toString());
@@ -318,28 +323,24 @@ class LogViewerManager {
      * @returns {string} HTML content
      */
     generateFilterViewHtml(filterInfo) {
-        const lines = filterInfo.filteredLines;
+        const renderLines = this.getRenderLines(filterInfo);
 
-        // Generate filtered line content HTML
-        const linesHtml = lines.map(line => {
-            const highlightedText = filterInfo.highlighter.buildHighlightedHtml(line.text);
-            const isBookmarked = filterInfo.markbook.isBookmarked(line.lineNumber);
-            const bookmarkIcon = isBookmarked ? '<i class="fa-solid fa-bookmark"></i>' : '';
+        // Generate filtered line content HTML (incremental: render only the first page)
+        const isTabular = filterInfo.analyzer.isTabular;
+        const colCount = filterInfo.analyzer.columnCount;
+        const totalLines = renderLines.length;
+        const initialLines = renderLines.slice(0, this.PAGE_SIZE);
 
-            // Check for line highlight (background color)
-            const lineMatch = filterInfo.lineHighlighter.getLineMatch(line.text);
-            const lineBgStyle = lineMatch ? `style="background-color: ${lineMatch.color.bg};"` : '';
+        const linesHtml = initialLines.map(line => this.buildLineHtml(filterInfo, line, { isTabular })).join('');
 
-            return `
-                <div class="line filter-line" data-line="${line.lineNumber}" data-original-line="${line.lineNumber}" ${lineBgStyle}>
-                    <span class="line-number">${line.lineNumber}</span>
-                    <span class="line-content">${highlightedText}</span>
-                    <span class="bookmark-icon">${bookmarkIcon}</span>
-                </div>
-            `;
-        }).join('');
+        // Header row for tabular files (reuses .line layout so columns align)
+        const headerHtml = this.buildHeaderHtml(filterInfo, isTabular);
 
-        const templatePath = path.join(this.context.extensionPath, 'src', 'webview', 'logViewer', 'logViewer.html');
+        // Default column widths for tabular files (resizable client-side)
+        const columnWidths = isTabular ? this.estimateColumnWidths(filterInfo.analyzer) : [];
+        const headersJson = JSON.stringify(isTabular ? (filterInfo.analyzer.headers || []) : []);
+
+        const templatePath = path.join(this.context.extensionPath, 'source', 'webview', 'logViewer', 'logViewer.html');
         let html = fs.readFileSync(templatePath, 'utf8');
 
         // Set display states for filter view (same as file loaded view)
@@ -350,8 +351,13 @@ class LogViewerManager {
 
         // Replace placeholders
         html = html.replace('{{fileName}}', `Filter: ${filterInfo.filterKeyword}`);
-        html = html.replace('{{fileInfo}}', `${lines.length} matches | Original: ${path.basename(filterInfo.filePath)}`);
-        html = html.replace('{{linesContent}}', linesHtml);
+        html = html.replace('{{fileInfo}}', `${renderLines.length} matches | Original: ${path.basename(filterInfo.filePath)}`);
+        html = html.replace('{{linesContent}}', headerHtml + linesHtml);
+        // Container metadata for pagination + column layout
+        html = html.replace(
+            '<div class="log-viewer-container" data-panel-id="{{panelId}}"',
+            `<div class="log-viewer-container" data-panel-id="{{panelId}}" data-tabular="${isTabular}" data-col-count="${colCount}" data-column-widths='${JSON.stringify(columnWidths)}' data-headers='${headersJson}' data-total-lines="${totalLines}" data-page-size="${this.PAGE_SIZE}" data-loaded-count="${initialLines.length}"`
+        );
         html = html.replace('{{panelId}}', filterInfo.id);
         html = html.replace('{{isFilterView}}', 'true');
         html = html.replace('{{originalPanelId}}', filterInfo.originalPanelId);
@@ -368,16 +374,16 @@ class LogViewerManager {
 
         // Replace resource URIs
         const styleUri = filterInfo.panel.webview.asWebviewUri(
-            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'style.css'))
+            vscode.Uri.file(path.join(this.context.extensionPath, 'source', 'webview', 'style.css'))
         );
         const logViewerCssUri = filterInfo.panel.webview.asWebviewUri(
-            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'logViewer', 'logViewer.css'))
+            vscode.Uri.file(path.join(this.context.extensionPath, 'source', 'webview', 'logViewer', 'logViewer.css'))
         );
         const scriptUri = filterInfo.panel.webview.asWebviewUri(
-            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'logViewer', 'logViewer.js'))
+            vscode.Uri.file(path.join(this.context.extensionPath, 'source', 'webview', 'logViewer', 'logViewer.js'))
         );
         const fontAwesomeUri = filterInfo.panel.webview.asWebviewUri(
-            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'assets', 'fontawesome', 'all.min.css'))
+            vscode.Uri.file(path.join(this.context.extensionPath, 'source', 'webview', 'assets', 'fontawesome', 'all.min.css'))
         );
 
         html = html.replace('{{style.css}}', styleUri.toString());
@@ -386,6 +392,143 @@ class LogViewerManager {
         html = html.replace('{{fontawesome.css}}', fontAwesomeUri.toString());
 
         return html;
+    }
+
+    /**
+     * Get the array of lines to render (excludes the tabular header row)
+     * @param {Object} panelInfo - Panel info
+     * @returns {Array} Renderable lines
+     */
+    getRenderLines(panelInfo) {
+        const lines = panelInfo.isFilterView ? panelInfo.filteredLines : panelInfo.analyzer.lines;
+        const isTabular = panelInfo.analyzer.isTabular;
+        if (isTabular && panelInfo.analyzer.headerRowNumber != null) {
+            return lines.filter(l => l.lineNumber !== panelInfo.analyzer.headerRowNumber);
+        }
+        return lines;
+    }
+
+    /**
+     * Estimate default column widths from headers + a sample of data rows
+     * @param {LogAnalyzer} analyzer - Log analyzer
+     * @returns {Array<number>} Width in px per column
+     */
+    estimateColumnWidths(analyzer) {
+        const headers = analyzer.headers || [];
+        const colCount = headers.length || analyzer.columnCount || 1;
+        const sample = analyzer.lines.slice(0, 200);
+        const widths = [];
+        for (let c = 0; c < colCount; c++) {
+            let maxLen = headers[c] ? String(headers[c]).length : 0;
+            for (const line of sample) {
+                if (line.columns && line.columns[c] != null) {
+                    const len = String(line.columns[c]).length;
+                    if (len > maxLen) maxLen = len;
+                }
+            }
+            widths.push(Math.max(80, Math.min(2000, maxLen * 8 + 24)));
+        }
+        return widths;
+    }
+
+    /**
+     * Build HTML for a single data line
+     * @param {Object} panelInfo - Panel info
+     * @param {Object} line - Line object
+     * @param {Object} options - Options { isTabular }
+     * @returns {string} Line HTML
+     */
+    buildLineHtml(panelInfo, line, options = {}) {
+        const { isTabular } = options;
+
+        let highlightedText;
+        if (isTabular && line.columns) {
+            highlightedText = line.columns.map((cell, i) =>
+                `<span class="tabular-cell" data-col="${i}">${panelInfo.highlighter.buildHighlightedHtml(cell)}</span>`
+            ).join('');
+        } else {
+            highlightedText = panelInfo.highlighter.buildHighlightedHtml(line.text);
+        }
+
+        const isBookmarked = panelInfo.markbook.isBookmarked(line.lineNumber);
+        const bookmarkIcon = isBookmarked ? '<i class="fa-solid fa-bookmark"></i>' : '';
+
+        // Check for line highlight (background color)
+        const lineMatch = panelInfo.lineHighlighter.getLineMatch(line.text);
+        const lineBgStyle = lineMatch ? `style="background-color: ${lineMatch.color.bg};"` : '';
+
+        const filterClass = panelInfo.isFilterView ? ' filter-line' : '';
+        const originalLineAttr = panelInfo.isFilterView ? ` data-original-line="${line.lineNumber}"` : '';
+
+        return `
+            <div class="line${filterClass}" data-line="${line.lineNumber}"${originalLineAttr} ${lineBgStyle}>
+                <span class="line-number">${line.lineNumber}</span>
+                <span class="line-content${isTabular ? ' tabular-content' : ''}">${highlightedText}</span>
+                <span class="bookmark-icon">${bookmarkIcon}</span>
+            </div>
+        `;
+    }
+
+    /**
+     * Build the sticky header row for tabular files
+     * @param {Object} panelInfo - Panel info
+     * @param {boolean} isTabular - Is tabular file
+     * @returns {string} Header HTML (empty for non-tabular)
+     */
+    buildHeaderHtml(panelInfo, isTabular) {
+        if (!isTabular || !panelInfo.analyzer.headers) return '';
+        const cells = panelInfo.analyzer.headers.map((h, i) =>
+            `<span class="tabular-cell header-cell" data-col="${i}" title="${panelInfo.highlighter.escapeHtml(h)}">${panelInfo.highlighter.escapeHtml(h)}<span class="col-resize-handle" data-col="${i}"></span></span>`
+        ).join('');
+        return `<div class="line table-header-line"><span class="line-number"></span><span class="line-content tabular-content">${cells}</span><span class="bookmark-icon"></span></div>`;
+    }
+
+    /**
+     * Handle load more lines command (incremental pagination)
+     * @param {Object} panelInfo - Panel info
+     * @param {Object} message - Message data { offset, count, targetLine? }
+     */
+    async handleLoadMoreLines(panelInfo, message) {
+        const { offset = 0, count = this.PAGE_SIZE, targetLine = null } = message;
+        const renderLines = this.getRenderLines(panelInfo);
+        const isTabular = panelInfo.analyzer.isTabular;
+
+        let startIdx = offset;
+        let replace = false;
+
+        // Jump mode: center the returned page around the target line
+        if (targetLine != null) {
+            const idx = renderLines.findIndex(l => l.lineNumber === targetLine);
+            if (idx >= 0) {
+                startIdx = Math.max(0, idx - Math.floor(this.PAGE_SIZE / 2));
+                replace = true;
+            }
+        }
+
+        if (startIdx >= renderLines.length) {
+            panelInfo.panel.webview.postMessage({
+                command: 'appendLines',
+                html: '',
+                startOffset: renderLines.length,
+                nextOffset: renderLines.length,
+                hasMore: false,
+                replace: false
+            });
+            return;
+        }
+
+        const endIdx = Math.min(renderLines.length, startIdx + count);
+        const chunk = renderLines.slice(startIdx, endIdx);
+        const html = chunk.map(line => this.buildLineHtml(panelInfo, line, { isTabular })).join('');
+
+        panelInfo.panel.webview.postMessage({
+            command: 'appendLines',
+            html: html,
+            startOffset: startIdx,
+            nextOffset: endIdx,
+            hasMore: endIdx < renderLines.length,
+            replace: replace
+        });
     }
 
     /**
@@ -453,7 +596,9 @@ class LogViewerManager {
             'line', 'content', 'noFile', 'loading', 'loadError', 'fileTooLarge',
             'noMarkbookItems', 'bookmarkAdded', 'bookmarkRemoved', 'filterApplied',
             'filterCleared', 'searchCompleted', 'encoding', 'encodingAuto',
-            'encodingUtf8', 'encodingGbk', 'encodingLatin1'
+            'encodingUtf8', 'encodingGbk', 'encodingLatin1',
+            'columnSettings', 'columns', 'showAllColumns', 'resetColumnWidths',
+            'lineNotLoaded'
         ];
 
         logViewerKeys.forEach(key => {
@@ -518,6 +663,9 @@ class LogViewerManager {
                     case 'gotoLine':
                         await this.handleGotoLine(panelInfo, message);
                         break;
+                    case 'loadMoreLines':
+                        await this.handleLoadMoreLines(panelInfo, message);
+                        break;
                     case 'syncToOriginal':
                         await this.handleSyncToOriginal(panelInfo, message);
                         break;
@@ -549,6 +697,7 @@ class LogViewerManager {
             openLabel: localize('logviewer.selectFile'),
             filters: {
                 'Log Files': ['log', 'txt', 'out', 'err', 'jsonl'],
+                'Tabular Data': ['csv', 'tsv'],
                 'JSON Lines': ['jsonl'],
                 'All Files': ['*']
             }
@@ -925,29 +1074,41 @@ class LogViewerManager {
      */
     async updateAffectedLines(panelInfo, keyword) {
         const lines = panelInfo.isFilterView ? panelInfo.filteredLines : panelInfo.analyzer.lines;
-        
+        const isTabular = panelInfo.analyzer.isTabular;
+
         // Find all line numbers that contain the keyword
         const affectedLineNumbers = [];
         const escapedKeyword = this.escapeRegex(keyword);
         const regex = new RegExp(escapedKeyword, 'g');
-        
+
         for (const line of lines) {
+            if (isTabular && panelInfo.analyzer.headerRowNumber === line.lineNumber) {
+                continue; // Skip header row (not rendered as a data line)
+            }
             if (regex.test(line.text)) {
                 affectedLineNumbers.push(line.lineNumber);
             }
             regex.lastIndex = 0; // Reset regex for next test
         }
-        
+
         if (affectedLineNumbers.length === 0) {
             return; // No lines affected
         }
-        
+
         // Send update command to webview with affected lines
         panelInfo.panel.webview.postMessage({
             command: 'updateLines',
             lineNumbers: affectedLineNumbers,
             lines: lines.filter(l => affectedLineNumbers.includes(l.lineNumber)).map(line => {
-                const highlightedText = panelInfo.highlighter.buildHighlightedHtml(line.text);
+                let highlightedText;
+                if (isTabular && line.columns) {
+                    // Rebuild tabular cells so the table layout survives the refresh
+                    highlightedText = line.columns.map((cell, i) =>
+                        `<span class="tabular-cell" data-col="${i}">${panelInfo.highlighter.buildHighlightedHtml(cell)}</span>`
+                    ).join('');
+                } else {
+                    highlightedText = panelInfo.highlighter.buildHighlightedHtml(line.text);
+                }
                 const isBookmarked = panelInfo.markbook.isBookmarked(line.lineNumber);
                 return {
                     lineNumber: line.lineNumber,
@@ -1034,7 +1195,7 @@ class LogViewerManager {
      * @returns {string} HTML content
      */
     generateLoadingHtml(panelInfo) {
-        const templatePath = path.join(this.context.extensionPath, 'src', 'webview', 'logViewer', 'logViewer.html');
+        const templatePath = path.join(this.context.extensionPath, 'source', 'webview', 'logViewer', 'logViewer.html');
         let html = fs.readFileSync(templatePath, 'utf8');
 
         // Set display states for loading view
@@ -1061,16 +1222,16 @@ class LogViewerManager {
 
         // Replace resource URIs
         const styleUri = panelInfo.panel.webview.asWebviewUri(
-            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'style.css'))
+            vscode.Uri.file(path.join(this.context.extensionPath, 'source', 'webview', 'style.css'))
         );
         const logViewerCssUri = panelInfo.panel.webview.asWebviewUri(
-            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'logViewer', 'logViewer.css'))
+            vscode.Uri.file(path.join(this.context.extensionPath, 'source', 'webview', 'logViewer', 'logViewer.css'))
         );
         const scriptUri = panelInfo.panel.webview.asWebviewUri(
-            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'logViewer', 'logViewer.js'))
+            vscode.Uri.file(path.join(this.context.extensionPath, 'source', 'webview', 'logViewer', 'logViewer.js'))
         );
         const fontAwesomeUri = panelInfo.panel.webview.asWebviewUri(
-            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'assets', 'fontawesome', 'all.min.css'))
+            vscode.Uri.file(path.join(this.context.extensionPath, 'source', 'webview', 'assets', 'fontawesome', 'all.min.css'))
         );
 
         html = html.replace('{{style.css}}', styleUri.toString());
@@ -1087,7 +1248,7 @@ class LogViewerManager {
      * @returns {string} HTML content
      */
     generateEmptyStateHtml(panelInfo) {
-        const templatePath = path.join(this.context.extensionPath, 'src', 'webview', 'logViewer', 'logViewer.html');
+        const templatePath = path.join(this.context.extensionPath, 'source', 'webview', 'logViewer', 'logViewer.html');
         let html = fs.readFileSync(templatePath, 'utf8');
 
         // Set display states for empty state view
@@ -1123,16 +1284,16 @@ class LogViewerManager {
 
         // Replace resource URIs
         const styleUri = panelInfo.panel.webview.asWebviewUri(
-            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'style.css'))
+            vscode.Uri.file(path.join(this.context.extensionPath, 'source', 'webview', 'style.css'))
         );
         const logViewerCssUri = panelInfo.panel.webview.asWebviewUri(
-            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'logViewer', 'logViewer.css'))
+            vscode.Uri.file(path.join(this.context.extensionPath, 'source', 'webview', 'logViewer', 'logViewer.css'))
         );
         const scriptUri = panelInfo.panel.webview.asWebviewUri(
-            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'logViewer', 'logViewer.js'))
+            vscode.Uri.file(path.join(this.context.extensionPath, 'source', 'webview', 'logViewer', 'logViewer.js'))
         );
         const fontAwesomeUri = panelInfo.panel.webview.asWebviewUri(
-            vscode.Uri.file(path.join(this.context.extensionPath, 'src', 'webview', 'assets', 'fontawesome', 'all.min.css'))
+            vscode.Uri.file(path.join(this.context.extensionPath, 'source', 'webview', 'assets', 'fontawesome', 'all.min.css'))
         );
 
         html = html.replace('{{style.css}}', styleUri.toString());

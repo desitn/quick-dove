@@ -4,8 +4,6 @@
  */
 'use strict';
 
-const path = require('path');
-
 const VERSION_PATTERN = /^\d+\.\d+\.\d+$/;
 
 /** Normalize any path separators to POSIX `/` so remote paths compare correctly. */
@@ -107,32 +105,6 @@ function isHermesUiContent(data) {
   return false;
 }
 
-function toRelativePath(fileFsPath, workspaceFolderFsPaths) {
-  const filePosix = toPosixPath(fileFsPath);
-  const isPosixFile = filePosix.startsWith('/');
-
-  for (const folderPath of workspaceFolderFsPaths) {
-    const folderPosix = toPosixPath(folderPath);
-    const isPosixFolder = folderPosix.startsWith('/');
-
-    // When both sides are POSIX-style (typical for an SSH remote CWD and a
-    // mapped remote file path), compute the relative path with path.posix so
-    // drive-letter handling never interferes.
-    const rel =
-      isPosixFile && isPosixFolder
-        ? path.posix.relative(folderPosix, filePosix)
-        : path.relative(folderPath, fileFsPath);
-
-    if (!rel.startsWith('..')) {
-      // Normalize separators: path.relative on Windows returns backslashes.
-      return toPosixPath(rel);
-    }
-  }
-
-  // Fallback: absolute path
-  return filePosix;
-}
-
 function formatLineRef(filePath, startLine, endLine) {
   if (startLine === endLine) {
     return `@${filePath}:${startLine}`;
@@ -150,6 +122,5 @@ module.exports = {
   matchesHermesTerminalName,
   isHermesCommandEcho,
   isHermesUiContent,
-  toRelativePath,
   formatLineRef,
 };

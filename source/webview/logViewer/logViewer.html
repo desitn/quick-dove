@@ -69,6 +69,9 @@
                 <button class="btn btn-icon" id="btnMarkbook" title="{{logviewer.markbook}} (Ctrl+B)">
                     <i class="fa-solid fa-bookmark"></i>
                 </button>
+                <button class="btn btn-icon" id="btnColumnSettings" title="{{logviewer.columnSettings}}" style="display: none;">
+                    <i class="fa-solid fa-table-columns"></i>
+                </button>
                 <button class="btn btn-icon" id="btnTools" title="{{logviewer.tools}} (Ctrl+X)">
                     <i class="fa-solid fa-screwdriver-wrench"></i>
                 </button>
@@ -162,6 +165,21 @@
                     </div>
                     <div class="tool-result" id="baseResult"></div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Column Settings Panel -->
+        <div class="column-settings-panel" id="columnSettingsPanel">
+            <div class="column-settings-header">
+                <span>{{logviewer.columns}}</span>
+                <button class="btn btn-icon" id="btnCloseColumnSettings" title="Close"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="column-settings-list" id="columnSettingsList">
+                <!-- Columns will be populated here -->
+            </div>
+            <div class="column-settings-actions">
+                <button class="btn btn-secondary" id="btnShowAllColumns">{{logviewer.showAllColumns}}</button>
+                <button class="btn btn-secondary" id="btnResetColumnWidths">{{logviewer.resetColumnWidths}}</button>
             </div>
         </div>
 

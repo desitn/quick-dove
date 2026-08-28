@@ -7,7 +7,6 @@
 const vscode = require('vscode');
 const { localize } = require('../localization');
 const {
-  toRelativePath,
   formatLineRef,
   mapToRemotePath,
   toPosixPath,
@@ -69,45 +68,36 @@ class ContextSender {
 
   /**
    * Build a reference in the form:
-   *   `windows F:\proj  @src\main.py`          (file)
-   *   `windows F:\proj  @src\main.py:10-20`    (selection)
+   *   `@windows F:\proj\src\main.py`          (file)
+   *   `@windows F:\proj\src\main.py:10-20`    (selection)
    *
-   * The leading scope (`windows F:\proj`) tells Hermes where the workspace
-   * lives; the `@`-reference points at a file relative to it.
+   * The complete absolute path is sent in one piece — host prefix included —
+   * so Hermes receives the full location without scope concatenation.
    */
   buildReference(fileFsPath, lineInfo) {
     const style = this.getPathStyle();
-    const useAbsolute = this.useAbsolutePaths();
     const remote = mapToRemotePath(fileFsPath, this.getRemoteMappings());
-
-    let rel;
-    if (useAbsolute || remote) {
-      rel = remote ?? fileFsPath;
-    } else {
-      const folder = vscode.workspace.workspaceFolders?.[0];
-      const base = folder ? folder.uri.fsPath : undefined;
-      rel = base ? toRelativePath(fileFsPath, [base]) : fileFsPath;
-    }
-    const relNorm = toPathStyle(rel, style);
-    const ref = lineInfo
-      ? formatLineRef(relNorm, lineInfo.start, lineInfo.end)
-      : `@${relNorm}`;
-
-    // Absolute or mapped references carry their own full path — no scope.
-    if (useAbsolute || remote) return ref;
-
-    const scope = this.buildScope();
-    return scope ? `${scope}  ${ref}` : ref;
+    const full = remote ?? fileFsPath;
+    const fullNorm = toPathStyle(full, style);
+    const base = this.withPrefix(fullNorm);
+    return lineInfo
+      ? formatLineRef(base, lineInfo.start, lineInfo.end)
+      : `@${base}`;
   }
 
-  /** Build the leading scope part, e.g. `windows F:\proj`. */
+  /** Build the workspace reference, e.g. `@windows F:\proj`. */
   buildScope(rootFsPath) {
     const style = this.getPathStyle();
-    const prefix = this.getPathPrefix();
     const root = rootFsPath ?? this.getWorkspaceRoot();
     if (!root) return '';
     const rootNorm = toPathStyle(root, style).replace(/[\\/]+$/, '');
-    return prefix ? `${prefix} ${rootNorm}` : rootNorm;
+    return `@${this.withPrefix(rootNorm)}`;
+  }
+
+  /** Prepend the host prefix (e.g. `windows`) to a path string. */
+  withPrefix(pathStr) {
+    const prefix = this.getPathPrefix();
+    return prefix ? `${prefix} ${pathStr}` : pathStr;
   }
 
   getPathStyle() {
@@ -123,8 +113,8 @@ class ContextSender {
 
   getWorkspaceRoot() {
     // Explicitly configured root wins; otherwise default to the first
-    // workspace folder so references read `windows F:\proj  @rel` out of
-    // the box.
+    // workspace folder so adding the workspace sends `@windows F:\proj` out
+    // of the box.
     const config = vscode.workspace.getConfiguration('hermesRemote');
     const root = config.get('workspaceRoot', '');
     if (root) return root;
@@ -135,11 +125,6 @@ class ContextSender {
   getRemoteMappings() {
     const config = vscode.workspace.getConfiguration('hermesRemote');
     return config.get('remoteMappings', []);
-  }
-
-  useAbsolutePaths() {
-    const config = vscode.workspace.getConfiguration('hermesRemote');
-    return config.get('useAbsolutePaths', false);
   }
 
   getTerminalCwd(terminal) {
